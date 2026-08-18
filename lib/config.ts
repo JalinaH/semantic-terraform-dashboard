@@ -21,7 +21,6 @@ export function getIntegrationConfigurationStatus(): IntegrationConfigurationSta
   };
   const appChecks = {
     GITHUB_APP_ID: process.env.GITHUB_APP_ID,
-    GITHUB_APP_SLUG: process.env.GITHUB_APP_SLUG,
     GITHUB_APP_PRIVATE_KEY: process.env.GITHUB_APP_PRIVATE_KEY,
   };
   const missingAuthentication = Object.entries(authenticationChecks)
@@ -30,6 +29,9 @@ export function getIntegrationConfigurationStatus(): IntegrationConfigurationSta
   const missingGitHubApp = Object.entries(appChecks)
     .filter(([, value]) => !present(value))
     .map(([key]) => key);
+  if (!normalizeGitHubAppSlug(process.env.GITHUB_APP_SLUG)) {
+    missingGitHubApp.push("GITHUB_APP_SLUG");
+  }
 
   return {
     authentication: missingAuthentication.length === 0,
@@ -61,7 +63,8 @@ export class MissingIntegrationConfigurationError extends Error {
 
 export function getGitHubAppConfiguration(): GitHubAppConfiguration {
   const integration = getIntegrationConfigurationStatus();
-  if (!integration.githubApp) {
+  const slug = normalizeGitHubAppSlug(process.env.GITHUB_APP_SLUG);
+  if (!integration.githubApp || !slug) {
     throw new MissingIntegrationConfigurationError([
       ...integration.missingAuthentication,
       ...integration.missingGitHubApp,
@@ -72,11 +75,38 @@ export function getGitHubAppConfiguration(): GitHubAppConfiguration {
     appId: process.env.GITHUB_APP_ID!.trim(),
     clientId: process.env.GITHUB_APP_CLIENT_ID!.trim(),
     clientSecret: process.env.GITHUB_APP_CLIENT_SECRET!.trim(),
-    slug: process.env.GITHUB_APP_SLUG!.trim(),
+    slug,
     privateKey: normalizePrivateKey(process.env.GITHUB_APP_PRIVATE_KEY!),
   };
 }
 
 export function normalizePrivateKey(value: string) {
   return value.trim().replace(/\\n/g, "\n");
+}
+
+const GITHUB_APP_SLUG_PATTERN = /^[a-zA-Z0-9-]+$/;
+
+/**
+ * Accept the canonical slug as well as URLs commonly copied from GitHub's
+ * public App page or developer settings. Only github.com URLs are trusted.
+ */
+export function normalizeGitHubAppSlug(value: string | undefined) {
+  const candidate = value?.trim();
+  if (!candidate) return null;
+  if (GITHUB_APP_SLUG_PATTERN.test(candidate)) return candidate;
+
+  try {
+    const url = new URL(candidate);
+    if (url.protocol !== "https:" || url.hostname !== "github.com") return null;
+    const segments = url.pathname.split("/").filter(Boolean);
+    const slug =
+      segments.length === 2 && segments[0] === "apps"
+        ? segments[1]
+        : segments.length === 3 && segments[0] === "settings" && segments[1] === "apps"
+          ? segments[2]
+          : null;
+    return slug && GITHUB_APP_SLUG_PATTERN.test(slug) ? slug : null;
+  } catch {
+    return null;
+  }
 }

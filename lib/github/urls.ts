@@ -2,6 +2,10 @@ import { getGitHubAppConfiguration } from "@/lib/config";
 
 export function getGitHubAppInstallationUrl(state: string) {
   const { slug } = getGitHubAppConfiguration();
+  return buildGitHubAppInstallationUrl(slug, state);
+}
+
+export function buildGitHubAppInstallationUrl(slug: string, state: string) {
   const url = new URL(`https://github.com/apps/${encodeURIComponent(slug)}/installations/new`);
   url.searchParams.set("state", state);
   return url.toString();

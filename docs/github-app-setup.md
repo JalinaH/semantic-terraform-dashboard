@@ -58,7 +58,7 @@ After creating the App:
 1. Copy the numeric **App ID**.
 2. Copy the **Client ID**.
 3. Generate one **Client secret** and copy it immediately.
-4. Record the App slug from its public URL: `https://github.com/apps/<app-slug>`.
+4. Record the App slug from its public URL: `https://github.com/apps/<app-slug>`. Set `GITHUB_APP_SLUG` to only the final `<app-slug>` segment. The dashboard also accepts a copied public-App or personal developer-settings URL and safely extracts that segment.
 5. Generate a **private key** and download the PEM file.
 
 Treat the client secret and private key as server-only secrets. Never commit the PEM file.
