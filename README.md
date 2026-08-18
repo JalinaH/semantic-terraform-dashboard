@@ -1,97 +1,127 @@
 # Semantic Terraform Agent Dashboard
 
-The hosted dashboard and control-plane foundation for **Semantic Terraform Agent**. It presents repository configuration, diagnosis runs, candidate patches, verification evidence, and performance metadata without duplicating the agent engine.
+The hosted dashboard and control plane for **Semantic Terraform Agent**. Phase 2 adds real GitHub identity, GitHub App installation, and repository discovery without copying or invoking the Python agent engine.
 
 ## Repository boundary
 
-The product is intentionally split into two repositories:
-
 ```text
 semantic-terraform-agent
-└── Reusable Python diagnosis and verification engine, CLI, GitHub Actions integration,
-    Gemini reasoning, isolated Terraform checks, bounded repair, and PR comments
+└── Python diagnosis/verification engine, CLI, Terraform checks, bounded repair,
+    reusable GitHub Actions integration, and PR comments
 
 semantic-terraform-dashboard
-└── Hosted SaaS interface and future control plane for onboarding, configuration,
-    run ingestion, history, and analytics
+└── Hosted SaaS UI/control plane for identity, installations, repository access,
+    future configuration, run ingestion, and analytics
 ```
 
-No Python agent code is copied into this repository. Phase 1 uses typed mock data and does not invoke the engine.
+The dashboard does not contain the Python agent and does not execute Terraform.
 
-## Phase 1 capabilities
+## Phase 2 capabilities
 
-- Responsive landing page and authenticated-style application shell
-- Overview metrics, recent run history, and repository health
-- Repository list and preview configuration screens
-- Filter-ready run table and result-oriented run detail visualization
-- Unified diff presentation, ordered verification stages, and bounded attempt history
-- Light, dark, and system themes with persisted browser preference
-- PostgreSQL-ready Prisma schema and a development-safe Prisma singleton
-- Strict TypeScript types for repository, context, status, stage, run, and performance data
+- GitHub App user authorization through Auth.js
+- PostgreSQL-backed users, OAuth accounts, and database sessions through Prisma
+- Protected dashboard, repositories, runs, settings, and GitHub onboarding routes
+- State- and cookie-protected GitHub App installation setup flow
+- Server-only GitHub App JWT and short-lived installation-token generation
+- Verification that an installation is accessible to the signed-in GitHub user
+- Multiple personal/organization installations per dashboard user
+- Repository synchronization grouped by installation account
+- Soft removal of repositories no longer granted to an installation
+- Real GitHub avatar/login and sign-out menu
+- Safe missing-configuration, denial, cancellation, rate-limit, and synchronization states
+- Unit tests that mock GitHub boundaries and require no live App
 
-## Intentionally not implemented
+Phase 1 run-detail mock data remains only as a visualization sample. Authenticated dashboard metrics do not present mock activity as real data; run ingestion remains empty.
 
-- Authentication or multi-user permissions
-- GitHub OAuth, GitHub App installation, or webhooks
-- AWS AssumeRole or CloudFormation onboarding
-- Worker execution, job queues, or Python agent invocation
-- Persistent run ingestion or PR comments
-- Billing, email, product analytics, or production deployment
+## Security model
 
-These integrations belong to later phases. Controls that depend on them are disabled or marked **Coming later**.
+User authorization and installation authorization are intentionally separate. Auth.js persists provider tokens in server-only Prisma `Account` rows. The client session exposes only the user ID, GitHub user ID, login, name, email, and avatar URL. Installation callbacks require signed, expiring state plus an HTTP-only correlation cookie, then verify the installation through both the user and App API views.
+
+The GitHub App private key, client secret, webhook secret, OAuth tokens, and installation tokens must never use a `NEXT_PUBLIC_` variable. Installation tokens are generated as needed rather than persisted as credentials. No GitHub personal access token is accepted.
 
 ## Technology
 
-- Next.js App Router with React and strict TypeScript
-- Tailwind CSS with semantic CSS-variable tokens
+- Next.js 16 App Router and React 19
+- strict TypeScript and Tailwind CSS 4
 - shadcn/ui-style local components and Lucide icons
-- Prisma ORM targeting PostgreSQL
-- `next-themes` for light, dark, and system appearance
+- Auth.js / NextAuth 5 with the Prisma adapter
+- Prisma 6 targeting PostgreSQL
+- Octokit REST and `jose` for server-side GitHub App authentication
+- Vitest for isolated Phase 2 logic tests
+- `next-themes` for persisted light, dark, and system appearance
 - pnpm package management
 
 ## Local development
 
-Requirements: Node.js 20.9 or newer and pnpm.
+Requirements: Node.js 20.9 or newer, pnpm, and PostgreSQL for real sign-in/session persistence.
 
 ```bash
 pnpm install
+cp .env.example .env
+pnpm prisma:generate
+pnpm prisma migrate dev
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The dashboard is available at [http://localhost:3000/dashboard](http://localhost:3000/dashboard).
+Open [http://localhost:3000](http://localhost:3000).
 
-The Phase 1 UI is entirely backed by `lib/mock-data.ts`; PostgreSQL is optional for previewing every route.
+The app still builds and the public landing page renders when GitHub variables are absent; it shows an explicit unconfigured state and disables sign-in. Real authenticated routes require PostgreSQL and a registered GitHub App.
 
-## Optional Prisma setup
+Follow [docs/github-app-setup.md](docs/github-app-setup.md) for the exact callback URL, Setup URL, permission, private-key, and local smoke-test steps.
 
-Copy the environment template only when you want to validate or evolve the database layer:
+## Environment variables
 
-```bash
-cp .env.example .env
-pnpm prisma:generate
-pnpm prisma:validate
+| Variable | Visibility | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` | Server | PostgreSQL connection for Prisma/Auth.js |
+| `NEXT_PUBLIC_APP_URL` | Public | Canonical local application URL |
+| `AUTH_SECRET` | Server secret | Auth.js cookie/token and installation-state signing |
+| `AUTH_TRUST_HOST` | Server | Allows the local development host |
+| `GITHUB_APP_ID` | Server | Numeric GitHub App ID |
+| `GITHUB_APP_CLIENT_ID` | Server | GitHub App OAuth client ID and preferred App JWT issuer |
+| `GITHUB_APP_CLIENT_SECRET` | Server secret | GitHub App user-authorization secret |
+| `GITHUB_APP_SLUG` | Server | Builds the App installation URL |
+| `GITHUB_APP_PRIVATE_KEY` | Server secret | Signs GitHub App JWTs; supports escaped newlines |
+| `GITHUB_WEBHOOK_SECRET` | Server secret, unused | Reserved for a later webhook phase |
+
+Do not put OAuth tokens, installation tokens, client secrets, webhook secrets, or private keys in client components or `NEXT_PUBLIC_*` values.
+
+## Repository synchronization
+
+An installation callback retrieves a short-lived installation token, pages through all repositories granted to that installation, and upserts GitHub identity, owner/name, default branch, privacy, and archive state. Manual **Sync repositories** repeats that operation. Repositories no longer returned by GitHub are marked `accessible = false` with `removedAt`; they are not deleted, preserving a future path for historical runs.
+
+## Database changes
+
+The Prisma schema includes Auth.js `Account`, `Session`, and `VerificationToken` models plus a `UserInstallation` join model:
+
+```text
+User ──< UserInstallation >── GitHubInstallation ──< Repository
 ```
 
-Set `DATABASE_URL` to a local PostgreSQL database before migrations or database queries. The committed example contains development placeholders only. Permanent AWS access keys are never part of this data model.
+This supports several installations per user and leaves room for several dashboard users to be associated with the same organization installation later. The Phase 2 flow does not implement organization roles or invitations.
 
 ## Quality checks
 
 ```bash
 pnpm lint
 pnpm typecheck
+pnpm test
 pnpm prisma:validate
 pnpm build
 git diff --check
 ```
 
-## Phase 2 starting point
+The normal test suite does not call GitHub or require a live database.
 
-Start with GitHub identity and installation boundaries rather than agent execution:
+## Intentionally deferred
 
-1. Add GitHub OAuth for dashboard identity.
-2. Create the GitHub App with least-privilege repository metadata, Actions, checks, pull request, and contents permissions appropriate to the planned workflow.
-3. Implement the installation callback and sync `GitHubInstallation` plus `Repository` records.
-4. Add explicit installation-state and permission-review screens.
-5. Only after onboarding is stable, add signed webhook ingestion and a durable job boundary that calls the separate Python agent service.
+- AWS onboarding, CloudFormation, or STS AssumeRole
+- GitHub webhooks and automatic repository synchronization
+- workflow-run monitoring and Terraform execution
+- workers, queues, Redis, or Python agent invocation
+- real dashboard run ingestion and PR diagnosis comments
+- repository configuration persistence
+- organization roles, invitations, and multi-user permissions
+- notifications, billing, analytics tracking, MCP, or Marketplace publication
 
-Keep GitHub credentials server-only and preserve the current engine/control-plane separation.
+The next phase should establish AWS account onboarding and repository-specific execution configuration without yet collapsing the boundary between this control plane and `semantic-terraform-agent`.

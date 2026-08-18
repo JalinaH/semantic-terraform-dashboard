@@ -12,6 +12,11 @@ enum AccountType {
   ORGANIZATION
 }
 
+enum RepositorySelection {
+  ALL
+  SELECTED
+}
+
 enum ContextMode {
   MINIMAL
   SMART
@@ -35,29 +40,53 @@ enum VerificationStatus {
 }
 
 model User {
-  id                  String               @id @default(cuid())
-  githubUserId        String               @unique
-  githubLogin         String               @unique
-  name                String?
-  avatarUrl           String?
-  githubInstallations GitHubInstallation[]
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
+  id                String             @id @default(cuid())
+  name              String?
+  email             String?            @unique
+  emailVerified     DateTime?
+  image             String?
+  githubUserId      String?            @unique
+  githubLogin       String?
+  avatarUrl         String?
+  accounts          Account[]
+  sessions          Session[]
+  userInstallations UserInstallation[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([githubLogin])
 }
 
 model GitHubInstallation {
-  id             String       @id @default(cuid())
-  installationId String       @unique
-  accountLogin   String
-  accountType    AccountType
-  userId         String
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  repositories   Repository[]
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id                  String              @id @default(cuid())
+  installationId      String              @unique
+  accountId           String?
+  accountLogin        String
+  accountType         AccountType
+  repositorySelection RepositorySelection
+  htmlUrl             String?
+  suspendedAt         DateTime?
+  userInstallations   UserInstallation[]
+  repositories        Repository[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 
-  @@index([userId])
+  @@index([accountId])
   @@index([accountLogin])
+}
+
+model UserInstallation {
+  id                   String             @id @default(cuid())
+  userId               String
+  githubInstallationId String
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  githubInstallation   GitHubInstallation @relation(fields: [githubInstallationId], references: [id], onDelete: Cascade)
+  lastVerifiedAt       DateTime           @default(now())
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@unique([userId, githubInstallationId])
+  @@index([githubInstallationId])
 }
 
 model Repository {
@@ -67,6 +96,10 @@ model Repository {
   name               String
   fullName           String             @unique
   defaultBranch      String             @default("main")
+  private            Boolean            @default(false)
+  archived           Boolean            @default(false)
+  accessible         Boolean            @default(true)
+  removedAt          DateTime?
   installationId     String
   installation       GitHubInstallation @relation(fields: [installationId], references: [id], onDelete: Cascade)
   config             RepositoryConfig?
@@ -76,7 +109,46 @@ model Repository {
   updatedAt          DateTime           @updatedAt
 
   @@index([installationId])
+  @@index([installationId, accessible])
   @@index([owner, name])
+}
+
+model Account {
+  id                       String  @id @default(cuid())
+  userId                   String
+  type                     String
+  provider                 String
+  providerAccountId        String
+  refresh_token            String? @db.Text
+  access_token             String? @db.Text
+  expires_at               Int?
+  token_type               String?
+  scope                    String?
+  id_token                 String? @db.Text
+  session_state            String?
+  refresh_token_expires_in Int?
+  user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
 
 model RepositoryConfig {

@@ -17,7 +17,7 @@ export function AppSidebar({ className, onNavigate }: { className?: string; onNa
         </span>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold tracking-tight">Semantic Terraform</p>
-          <p className="text-[11px] text-muted-foreground">Dashboard Preview</p>
+          <p className="text-[11px] text-muted-foreground">GitHub Onboarding</p>
         </div>
       </div>
 

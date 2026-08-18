@@ -48,6 +48,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="space-y-7">
+      <div role="status" className="rounded-lg border border-warning/20 bg-warning-muted px-4 py-3 text-xs leading-5 text-warning-foreground"><span className="font-medium">Visualization sample.</span> This Phase 1 result is typed mock data, not an ingested run from your connected repositories.</div>
       <header>
         <Link href="/runs" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "-ml-3 text-muted-foreground")}><ArrowLeft aria-hidden="true" />Agent runs</Link>
         <div className="mt-3 flex flex-col justify-between gap-4 lg:flex-row lg:items-start">

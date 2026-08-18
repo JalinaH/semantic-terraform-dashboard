@@ -1,31 +1,56 @@
 import Link from "next/link";
-import { Activity, ArrowRight, CheckCircle2, FolderGit2, Gauge } from "lucide-react";
+import { Activity, ArrowRight, CheckCircle2, FolderGit2, Gauge, GitPullRequestArrow, Github } from "lucide-react";
+import { beginGitHubInstallationAction } from "@/app/actions/github";
+import { ConnectedRepositoryCard } from "@/components/connected-repository-card";
+import { EmptyState } from "@/components/empty-state";
 import { MetricCard } from "@/components/metric-card";
-import { RepositoryCard } from "@/components/repository-card";
-import { RunsTable } from "@/components/runs-table";
-import { buttonVariants } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { dashboardMetrics, repositories, runs } from "@/lib/mock-data";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { requireAuthenticatedUser } from "@/lib/auth/session";
+import { getDashboardSummary } from "@/lib/data/dashboard";
+import { listInstallationsForUser } from "@/lib/github/installations";
 import { cn } from "@/lib/utils";
 
-const metricIcons = [FolderGit2, Activity, CheckCircle2, Gauge];
+export const dynamic = "force-dynamic";
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const user = await requireAuthenticatedUser();
+  const [summary, userInstallations] = await Promise.all([
+    getDashboardSummary(user.id),
+    listInstallationsForUser(user.id),
+  ]);
+  const repositories = userInstallations.flatMap(({ githubInstallation }) =>
+    githubInstallation.repositories.map((repository) => ({ repository, accountLogin: githubInstallation.accountLogin })),
+  );
+  const metrics = [
+    { title: "Repositories", value: String(summary.repositoryCount), description: `${summary.installationCount} connected installation${summary.installationCount === 1 ? "" : "s"}`, icon: FolderGit2 },
+    { title: "Agent runs", value: String(summary.runCount), description: "Run ingestion begins in a later phase", icon: Activity },
+    { title: "Verified fixes", value: String(summary.verifiedCount), description: "Evidence-backed successful verifications", icon: CheckCircle2 },
+    { title: "Verification rate", value: summary.verificationRate === null ? "—" : `${summary.verificationRate}%`, description: summary.runCount ? "Across persisted runs" : "Available after the first run", icon: Gauge },
+  ];
+
   return (
     <div className="space-y-8">
       <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Control plane</p>
           <h2 className="mt-2 text-2xl font-semibold tracking-[-0.025em]">Terraform failure intelligence</h2>
-          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted-foreground">Monitor evidence-backed diagnoses and isolated verification outcomes across your connected repositories.</p>
+          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted-foreground">Connect GitHub repositories now. Diagnosis, isolated verification, and run ingestion remain intentionally inactive in this phase.</p>
         </div>
-        <Link href="/runs" className={cn(buttonVariants({ variant: "outline" }), "w-fit")}>View all runs <ArrowRight aria-hidden="true" /></Link>
+        {repositories.length ? (
+          <Link href="/repositories" className={cn(buttonVariants({ variant: "outline" }), "w-fit")}>Manage repositories <ArrowRight aria-hidden="true" /></Link>
+        ) : (
+          <form action={beginGitHubInstallationAction}>
+            <input type="hidden" name="returnTo" value="/repositories" />
+            <Button type="submit"><Github aria-hidden="true" />Install GitHub App</Button>
+          </form>
+        )}
       </section>
 
       <section aria-labelledby="summary-heading">
         <h2 id="summary-heading" className="sr-only">Workspace summary</h2>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {dashboardMetrics.map((metric, index) => <MetricCard key={metric.title} {...metric} icon={metricIcons[index]} />)}
+          {metrics.map((metric) => <MetricCard key={metric.title} {...metric} />)}
         </div>
       </section>
 
@@ -33,24 +58,33 @@ export default function DashboardPage() {
         <div className="mb-3 flex items-center justify-between">
           <div>
             <h2 id="recent-runs-heading" className="text-base font-semibold">Recent runs</h2>
-            <p className="mt-1 text-xs text-muted-foreground">Latest diagnoses from configured repositories.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Real run records will appear after the execution pipeline is connected.</p>
           </div>
-          <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex"><span className="size-1.5 rounded-full bg-success" />Mock preview data</span>
+          <span className="text-xs text-muted-foreground">0 persisted runs</span>
         </div>
-        <Card className="overflow-hidden"><RunsTable runs={runs.slice(0, 4)} /></Card>
+        <Card><CardContent className="p-0"><EmptyState icon={GitPullRequestArrow} title="No agent runs yet" description="Phase 2 establishes identity and repository access. Terraform execution and result ingestion are deferred." /></CardContent></Card>
       </section>
 
-      <section aria-labelledby="health-heading">
-        <div className="mb-3 flex items-center justify-between">
+      <section aria-labelledby="repositories-heading">
+        <div className="mb-3 flex items-center justify-between gap-4">
           <div>
-            <h2 id="health-heading" className="text-base font-semibold">Repository health</h2>
-            <p className="mt-1 text-xs text-muted-foreground">Configuration and last verification state.</p>
+            <h2 id="repositories-heading" className="text-base font-semibold">Connected repositories</h2>
+            <p className="mt-1 text-xs text-muted-foreground">Repository access currently granted to the GitHub App.</p>
           </div>
-          <Link href="/repositories" className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">Manage repositories</Link>
+          {repositories.length ? <Link href="/repositories" className="text-xs font-medium text-muted-foreground hover:text-foreground">View all</Link> : null}
         </div>
-        <div className="grid gap-4 xl:grid-cols-3">
-          {repositories.slice(0, 3).map((repository) => <RepositoryCard key={repository.id} repository={repository} />)}
-        </div>
+        {repositories.length ? (
+          <div className="grid gap-4 xl:grid-cols-3">
+            {repositories.slice(0, 3).map(({ repository, accountLogin }) => <ConnectedRepositoryCard key={repository.id} repository={repository} accountLogin={accountLogin} />)}
+          </div>
+        ) : (
+          <EmptyState
+            icon={FolderGit2}
+            title="No repositories connected"
+            description="Install the GitHub App on a personal account or organization, then select the repositories Semantic Terraform Agent may access."
+            action={<form action={beginGitHubInstallationAction}><input type="hidden" name="returnTo" value="/repositories" /><Button type="submit" size="sm"><Github aria-hidden="true" />Install GitHub App</Button></form>}
+          />
+        )}
       </section>
     </div>
   );

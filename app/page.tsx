@@ -1,11 +1,19 @@
 import Link from "next/link";
 import { ArrowRight, Braces, Check, CircleDashed, Github, TerminalSquare } from "lucide-react";
+import { auth } from "@/auth";
+import { signInWithGitHubAction } from "@/app/actions/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { getIntegrationConfigurationStatus } from "@/lib/config";
 import { cn } from "@/lib/utils";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home({ searchParams }: { searchParams: Promise<{ auth?: string }> }) {
+  const session = await auth();
+  const configuration = getIntegrationConfigurationStatus();
+  const { auth: authState } = await searchParams;
   return (
     <div className="relative min-h-screen overflow-hidden bg-background">
       <div className="code-grid pointer-events-none absolute inset-0 opacity-35 [mask-image:linear-gradient(to_bottom,black,transparent_78%)]" />
@@ -15,9 +23,9 @@ export default function Home() {
           <span className="text-sm font-semibold tracking-tight">Semantic Terraform Agent</span>
         </Link>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="hidden bg-card/70 text-muted-foreground sm:inline-flex">Phase 1 preview</Badge>
+          <Badge variant="outline" className="hidden bg-card/70 text-muted-foreground sm:inline-flex">Phase 2 onboarding</Badge>
           <ThemeToggle />
-          <Link href="/dashboard" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "hidden sm:inline-flex")}>Dashboard</Link>
+          {session?.user ? <Link href="/dashboard" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "hidden sm:inline-flex")}>Dashboard</Link> : null}
         </div>
       </header>
 
@@ -30,14 +38,23 @@ export default function Home() {
           <p className="mt-6 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">
             Automatically diagnose semantic Terraform CI failures, generate bounded candidate fixes, and verify them in an isolated environment for human review.
           </p>
+          {authState === "required" ? <p className="mt-5 max-w-xl rounded-lg border border-warning/20 bg-warning-muted px-4 py-3 text-sm text-warning-foreground">Continue with GitHub to access the protected dashboard.</p> : null}
+          {authState === "configuration" || !configuration.authentication ? <p className="mt-5 max-w-xl rounded-lg border bg-secondary/50 px-4 py-3 text-sm text-muted-foreground"><span className="font-medium text-foreground">GitHub sign-in is not configured.</span> Add the documented Phase 2 environment values to enable authentication.</p> : null}
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link href="/dashboard" className={cn(buttonVariants({ size: "lg" }), "w-full sm:w-fit")}>Open Dashboard <ArrowRight aria-hidden="true" /></Link>
-            <span className="flex h-10 items-center px-1 text-xs text-muted-foreground">No authentication in this preview</span>
+            {session?.user ? (
+              <Link href="/dashboard" className={cn(buttonVariants({ size: "lg" }), "w-full sm:w-fit")}>Open Dashboard <ArrowRight aria-hidden="true" /></Link>
+            ) : (
+              <form action={signInWithGitHubAction}>
+                <input type="hidden" name="returnTo" value="/dashboard" />
+                <Button type="submit" size="lg" className="w-full sm:w-fit" disabled={!configuration.authentication}><Github aria-hidden="true" />Continue with GitHub</Button>
+              </form>
+            )}
+            <span className="flex h-10 items-center px-1 text-xs text-muted-foreground">GitHub App user authorization · no PAT required</span>
           </div>
           <div className="mt-12 grid max-w-xl gap-3 sm:grid-cols-3">
             <Mode icon={TerminalSquare} label="CLI" state="Available in agent repo" />
             <Mode icon={Github} label="GitHub Actions" state="Reusable integration" />
-            <Mode icon={CircleDashed} label="Hosted GitHub App" state="Planned for Phase 2" pending />
+            <Mode icon={CircleDashed} label="Hosted GitHub App" state="Identity + installation onboarding" pending={!configuration.githubApp} />
           </div>
         </section>
 

@@ -6,7 +6,15 @@ import { AppHeader } from "@/components/app-header";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Button } from "@/components/ui/button";
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+interface AppShellUser {
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+  githubLogin: string | null;
+  avatarUrl: string | null;
+}
+
+export function AppShell({ children, user }: { children: React.ReactNode; user: AppShellUser }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -22,7 +30,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       ) : null}
       <div className="lg:pl-[248px]">
-        <AppHeader onMenuClick={() => setMobileOpen(true)} />
+        <AppHeader onMenuClick={() => setMobileOpen(true)} user={user} />
         <main className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
     </div>
