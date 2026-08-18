@@ -23,6 +23,21 @@ enum ContextMode {
   FULL
 }
 
+enum RepositoryContextMode {
+  AUTO
+  LIGHTWEIGHT
+  SCHEMA_AWARE
+}
+
+enum ModelProvider {
+  GEMINI
+}
+
+enum FailureStage {
+  VALIDATE
+  PLAN
+}
+
 enum AWSConnectionStatus {
   PENDING
   CONNECTED
@@ -152,17 +167,21 @@ model VerificationToken {
 }
 
 model RepositoryConfig {
-  id                String      @id @default(cuid())
-  repositoryId      String      @unique
-  repository        Repository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  enabled           Boolean     @default(true)
-  terraformDir      String      @default(".")
-  terraformVersion  String?
-  model             String      @default("gemini-2.5-pro")
-  contextMode       ContextMode @default(SMART)
-  maxRepairAttempts Int         @default(1)
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  id                   String                @id @default(cuid())
+  repositoryId         String                @unique
+  repository           Repository            @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  enabled              Boolean               @default(true)
+  terraformDir         String                @default(".")
+  terraformVersion     String                @default("1.15.7")
+  modelProvider        ModelProvider         @default(GEMINI)
+  model                String                @default("gemini-3.6-flash")
+  contextMode          RepositoryContextMode @default(AUTO)
+  maxRepairAttempts    Int                   @default(1)
+  triggerOnPullRequest Boolean               @default(true)
+  triggerOnPush        Boolean               @default(true)
+  failedStages         FailureStage[]        @default([PLAN])
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
 }
 
 model AWSConnection {

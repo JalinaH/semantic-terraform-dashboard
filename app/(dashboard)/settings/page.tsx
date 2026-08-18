@@ -13,6 +13,7 @@ import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { listInstallationsForUser } from "@/lib/github/installations";
 import { getGitHubInstallationManagementUrl } from "@/lib/github/urls";
 import { cn } from "@/lib/utils";
+import { REPOSITORY_CONFIG_DEFAULTS } from "@/lib/repository-config/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-8">
-      <PageIntro eyebrow="Workspace" title="Settings" description="Manage your GitHub identity and installations. Agent defaults and notifications remain non-persisting previews." />
+      <PageIntro eyebrow="Workspace" title="Settings" description="Manage GitHub identity and installations. Repository-specific configuration remains authoritative." />
 
       <Card className="overflow-hidden">
         <CardContent className="p-0">
@@ -57,11 +58,13 @@ export default async function SettingsPage() {
             </div>
           </SettingsSection>
 
-          <SettingsSection icon={SlidersHorizontal} title="Default model" description="Applied when a repository has no model override." comingLater>
-            <Select defaultValue="gemini-2.5-pro" aria-label="Default model"><option value="gemini-2.5-pro">gemini-2.5-pro</option><option value="gemini-2.5-flash">gemini-2.5-flash</option></Select>
-          </SettingsSection>
-          <SettingsSection icon={SlidersHorizontal} title="Default context mode" description="Controls the bounded context collected for a diagnosis." comingLater>
-            <Select defaultValue="smart" aria-label="Default context mode"><option value="minimal">Minimal</option><option value="smart">Smart</option><option value="full">Full</option></Select>
+          <SettingsSection icon={SlidersHorizontal} title="Repository defaults" description="Preview values used when a repository has not been configured. Per-repository settings remain authoritative." comingLater>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <DefaultSelect label="Terraform version" value={REPOSITORY_CONFIG_DEFAULTS.terraformVersion}><option value={REPOSITORY_CONFIG_DEFAULTS.terraformVersion}>{REPOSITORY_CONFIG_DEFAULTS.terraformVersion}</option></DefaultSelect>
+              <DefaultSelect label="Model" value={REPOSITORY_CONFIG_DEFAULTS.model}><option value={REPOSITORY_CONFIG_DEFAULTS.model}>{REPOSITORY_CONFIG_DEFAULTS.model}</option></DefaultSelect>
+              <DefaultSelect label="Context mode" value={REPOSITORY_CONFIG_DEFAULTS.contextMode}><option value="auto">Auto</option><option value="lightweight">Lightweight</option><option value="schema-aware">Schema-aware</option></DefaultSelect>
+              <DefaultSelect label="Repair attempts" value={String(REPOSITORY_CONFIG_DEFAULTS.maxRepairAttempts)}><option value="0">0</option><option value="1">1</option></DefaultSelect>
+            </div>
           </SettingsSection>
           <SettingsSection icon={Bell} title="Notifications" description="Run outcomes and repository health alerts." comingLater>
             <div className="flex items-center gap-3"><Switch label="Run notifications" disabled /><Label className="text-muted-foreground">Run notifications</Label></div>
@@ -71,6 +74,11 @@ export default async function SettingsPage() {
       <p className="text-xs text-muted-foreground">GitHub account and repository access are persisted. Other controls are intentionally unavailable until their product phases.</p>
     </div>
   );
+}
+
+function DefaultSelect({ label, value, children }: { label: string; value: string; children: React.ReactNode }) {
+  const id = `default-${label.toLowerCase().replaceAll(" ", "-")}`;
+  return <div className="space-y-2"><Label htmlFor={id}>{label}</Label><Select id={id} defaultValue={value} disabled>{children}</Select></div>;
 }
 
 function SettingsSection({ icon: Icon, title, description, comingLater = false, children }: { icon: LucideIcon; title: string; description: string; comingLater?: boolean; children: React.ReactNode }) {

@@ -22,14 +22,14 @@ export default async function RepositoriesPage({ searchParams }: RepositoriesPag
   const user = await requireAuthenticatedUser();
   const [params, userInstallations] = await Promise.all([
     searchParams,
-    listInstallationsForUser(user.id),
+    listInstallationsForUser(user.id, { includeInaccessible: true }),
   ]);
   const error = singleValue(params.error);
   const connected = singleValue(params.github) === "connected";
   const synced = singleValue(params.synced);
   const removed = singleValue(params.removed);
   const repositoryCount = userInstallations.reduce(
-    (total, { githubInstallation }) => total + githubInstallation.repositories.length,
+    (total, { githubInstallation }) => total + githubInstallation.repositories.filter((repository) => repository.accessible).length,
     0,
   );
 
@@ -38,7 +38,7 @@ export default async function RepositoriesPage({ searchParams }: RepositoriesPag
       <PageIntro
         eyebrow="GitHub access"
         title="Repositories"
-        description="Repositories granted to the GitHub App. Agent configuration remains a later onboarding step."
+        description="Configure repositories granted to the GitHub App. Removed grants remain visible so saved settings and future history are preserved."
         action={
           <form action={beginGitHubInstallationAction}>
             <input type="hidden" name="returnTo" value="/repositories" />
@@ -75,7 +75,7 @@ export default async function RepositoriesPage({ searchParams }: RepositoriesPag
                       <Badge variant="outline">{githubInstallation.accountType === "ORGANIZATION" ? "Organization" : "Personal account"}</Badge>
                       <Badge variant="outline">{githubInstallation.repositorySelection === "ALL" ? "All repositories" : "Selected repositories"}</Badge>
                     </div>
-                    <p className="mt-1.5 text-xs text-muted-foreground">{githubInstallation.repositories.length} accessible repositor{githubInstallation.repositories.length === 1 ? "y" : "ies"}</p>
+                    <p className="mt-1.5 text-xs text-muted-foreground">{githubInstallation.repositories.filter((repository) => repository.accessible).length} accessible repositor{githubInstallation.repositories.filter((repository) => repository.accessible).length === 1 ? "y" : "ies"}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <form action={syncRepositoriesAction}>

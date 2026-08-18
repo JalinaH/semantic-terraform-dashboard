@@ -1,32 +1,36 @@
-import { VerificationStatus } from "@prisma/client";
-import { db } from "@/lib/db";
+import "server-only";
 
-const VERIFIED_STATUSES: VerificationStatus[] = [
-  VerificationStatus.VERIFIED_FIRST_ATTEMPT,
-  VerificationStatus.VERIFIED_AFTER_RETRY,
-];
+import { AWSConnectionStatus } from "@prisma/client";
+import { db } from "@/lib/db";
 
 export async function getDashboardSummary(userId: string) {
   const repositoryScope = {
     accessible: true,
     installation: { userInstallations: { some: { userId } } },
   } as const;
-  const runScope = { repository: repositoryScope } as const;
 
-  const [repositoryCount, installationCount, runCount, verifiedCount] = await Promise.all([
+  const [connectedCount, installationCount, configuredCount, enabledCount, requiringAwsCount] = await Promise.all([
     db.repository.count({ where: repositoryScope }),
     db.userInstallation.count({ where: { userId } }),
-    db.agentRun.count({ where: runScope }),
-    db.agentRun.count({
-      where: { ...runScope, verificationStatus: { in: VERIFIED_STATUSES } },
+    db.repository.count({ where: { ...repositoryScope, config: { isNot: null } } }),
+    db.repository.count({ where: { ...repositoryScope, config: { is: { enabled: true } } } }),
+    db.repository.count({
+      where: {
+        ...repositoryScope,
+        config: { is: { enabled: true } },
+        OR: [
+          { awsConnection: { is: null } },
+          { awsConnection: { is: { status: { not: AWSConnectionStatus.CONNECTED } } } },
+        ],
+      },
     }),
   ]);
 
   return {
-    repositoryCount,
+    connectedCount,
     installationCount,
-    runCount,
-    verifiedCount,
-    verificationRate: runCount ? Math.round((verifiedCount / runCount) * 100) : null,
+    configuredCount,
+    enabledCount,
+    requiringAwsCount,
   };
 }

@@ -1,10 +1,11 @@
+import "server-only";
+
 import { db } from "@/lib/db";
 
 export async function getRepositoryForUser(userId: string, repositoryId: string) {
   return db.repository.findFirst({
     where: {
       id: repositoryId,
-      accessible: true,
       installation: { userInstallations: { some: { userId } } },
     },
     include: {

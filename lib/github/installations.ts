@@ -45,7 +45,10 @@ export async function getInstallationForUser(userId: string, githubInstallationI
   return userInstallation?.githubInstallation ?? null;
 }
 
-export async function listInstallationsForUser(userId: string) {
+export async function listInstallationsForUser(
+  userId: string,
+  options: { includeInaccessible?: boolean } = {},
+) {
   return db.userInstallation.findMany({
     where: { userId },
     orderBy: { githubInstallation: { accountLogin: "asc" } },
@@ -53,9 +56,9 @@ export async function listInstallationsForUser(userId: string) {
       githubInstallation: {
         include: {
           repositories: {
-            where: { accessible: true },
+            where: options.includeInaccessible ? undefined : { accessible: true },
             orderBy: { fullName: "asc" },
-            include: { config: true },
+            include: { config: true, awsConnection: true },
           },
         },
       },

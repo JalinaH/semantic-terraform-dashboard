@@ -1,15 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Cloud, LockKeyhole } from "lucide-react";
+import { ArrowLeft, Cloud, ExternalLink, GitBranch, LockKeyhole, TriangleAlert } from "lucide-react";
+import { RepositoryConfigurationForm } from "@/components/repository-configuration-form";
+import { RepositoryConfigStatusBadge } from "@/components/repository-config-status-badge";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getRepositoryForUser } from "@/lib/data/repositories";
+import { getGitHubInstallationManagementUrl } from "@/lib/github/urls";
+import { REPOSITORY_CONFIG_DEFAULTS } from "@/lib/repository-config/constants";
+import { toRepositoryConfigInput } from "@/lib/repository-config/mapper";
+import { getRepositoryConfigStatus } from "@/lib/repository-config/status";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +20,11 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
   const [{ id }, user] = await Promise.all([params, requireAuthenticatedUser()]);
   const repository = await getRepositoryForUser(user.id, id);
   if (!repository) notFound();
-  const config = repository.config;
+
+  const config = repository.config ? toRepositoryConfigInput(repository.config) : REPOSITORY_CONFIG_DEFAULTS;
+  const status = getRepositoryConfigStatus(repository.config);
+  const awsConnected = repository.awsConnection?.status === "CONNECTED";
+  const manageUrl = getGitHubInstallationManagementUrl(repository.installation.installationId, repository.installation.htmlUrl);
 
   return (
     <div className="space-y-7">
@@ -29,60 +35,92 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-mono text-xs text-muted-foreground">Granted through {repository.installation.accountLogin}</p>
               <Badge variant="outline">{repository.private ? "Private" : "Public"}</Badge>
+              <RepositoryConfigStatusBadge status={status} />
             </div>
-            <h2 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em]">{repository.fullName}</h2>
-            <p className="mt-1.5 text-sm text-muted-foreground">GitHub metadata is synchronized. Agent settings are a non-persisting preview until configuration onboarding is implemented.</p>
+            <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em]">{repository.fullName}</h1>
+            <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted-foreground">Configure how this repository will invoke the Semantic Terraform Agent engine in a later execution phase.</p>
           </div>
-          <Button disabled>Save changes</Button>
+          <Link href={`https://github.com/${repository.fullName}`} target="_blank" rel="noreferrer" className={cn(buttonVariants({ variant: "outline" }), "w-fit")}>View on GitHub <ExternalLink aria-hidden="true" /></Link>
         </div>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-2">
-        <SettingsCard title="General" description="Repository identity from the verified GitHub App installation.">
-          <Field label="Repository" htmlFor="repository"><Input id="repository" value={repository.fullName} readOnly /></Field>
-          <Field label="Default branch" htmlFor="default-branch"><Input id="default-branch" value={repository.defaultBranch} readOnly /></Field>
-          <div className="flex items-center justify-between gap-4 rounded-lg border p-3.5">
-            <div><Label>Agent enabled</Label><p className="mt-1 text-xs text-muted-foreground">Configuration persistence comes in a later phase.</p></div>
-            <Switch label="Agent enabled" defaultChecked={config?.enabled ?? false} disabled />
+      {!repository.accessible ? (
+        <div role="alert" className="flex flex-col justify-between gap-4 rounded-xl border border-warning/25 bg-warning-muted p-4 sm:flex-row sm:items-center">
+          <div className="flex items-start gap-3">
+            <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning-foreground" />
+            <div><p className="text-sm font-medium">GitHub access removed</p><p className="mt-1 text-xs leading-5 text-muted-foreground">The saved configuration is preserved, but it cannot be edited until this repository is granted to the GitHub App again.</p></div>
           </div>
-        </SettingsCard>
+          <Link href={manageUrl} target="_blank" rel="noreferrer" className={cn(buttonVariants({ size: "sm", variant: "outline" }), "w-fit bg-background")}>Manage GitHub access <ExternalLink aria-hidden="true" /></Link>
+        </div>
+      ) : null}
 
-        <SettingsCard title="Terraform configuration" description="Preview the eventual repository-specific workspace settings.">
-          <Field label="Terraform directory" htmlFor="terraform-dir" hint="Relative to the repository root."><Input id="terraform-dir" defaultValue={config?.terraformDir ?? "."} className="font-mono" /></Field>
-          <Field label="Terraform version" htmlFor="terraform-version"><Select id="terraform-version" defaultValue={config?.terraformVersion ?? "1.9.8"}><option>1.9.8</option><option>1.8.5</option><option>1.7.5</option></Select></Field>
-        </SettingsCard>
+      <section aria-labelledby="configuration-summary-heading">
+        <Card>
+          <CardHeader className="border-b">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div><CardTitle id="configuration-summary-heading">Configuration summary</CardTitle><CardDescription>Operational readiness remains gated on AWS onboarding in Phase 4.</CardDescription></div>
+              <RepositoryConfigStatusBadge status={status} />
+            </div>
+          </CardHeader>
+          <CardContent className="grid gap-px bg-border p-0 sm:grid-cols-2 xl:grid-cols-4">
+            <SummaryItem label="Agent" value={config.enabled ? "Enabled" : "Disabled"} />
+            <SummaryItem label="Terraform root" value={config.terraformDir} mono />
+            <SummaryItem label="Terraform version" value={config.terraformVersion} mono />
+            <SummaryItem label="Model" value={config.model} mono />
+            <SummaryItem label="Context" value={formatLabel(config.contextMode)} />
+            <SummaryItem label="Repair attempts" value={String(config.maxRepairAttempts)} />
+            <SummaryItem label="Triggers" value={[config.triggerOnPullRequest && "Pull request", config.triggerOnPush && "Push"].filter(Boolean).join(" + ") || "None"} />
+            <SummaryItem label="AWS" value={awsConnected ? "Connected" : "Required before ready"} />
+          </CardContent>
+        </Card>
+      </section>
 
-        <SettingsCard title="Agent configuration" description="Diagnosis context and bounded repair policy.">
-          <Field label="Model" htmlFor="model"><Select id="model" defaultValue={config?.model ?? "gemini-2.5-pro"}><option value="gemini-2.5-pro">gemini-2.5-pro</option><option value="gemini-2.5-flash">gemini-2.5-flash</option></Select></Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Context mode" htmlFor="context-mode"><Select id="context-mode" defaultValue={(config?.contextMode ?? "SMART").toLowerCase()}><option value="minimal">Minimal</option><option value="smart">Smart</option><option value="full">Full</option></Select></Field>
-            <Field label="Max repair attempts" htmlFor="max-attempts" hint="Engine maximum remains bounded to one."><Input id="max-attempts" type="number" min={0} max={1} defaultValue={config?.maxRepairAttempts ?? 1} /></Field>
-          </div>
-          {!config ? <p className="text-xs text-neutral-status">Agent configuration status: Not configured</p> : null}
-        </SettingsCard>
+      <section aria-labelledby="repository-identity-heading">
+        <Card>
+          <CardHeader className="border-b"><CardTitle id="repository-identity-heading">Repository identity</CardTitle><CardDescription>Read-only metadata synchronized from the verified GitHub App installation.</CardDescription></CardHeader>
+          <CardContent className="grid gap-4 pt-5 sm:grid-cols-3">
+            <IdentityItem label="Repository" value={repository.fullName} />
+            <IdentityItem label="Default branch" value={repository.defaultBranch} icon={<GitBranch aria-hidden="true" className="size-3.5" />} />
+            <IdentityItem label="Installation account" value={repository.installation.accountLogin} />
+            <IdentityItem label="GitHub repository ID" value={repository.githubRepositoryId} />
+          </CardContent>
+        </Card>
+      </section>
 
-        <SettingsCard title="AWS connection" description="Temporary verification access without permanent AWS keys.">
-          <div className="flex items-center gap-3 rounded-lg border bg-secondary/30 p-3.5">
-            <span className="flex size-8 items-center justify-center rounded-md border bg-neutral-status-muted text-neutral-status"><Cloud aria-hidden="true" className="size-4" /></span>
-            <div className="min-w-0"><p className="text-xs font-medium">Not connected</p><p className="mt-0.5 text-xs text-muted-foreground">AWS onboarding is not part of Phase 2.</p></div>
-          </div>
-          <Field label="Role ARN" htmlFor="role-arn"><Input id="role-arn" value="arn:aws:iam::ACCOUNT_ID:role/stfa-verification" readOnly className="font-mono text-xs" /></Field>
-          <div className="flex flex-wrap items-center gap-3"><Button disabled><LockKeyhole aria-hidden="true" />Connect AWS</Button><span className="text-xs text-muted-foreground">Available in a later phase.</span></div>
-        </SettingsCard>
-      </div>
+      <section aria-labelledby="configuration-heading">
+        <div className="mb-3"><h2 id="configuration-heading" className="text-base font-semibold">Repository configuration</h2><p className="mt-1 text-xs text-muted-foreground">These settings persist to PostgreSQL. They do not run Terraform or invoke the Python agent.</p></div>
+        <RepositoryConfigurationForm repositoryId={repository.id} initialConfig={config} initialStatus={status} disabled={!repository.accessible} />
+      </section>
+
+      <section aria-labelledby="aws-heading">
+        <Card>
+          <CardHeader className="border-b"><CardTitle id="aws-heading">AWS connection</CardTitle><CardDescription>Temporary verification access without permanent AWS credentials.</CardDescription></CardHeader>
+          <CardContent className="flex flex-col justify-between gap-4 pt-5 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-3">
+              <span className="flex size-9 items-center justify-center rounded-md border bg-neutral-status-muted text-neutral-status"><Cloud aria-hidden="true" className="size-4" /></span>
+              <div><p className="text-sm font-medium">{awsConnected ? "Connected" : "Not connected"}</p><p className="mt-0.5 text-xs text-muted-foreground">AWS onboarding and readiness transition arrive in Phase 4.</p></div>
+            </div>
+            <button type="button" disabled className={cn(buttonVariants({ variant: "outline" }), "w-fit")}><LockKeyhole aria-hidden="true" />Connect AWS</button>
+          </CardContent>
+        </Card>
+      </section>
 
       <section aria-labelledby="repository-runs-heading">
-        <div className="mb-3"><h2 id="repository-runs-heading" className="text-base font-semibold">Recent runs</h2><p className="mt-1 text-xs text-muted-foreground">No automatic run ingestion exists in this phase.</p></div>
+        <div className="mb-3"><h2 id="repository-runs-heading" className="text-base font-semibold">Recent runs</h2><p className="mt-1 text-xs text-muted-foreground">No execution or automatic run ingestion exists in Phase 3.</p></div>
         <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">{repository.agentRuns.length ? `${repository.agentRuns.length} persisted runs` : "No runs recorded for this repository."}</CardContent></Card>
       </section>
     </div>
   );
 }
 
-function SettingsCard({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
-  return <Card><CardHeader className="border-b"><CardTitle>{title}</CardTitle><CardDescription>{description}</CardDescription></CardHeader><CardContent className="space-y-4 pt-5">{children}</CardContent></Card>;
+function SummaryItem({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return <div className="min-w-0 bg-card px-4 py-3.5"><p className="text-[11px] text-muted-foreground">{label}</p><p className={cn("mt-1 truncate text-xs font-medium", mono && "font-mono")}>{value}</p></div>;
 }
 
-function Field({ label, htmlFor, hint, children }: { label: string; htmlFor: string; hint?: string; children: React.ReactNode }) {
-  return <div className="space-y-2"><Label htmlFor={htmlFor}>{label}</Label>{children}{hint ? <p className="text-[11px] text-muted-foreground">{hint}</p> : null}</div>;
+function IdentityItem({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
+  return <div className="min-w-0 rounded-lg border bg-secondary/30 px-3.5 py-3"><p className="text-[11px] text-muted-foreground">{label}</p><p className="mt-1 flex items-center gap-1.5 truncate font-mono text-xs font-medium">{icon}{value}</p></div>;
+}
+
+function formatLabel(value: string) {
+  return value.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
 }
