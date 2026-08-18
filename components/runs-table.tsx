@@ -1,0 +1,22 @@
+import { RunRow } from "@/components/run-row";
+import type { AgentRun } from "@/lib/types";
+
+export function RunsTable({ runs }: { runs: AgentRun[] }) {
+  return (
+    <div className="scrollbar-thin overflow-x-auto">
+      <table className="w-full min-w-[880px] text-left text-sm">
+        <thead>
+          <tr className="border-b bg-secondary/30 text-xs text-muted-foreground">
+            <th scope="col" className="px-4 py-3 font-medium">Repository</th>
+            <th scope="col" className="px-4 py-3 font-medium">PR / Commit</th>
+            <th scope="col" className="px-4 py-3 font-medium">Resource</th>
+            <th scope="col" className="px-4 py-3 font-medium">Status</th>
+            <th scope="col" className="px-4 py-3 font-medium">Verification</th>
+            <th scope="col" className="px-4 py-3 text-right font-medium">Runtime</th>
+          </tr>
+        </thead>
+        <tbody>{runs.map((run) => <RunRow key={run.id} run={run} />)}</tbody>
+      </table>
+    </div>
+  );
+}

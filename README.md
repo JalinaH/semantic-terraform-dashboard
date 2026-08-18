@@ -1,36 +1,97 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Semantic Terraform Agent Dashboard
 
-## Getting Started
+The hosted dashboard and control-plane foundation for **Semantic Terraform Agent**. It presents repository configuration, diagnosis runs, candidate patches, verification evidence, and performance metadata without duplicating the agent engine.
 
-First, run the development server:
+## Repository boundary
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+The product is intentionally split into two repositories:
+
+```text
+semantic-terraform-agent
+└── Reusable Python diagnosis and verification engine, CLI, GitHub Actions integration,
+    Gemini reasoning, isolated Terraform checks, bounded repair, and PR comments
+
+semantic-terraform-dashboard
+└── Hosted SaaS interface and future control plane for onboarding, configuration,
+    run ingestion, history, and analytics
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+No Python agent code is copied into this repository. Phase 1 uses typed mock data and does not invoke the engine.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Phase 1 capabilities
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Responsive landing page and authenticated-style application shell
+- Overview metrics, recent run history, and repository health
+- Repository list and preview configuration screens
+- Filter-ready run table and result-oriented run detail visualization
+- Unified diff presentation, ordered verification stages, and bounded attempt history
+- Light, dark, and system themes with persisted browser preference
+- PostgreSQL-ready Prisma schema and a development-safe Prisma singleton
+- Strict TypeScript types for repository, context, status, stage, run, and performance data
 
-## Learn More
+## Intentionally not implemented
 
-To learn more about Next.js, take a look at the following resources:
+- Authentication or multi-user permissions
+- GitHub OAuth, GitHub App installation, or webhooks
+- AWS AssumeRole or CloudFormation onboarding
+- Worker execution, job queues, or Python agent invocation
+- Persistent run ingestion or PR comments
+- Billing, email, product analytics, or production deployment
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+These integrations belong to later phases. Controls that depend on them are disabled or marked **Coming later**.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Technology
 
-## Deploy on Vercel
+- Next.js App Router with React and strict TypeScript
+- Tailwind CSS with semantic CSS-variable tokens
+- shadcn/ui-style local components and Lucide icons
+- Prisma ORM targeting PostgreSQL
+- `next-themes` for light, dark, and system appearance
+- pnpm package management
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Local development
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Requirements: Node.js 20.9 or newer and pnpm.
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Open [http://localhost:3000](http://localhost:3000). The dashboard is available at [http://localhost:3000/dashboard](http://localhost:3000/dashboard).
+
+The Phase 1 UI is entirely backed by `lib/mock-data.ts`; PostgreSQL is optional for previewing every route.
+
+## Optional Prisma setup
+
+Copy the environment template only when you want to validate or evolve the database layer:
+
+```bash
+cp .env.example .env
+pnpm prisma:generate
+pnpm prisma:validate
+```
+
+Set `DATABASE_URL` to a local PostgreSQL database before migrations or database queries. The committed example contains development placeholders only. Permanent AWS access keys are never part of this data model.
+
+## Quality checks
+
+```bash
+pnpm lint
+pnpm typecheck
+pnpm prisma:validate
+pnpm build
+git diff --check
+```
+
+## Phase 2 starting point
+
+Start with GitHub identity and installation boundaries rather than agent execution:
+
+1. Add GitHub OAuth for dashboard identity.
+2. Create the GitHub App with least-privilege repository metadata, Actions, checks, pull request, and contents permissions appropriate to the planned workflow.
+3. Implement the installation callback and sync `GitHubInstallation` plus `Repository` records.
+4. Add explicit installation-state and permission-review screens.
+5. Only after onboarding is stable, add signed webhook ingestion and a durable job boundary that calls the separate Python agent service.
+
+Keep GitHub credentials server-only and preserve the current engine/control-plane separation.

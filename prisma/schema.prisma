@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountType {
+  USER
+  ORGANIZATION
+}
+
+enum ContextMode {
+  MINIMAL
+  SMART
+  FULL
+}
+
+enum AWSConnectionStatus {
+  PENDING
+  CONNECTED
+  ATTENTION
+  DISCONNECTED
+}
+
+enum VerificationStatus {
+  VERIFIED_FIRST_ATTEMPT
+  VERIFIED_AFTER_RETRY
+  VERIFICATION_FAILED
+  PATCH_REJECTED
+  VERIFICATION_UNAVAILABLE
+  PENDING
+}
+
+model User {
+  id                  String               @id @default(cuid())
+  githubUserId        String               @unique
+  githubLogin         String               @unique
+  name                String?
+  avatarUrl           String?
+  githubInstallations GitHubInstallation[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+}
+
+model GitHubInstallation {
+  id             String       @id @default(cuid())
+  installationId String       @unique
+  accountLogin   String
+  accountType    AccountType
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repositories   Repository[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([userId])
+  @@index([accountLogin])
+}
+
+model Repository {
+  id                 String             @id @default(cuid())
+  githubRepositoryId String             @unique
+  owner              String
+  name               String
+  fullName           String             @unique
+  defaultBranch      String             @default("main")
+  installationId     String
+  installation       GitHubInstallation @relation(fields: [installationId], references: [id], onDelete: Cascade)
+  config             RepositoryConfig?
+  awsConnection      AWSConnection?
+  agentRuns          AgentRun[]
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@index([installationId])
+  @@index([owner, name])
+}
+
+model RepositoryConfig {
+  id                String      @id @default(cuid())
+  repositoryId      String      @unique
+  repository        Repository  @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  enabled           Boolean     @default(true)
+  terraformDir      String      @default(".")
+  terraformVersion  String?
+  model             String      @default("gemini-2.5-pro")
+  contextMode       ContextMode @default(SMART)
+  maxRepairAttempts Int         @default(1)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+}
+
+model AWSConnection {
+  id           String              @id @default(cuid())
+  repositoryId String              @unique
+  repository   Repository          @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  roleArn      String
+  region       String
+  status       AWSConnectionStatus @default(PENDING)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+}
+
+model AgentRun {
+  id                  String             @id @default(cuid())
+  repositoryId        String
+  repository          Repository         @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  githubRunId         String?            @unique
+  pullRequestNumber   Int?
+  commitSha           String
+  failedStage         String?
+  affectedResource    String?
+  contextMode         ContextMode
+  verificationStatus  VerificationStatus @default(PENDING)
+  modelConfidence     Float?
+  evidenceScore       Float?
+  totalRuntimeMs      Int?
+  inputTokens         Int?
+  outputTokens        Int?
+  rootCause           String?
+  violatedConstraint  String?
+  suggestedPatch      String?
+  attemptHistory      Json?
+  verificationDetails Json?
+  safeResultPayload   Json?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([repositoryId, createdAt])
+  @@index([verificationStatus, createdAt])
+  @@index([commitSha])
+  @@index([repositoryId, pullRequestNumber])
+}
