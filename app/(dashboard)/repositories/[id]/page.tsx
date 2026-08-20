@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Cloud, ExternalLink, GitBranch, LockKeyhole, TriangleAlert } from "lucide-react";
+import { ArrowLeft, Cloud, ExternalLink, GitBranch, TriangleAlert } from "lucide-react";
+import { AwsStatusBadge } from "@/components/aws-status-badge";
 import { RepositoryConfigurationForm } from "@/components/repository-configuration-form";
 import { RepositoryConfigStatusBadge } from "@/components/repository-config-status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +23,7 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
   if (!repository) notFound();
 
   const config = repository.config ? toRepositoryConfigInput(repository.config) : REPOSITORY_CONFIG_DEFAULTS;
-  const status = getRepositoryConfigStatus(repository.config);
+  const status = getRepositoryConfigStatus(repository.config, repository.awsConnection, repository.accessible);
   const awsConnected = repository.awsConnection?.status === "CONNECTED";
   const manageUrl = getGitHubInstallationManagementUrl(repository.installation.installationId, repository.installation.htmlUrl);
 
@@ -58,19 +59,21 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
         <Card>
           <CardHeader className="border-b">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div><CardTitle id="configuration-summary-heading">Configuration summary</CardTitle><CardDescription>Operational readiness remains gated on AWS onboarding in Phase 4.</CardDescription></div>
+              <div><CardTitle id="configuration-summary-heading">Integration summary</CardTitle><CardDescription>Ready means GitHub access, saved configuration, enabled agent preference, and a verified AWS role.</CardDescription></div>
               <RepositoryConfigStatusBadge status={status} />
             </div>
           </CardHeader>
-          <CardContent className="grid gap-px bg-border p-0 sm:grid-cols-2 xl:grid-cols-4">
+          <CardContent className="grid gap-px bg-border p-0 sm:grid-cols-2 xl:grid-cols-5">
+            <SummaryItem label="GitHub" value={repository.accessible ? "Connected" : "Access removed"} />
+            <SummaryItem label="Configuration" value={repository.config ? "Saved" : "Not saved"} />
+            <SummaryItem label="AWS" value={awsConnected ? "Connected" : "Not connected"} />
             <SummaryItem label="Agent" value={config.enabled ? "Enabled" : "Disabled"} />
+            <SummaryItem label="Status" value={formatLabel(status)} />
             <SummaryItem label="Terraform root" value={config.terraformDir} mono />
             <SummaryItem label="Terraform version" value={config.terraformVersion} mono />
             <SummaryItem label="Model" value={config.model} mono />
             <SummaryItem label="Context" value={formatLabel(config.contextMode)} />
             <SummaryItem label="Repair attempts" value={String(config.maxRepairAttempts)} />
-            <SummaryItem label="Triggers" value={[config.triggerOnPullRequest && "Pull request", config.triggerOnPush && "Push"].filter(Boolean).join(" + ") || "None"} />
-            <SummaryItem label="AWS" value={awsConnected ? "Connected" : "Required before ready"} />
           </CardContent>
         </Card>
       </section>
@@ -89,18 +92,19 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
 
       <section aria-labelledby="configuration-heading">
         <div className="mb-3"><h2 id="configuration-heading" className="text-base font-semibold">Repository configuration</h2><p className="mt-1 text-xs text-muted-foreground">These settings persist to PostgreSQL. They do not run Terraform or invoke the Python agent.</p></div>
-        <RepositoryConfigurationForm repositoryId={repository.id} initialConfig={config} initialStatus={status} disabled={!repository.accessible} />
+        <RepositoryConfigurationForm repositoryId={repository.id} initialConfig={config} initialStatus={status} awsConnected={awsConnected} disabled={!repository.accessible} />
       </section>
 
       <section aria-labelledby="aws-heading">
         <Card>
-          <CardHeader className="border-b"><CardTitle id="aws-heading">AWS connection</CardTitle><CardDescription>Temporary verification access without permanent AWS credentials.</CardDescription></CardHeader>
-          <CardContent className="flex flex-col justify-between gap-4 pt-5 sm:flex-row sm:items-center">
+          <CardHeader className="border-b"><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle id="aws-heading">AWS connection</CardTitle><CardDescription>Repository-scoped role access through temporary STS credentials.</CardDescription></div><AwsStatusBadge status={repository.awsConnection ? repository.awsConnection.status.toLowerCase() as "pending" | "connected" | "verification_failed" | "access_removed" : "not_connected"} /></div></CardHeader>
+          <CardContent className="flex flex-col justify-between gap-5 pt-5 lg:flex-row lg:items-center">
             <div className="flex items-center gap-3">
               <span className="flex size-9 items-center justify-center rounded-md border bg-neutral-status-muted text-neutral-status"><Cloud aria-hidden="true" className="size-4" /></span>
-              <div><p className="text-sm font-medium">{awsConnected ? "Connected" : "Not connected"}</p><p className="mt-0.5 text-xs text-muted-foreground">AWS onboarding and readiness transition arrive in Phase 4.</p></div>
+              <div><p className="text-sm font-medium">{awsConnected ? "Provider-authenticated verification prerequisites are ready" : "AWS connection required before readiness"}</p><p className="mt-0.5 text-xs text-muted-foreground">Permanent AWS access keys are never requested or stored.</p></div>
             </div>
-            <button type="button" disabled className={cn(buttonVariants({ variant: "outline" }), "w-fit")}><LockKeyhole aria-hidden="true" />Connect AWS</button>
+            {repository.awsConnection ? <div className="grid gap-2 text-xs sm:grid-cols-3"><MiniDetail label="Account" value={maskAccount(repository.awsConnection.awsAccountId)} /><MiniDetail label="Region" value={repository.awsConnection.region} /><MiniDetail label="Role" value={repository.awsConnection.roleArn?.split("/").at(-1) ?? "Waiting for role"} /></div> : null}
+            <Link href={`/repositories/${repository.id}/aws`} className={cn(buttonVariants({ variant: awsConnected ? "outline" : "default" }), "w-fit")}>{awsConnected ? "Manage AWS connection" : "Connect AWS"}</Link>
           </CardContent>
         </Card>
       </section>
@@ -122,5 +126,13 @@ function IdentityItem({ label, value, icon }: { label: string; value: string; ic
 }
 
 function formatLabel(value: string) {
-  return value.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+  return value.split(/[-_]/).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+}
+
+function MiniDetail({ label, value }: { label: string; value: string }) {
+  return <div className="min-w-0 rounded-md bg-secondary/40 px-3 py-2"><p className="text-[10px] text-muted-foreground">{label}</p><p className="mt-0.5 max-w-36 truncate font-mono font-medium">{value}</p></div>;
+}
+
+function maskAccount(value: string | null) {
+  return value ? `${value.slice(0, 4)}••••${value.slice(-4)}` : "—";
 }

@@ -1,6 +1,6 @@
 {
   "name": "semantic-terraform-dashboard",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",
+    "@aws-sdk/client-sts": "^3.1113.0",
     "@octokit/rest": "^22.0.1",
     "@prisma/client": "6.19.0",
     "class-variance-authority": "^0.7.1",

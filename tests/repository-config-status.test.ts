@@ -6,5 +6,8 @@ describe("repository configuration status", () => {
     expect(getRepositoryConfigStatus(null)).toBe("not_configured");
     expect(getRepositoryConfigStatus({ enabled: true })).toBe("configured");
     expect(getRepositoryConfigStatus({ enabled: false })).toBe("disabled");
+    expect(getRepositoryConfigStatus({ enabled: true }, { status: "CONNECTED" })).toBe("ready");
+    expect(getRepositoryConfigStatus({ enabled: true }, { status: "CONNECTED" }, false)).toBe("configured");
+    expect(getRepositoryConfigStatus({ enabled: false }, { status: "CONNECTED" })).toBe("disabled");
   });
 });

@@ -1,3 +1,5 @@
+import { awsRegionSchema, iamPrincipalArnSchema } from "@/lib/validation/aws-connection";
+
 const BUILD_ONLY_AUTH_SECRET = "phase-2-build-only-secret-auth-disabled";
 
 export interface IntegrationConfigurationStatus {
@@ -109,4 +111,35 @@ export function normalizeGitHubAppSlug(value: string | undefined) {
   } catch {
     return null;
   }
+}
+
+export interface AwsControlPlaneConfiguration {
+  region: string;
+  principalArn: string;
+}
+
+export class MissingAwsConfigurationError extends Error {
+  constructor(readonly missing: string[]) {
+    super(`AWS control-plane configuration is missing ${missing.length} required value(s).`);
+    this.name = "MissingAwsConfigurationError";
+  }
+}
+
+export function getAwsControlPlaneConfigurationStatus() {
+  const regionResult = awsRegionSchema.safeParse(process.env.AWS_CONTROL_PLANE_REGION?.trim());
+  const principalResult = iamPrincipalArnSchema.safeParse(process.env.AWS_ASSUME_ROLE_PRINCIPAL_ARN?.trim());
+  const missing = [
+    ...(!regionResult.success ? ["AWS_CONTROL_PLANE_REGION"] : []),
+    ...(!principalResult.success ? ["AWS_ASSUME_ROLE_PRINCIPAL_ARN"] : []),
+  ];
+  return { configured: missing.length === 0, missing };
+}
+
+export function getAwsControlPlaneConfiguration(): AwsControlPlaneConfiguration {
+  const status = getAwsControlPlaneConfigurationStatus();
+  if (!status.configured) throw new MissingAwsConfigurationError(status.missing);
+  return {
+    region: awsRegionSchema.parse(process.env.AWS_CONTROL_PLANE_REGION?.trim()),
+    principalArn: iamPrincipalArnSchema.parse(process.env.AWS_ASSUME_ROLE_PRINCIPAL_ARN?.trim()),
+  };
 }

@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, CircleUserRound, ExternalLink, Github, RefreshCw, SlidersHorizontal, type LucideIcon } from "lucide-react";
+import { Bell, CircleUserRound, Cloud, ExternalLink, Github, RefreshCw, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { beginGitHubInstallationAction, syncRepositoriesAction } from "@/app/actions/github";
 import { PageIntro } from "@/components/page-intro";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,7 @@ export default async function SettingsPage() {
   const user = await requireAuthenticatedUser();
   const userInstallations = await listInstallationsForUser(user.id);
   const repositoryCount = userInstallations.reduce((count, item) => count + item.githubInstallation.repositories.length, 0);
+  const awsConnectedCount = userInstallations.reduce((count, item) => count + item.githubInstallation.repositories.filter((repository) => repository.awsConnection?.status === "CONNECTED").length, 0);
   const avatarUrl = user.avatarUrl ?? user.image;
 
   return (
@@ -33,6 +34,14 @@ export default async function SettingsPage() {
             <div className="flex items-center gap-3 rounded-lg border p-3">
               {avatarUrl ? <Image src={avatarUrl} alt="" width={36} height={36} className="size-9 rounded-full border" /> : <span className="flex size-9 items-center justify-center rounded-full border bg-secondary text-xs font-semibold">{(user.githubLogin ?? user.name ?? "U").slice(0, 1).toUpperCase()}</span>}
               <div className="min-w-0"><p className="truncate text-sm font-medium">{user.name ?? user.githubLogin ?? "GitHub user"}</p><p className="truncate text-xs text-muted-foreground">@{user.githubLogin ?? "github"}</p></div>
+            </div>
+          </SettingsSection>
+
+          <SettingsSection icon={Cloud} title="AWS" description="Repository-scoped AWS access for provider-authenticated Terraform verification.">
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 text-xs"><span className="text-muted-foreground">Verified repository connections</span><span className="font-medium">{awsConnectedCount} of {repositoryCount}</span></div>
+              <div className="rounded-lg border bg-secondary/30 p-3 text-xs leading-5 text-muted-foreground"><p><span className="font-medium text-foreground">Temporary credentials only.</span> Semantic Terraform Agent assumes a repository-specific IAM role with an External ID. Permanent AWS access keys are never requested.</p></div>
+              <Link href="/repositories" className={cn(buttonVariants({ size: "sm", variant: "outline" }), "w-fit")}>Manage repository connections</Link>
             </div>
           </SettingsSection>
 
@@ -71,7 +80,7 @@ export default async function SettingsPage() {
           </SettingsSection>
         </CardContent>
       </Card>
-      <p className="text-xs text-muted-foreground">GitHub account and repository access are persisted. Other controls are intentionally unavailable until their product phases.</p>
+      <p className="text-xs text-muted-foreground">GitHub access, repository configuration, and verified AWS connection metadata are persisted. Temporary STS credentials are never stored.</p>
     </div>
   );
 }

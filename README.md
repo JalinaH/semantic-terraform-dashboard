@@ -1,6 +1,6 @@
 # Semantic Terraform Agent Dashboard
 
-The hosted dashboard and control plane for **Semantic Terraform Agent**. Phase 3 adds secure, persisted per-repository execution configuration without copying or invoking the Python agent engine.
+The hosted dashboard and control plane for **Semantic Terraform Agent**. Phase 4 adds repository-scoped AWS onboarding with short-lived STS credentials; the dashboard still does not copy or invoke the Python agent engine.
 
 ## Repository boundary
 
@@ -10,70 +10,68 @@ semantic-terraform-agent
     reusable GitHub Actions integration, and PR comments
 
 semantic-terraform-dashboard
-└── Hosted SaaS UI/control plane for identity, installations, repository access,
-    persisted configuration, future run ingestion, and analytics
+└── Hosted SaaS UI/control plane for identity, GitHub installations, repository
+    configuration, secure AWS connections, future jobs, and analytics
 ```
 
-The dashboard does not contain the Python agent and does not execute Terraform.
+## Current capabilities
 
-## Phase 3 capabilities
+- GitHub App user authorization through Auth.js and PostgreSQL-backed sessions
+- Multiple personal or organization installations per dashboard user
+- Repository synchronization with soft removal of revoked repository grants
+- Persisted per-repository Terraform and agent configuration
+- Guided AWS onboarding at `/repositories/[id]/aws`
+- One cryptographically random External ID per repository connection
+- Generated trust policy and downloadable CloudFormation starter template
+- Existing IAM role onboarding with strict role-ARN validation
+- Server-only `AssumeRole` and `GetCallerIdentity` verification through AWS SDK v3
+- Real `not_configured`, `configured`, `disabled`, and `ready` repository states
+- Real dashboard counts for connected, configured, ready, and AWS-required repositories
 
-- GitHub App user authorization through Auth.js
-- PostgreSQL-backed users, OAuth accounts, and database sessions through Prisma
-- Protected dashboard, repositories, runs, settings, and GitHub onboarding routes
-- Multiple personal/organization installations per dashboard user
-- Repository synchronization grouped by installation account
-- Soft removal of repositories no longer granted to an installation
-- Persisted repository-specific Terraform, model, context, repair, trigger, and failure-stage settings
-- Shared Zod validation in the browser and authoritative Server Action validation on the server
-- Installation-based authorization before repository data is shown or changed
-- Preserved, read-only configuration when GitHub removes a repository grant
-- Real connected/configured/enabled/requiring-AWS dashboard metrics
-- A typed `AgentExecutionConfig` mapper for a future worker boundary
-- Honest `not_configured`, `configured`, and `disabled` states; `ready` remains reserved
+Authenticated dashboard metrics do not present mock activity as real data. Terraform execution, run ingestion, and worker orchestration remain unimplemented.
 
-Authenticated dashboard metrics do not present mock activity as real data; run ingestion remains empty. A configured repository is not operationally ready until AWS onboarding is implemented.
+## AWS connection architecture
 
-## Repository configuration
+```text
+Dashboard/worker AWS identity
+        │
+        │ sts:AssumeRole + repository External ID
+        ▼
+Customer repository-scoped IAM role
+        │
+        │ temporary credentials only
+        ▼
+Future isolated Terraform verification worker
+```
 
-Each GitHub-connected repository can persist:
+The onboarding flow never asks for a customer's access key or secret key. The server generates a random External ID, helps the user create or identify an IAM role, assumes that role for 15 minutes, and verifies the returned account and role with `GetCallerIdentity`. Temporary credentials are discarded after verification and are never written to PostgreSQL or serialized to the browser.
 
-| Area | Fields | Phase 3 defaults |
-| --- | --- | --- |
-| Agent | `enabled` | `true` |
-| Terraform | `terraformDir`, `terraformVersion` | `.`, `1.15.7` |
-| Model | `modelProvider`, `model`, `contextMode` | `gemini`, `gemini-3.6-flash`, `auto` |
-| Repair | `maxRepairAttempts` | `1` (bounded to `0` or `1`) |
-| Triggers | `triggerOnPullRequest`, `triggerOnPush` | both enabled |
-| Failures | `failedStages` | `plan` (`validate` is also supported) |
+The generated **Starter verification policy** is intentionally read-oriented and is not claimed to support every Terraform provider or repository. A repository may need additional resource-specific read, list, describe, or provider planning permissions. The project does not recommend `AdministratorAccess`.
 
-Terraform directories must be repository-relative, use forward slashes, avoid `..`, control characters, and unsafe path characters, and fit within 240 characters. Redundant separators and `.` segments are normalized. Terraform versions use a conservative `x.y.z` pattern. Providers, models, context modes, repair attempts, and failure stages are allow-listed.
+Read [docs/aws-onboarding.md](docs/aws-onboarding.md) for AWS setup, security details, manual test steps, and troubleshooting. GitHub App registration is documented in [docs/github-app-setup.md](docs/github-app-setup.md).
 
-Configuration states are deliberately narrow:
+## Repository readiness
 
-- `not_configured`: no saved `RepositoryConfig`
-- `configured`: saved and enabled, but not operationally ready
-- `disabled`: saved with the agent turned off
-- `ready`: reserved for a future phase after AWS verification access exists
+| State | Meaning |
+| --- | --- |
+| `not_configured` | No saved repository configuration |
+| `disabled` | Configuration exists, but the agent is disabled |
+| `configured` | Configuration is enabled, but AWS is not verified |
+| `ready` | GitHub access, saved configuration, enabled agent, and verified AWS connection are all present |
 
-## Security model
-
-User authorization and installation authorization are intentionally separate. Auth.js persists provider tokens in server-only Prisma `Account` rows. The client session exposes only a safe identity projection. Installation callbacks require signed, expiring state plus an HTTP-only correlation cookie, then verify the installation through both the user and App API views.
-
-Repository configuration writes use a Server Action that authenticates again, validates the same allow-listed schema used by the form, verifies the current user is joined to the repository's GitHub installation, and only then upserts the unique config record. A browser-supplied repository ID is never trusted on its own. Safe action responses contain a status, user-facing message, field errors, and save timestamp—not Prisma records or secrets.
-
-The GitHub App private key, client secret, webhook secret, OAuth tokens, and installation tokens must never use a `NEXT_PUBLIC_` variable. Installation tokens are generated as needed rather than persisted as credentials. No GitHub personal access token is accepted.
+`ready` means the integration prerequisites are complete. It does not mean a worker or automatic diagnosis exists yet.
 
 ## Technology
 
-- Next.js 16 App Router and React 19
+- Next.js 16.3.1 App Router and React 19.2.8
 - strict TypeScript and Tailwind CSS 4
 - shadcn/ui-style local components and Lucide icons
 - Auth.js / NextAuth 5 with the Prisma adapter
-- Prisma 6 targeting PostgreSQL
+- Prisma 6.19.0 targeting PostgreSQL
+- AWS SDK for JavaScript v3 (`@aws-sdk/client-sts` 3.1113.0)
 - Octokit REST and `jose` for server-side GitHub App authentication
-- Zod 4 for shared repository configuration validation
-- Vitest for isolated authentication, GitHub, configuration, authorization, and mapper tests
+- Zod 4 for server and form validation
+- Vitest 4 for isolated service, security, authorization, and SDK-mock tests
 - `next-themes` for persisted light, dark, and system appearance
 - pnpm package management
 
@@ -91,44 +89,53 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-The app still builds and the public landing page renders when GitHub variables are absent; it shows an explicit unconfigured state and disables sign-in. Real authenticated routes and repository persistence require PostgreSQL and a registered GitHub App.
-
-Follow [docs/github-app-setup.md](docs/github-app-setup.md) for the exact callback URL, Setup URL, permission, private-key, and local smoke-test steps.
+The public app still builds when GitHub or AWS variables are absent. GitHub sign-in is disabled when its configuration is absent. AWS onboarding remains viewable, but region setup and live verification explain which server configuration is missing instead of pretending a connection succeeded.
 
 ## Environment variables
 
 | Variable | Visibility | Purpose |
 | --- | --- | --- |
 | `DATABASE_URL` | Server | PostgreSQL connection for Prisma/Auth.js |
-| `NEXT_PUBLIC_APP_URL` | Public | Canonical local application URL |
-| `AUTH_SECRET` | Server secret | Auth.js cookie/token and installation-state signing |
-| `AUTH_TRUST_HOST` | Server | Allows the local development host |
+| `NEXT_PUBLIC_APP_URL` | Public | Canonical application URL |
+| `AUTH_SECRET` | Server secret | Auth.js and installation-state signing |
+| `AUTH_TRUST_HOST` | Server | Allows the configured development host |
 | `GITHUB_APP_ID` | Server | Numeric GitHub App ID |
 | `GITHUB_APP_CLIENT_ID` | Server | GitHub App OAuth client ID and preferred App JWT issuer |
 | `GITHUB_APP_CLIENT_SECRET` | Server secret | GitHub App user-authorization secret |
 | `GITHUB_APP_SLUG` | Server | Builds the App installation URL |
 | `GITHUB_APP_PRIVATE_KEY` | Server secret | Signs GitHub App JWTs; supports escaped newlines |
 | `GITHUB_WEBHOOK_SECRET` | Server secret, unused | Reserved for a later webhook phase |
+| `AWS_CONTROL_PLANE_REGION` | Server | Region used by the control-plane STS client |
+| `AWS_ASSUME_ROLE_PRINCIPAL_ARN` | Server | IAM role/root principal trusted by generated customer roles |
 
-Do not put OAuth tokens, installation tokens, client secrets, webhook secrets, or private keys in client components or `NEXT_PUBLIC_*` values.
+Production should supply the control plane's AWS credentials through workload identity or an attached IAM role. Local verification uses the standard AWS SDK credential provider chain, such as AWS IAM Identity Center/SSO or a shared profile. Do not add `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY` to this repository's `.env` template.
 
-## Repository synchronization and configuration
-
-An installation callback retrieves a short-lived installation token, pages through all repositories granted to that installation, and upserts GitHub identity, owner/name, default branch, privacy, and archive state. Manual **Sync repositories** repeats that operation. Repositories no longer returned by GitHub are marked `accessible = false` with `removedAt`; neither their configuration nor future history is deleted. Their detail page remains visible only to installation-linked users and becomes read-only until access is restored.
-
-## Database changes
-
-The Prisma schema includes Auth.js `Account`, `Session`, and `VerificationToken` models plus a `UserInstallation` join model:
+## Database model
 
 ```text
 User ──< UserInstallation >── GitHubInstallation ──< Repository
+                                                       │
+                                                       ├── RepositoryConfig (0..1)
+                                                       └── AWSConnection (0..1)
 ```
 
-This supports several installations per user and leaves room for several dashboard users to be associated with the same organization installation later. `RepositoryConfig.repositoryId` is unique, so a repository has at most one current configuration. The Phase 3 flow does not implement organization roles or invitations.
+`AWSConnection` stores the role ARN, selected region, status, unique External ID, verified account ID, verification timestamp, and a bounded safe error message. It never stores temporary AWS credentials. The schema remains compatible with adding an environment/account join model later.
 
-## Future worker contract
+Apply existing migrations with:
 
-`toAgentExecutionConfig()` converts the safe saved configuration into a small typed contract containing Terraform directory/version/failure stages, provider/model/context, bounded repair attempts, and trigger preferences. It deliberately includes no OAuth token, installation token, private key, AWS credential, or full Prisma object. No worker or Python agent invocation exists yet.
+```bash
+pnpm prisma migrate deploy
+```
+
+## Security boundaries
+
+- Every AWS mutation authenticates the user, authorizes installation membership, validates input, and performs AWS/database work server-side.
+- A browser-provided repository ID or role ARN is never sufficient authorization.
+- Only IAM role ARNs are accepted; IAM users, policies, STS assumed-role ARNs, and malformed ARNs are rejected.
+- External IDs are server-generated, unique, random, stored per repository, and safe to copy into a trust policy.
+- AWS SDK calls, control-plane credentials, assumed-role credentials, GitHub tokens, and secrets remain server-only.
+- CloudFormation downloads require the same authenticated repository authorization and create only one IAM role, one inline starter policy, and tags.
+- Disconnecting deletes the dashboard connection only. It never attempts to delete the customer's IAM role.
 
 ## Quality checks
 
@@ -136,22 +143,23 @@ This supports several installations per user and leaves room for several dashboa
 pnpm lint
 pnpm typecheck
 pnpm test
+pnpm prisma:format
 pnpm prisma:validate
 pnpm build
 git diff --check
 ```
 
-The normal test suite does not call GitHub or require a live database.
+The normal test suite mocks STS and does not require GitHub, AWS credentials, or a live GitHub App.
 
 ## Intentionally deferred
 
-- AWS onboarding, CloudFormation, or STS AssumeRole
-- GitHub webhooks and automatic repository synchronization
-- workflow-run monitoring and Terraform execution
-- workers, queues, Redis, or Python agent invocation
-- real dashboard run ingestion and PR diagnosis comments
-- AWS connection, readiness transition, and provider-authenticated verification
-- organization roles, invitations, and multi-user permissions
-- notifications, billing, analytics tracking, MCP, or Marketplace publication
+- Terraform execution, Python agent invocation, and isolated workers
+- GitHub failure webhooks and workflow monitoring
+- automatic diagnosis, run ingestion, and PR comments
+- queues, Redis, billing, notifications, analytics, and MCP
+- CloudFormation template hosting and a production Quick Create URL
+- automatic deletion or mutation of customer IAM resources
+- multi-account/environment connections per repository
+- GitHub Marketplace and multi-cloud support
 
-The recommended Phase 4 starting point is a repository-scoped AWS connection state machine backed by short-lived STS `AssumeRole`: generate a least-privilege onboarding contract, verify role ownership server-side, and transition an enabled, configured repository to `ready` only after a live identity check. Keep credentials and Terraform execution outside the browser and preserve the control-plane/agent-engine boundary.
+The recommended Phase 5 starting point is a durable, idempotent job contract between GitHub failure ingestion and an isolated worker. The worker should resolve a repository's verified AWS role at execution time, request fresh STS credentials with the saved External ID, and pass only bounded execution inputs to the existing `semantic-terraform-agent` engine.

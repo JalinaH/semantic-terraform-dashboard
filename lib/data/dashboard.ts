@@ -9,11 +9,17 @@ export async function getDashboardSummary(userId: string) {
     installation: { userInstallations: { some: { userId } } },
   } as const;
 
-  const [connectedCount, installationCount, configuredCount, enabledCount, requiringAwsCount] = await Promise.all([
+  const [connectedCount, installationCount, configuredCount, readyCount, requiringAwsCount] = await Promise.all([
     db.repository.count({ where: repositoryScope }),
     db.userInstallation.count({ where: { userId } }),
     db.repository.count({ where: { ...repositoryScope, config: { isNot: null } } }),
-    db.repository.count({ where: { ...repositoryScope, config: { is: { enabled: true } } } }),
+    db.repository.count({
+      where: {
+        ...repositoryScope,
+        config: { is: { enabled: true } },
+        awsConnection: { is: { status: AWSConnectionStatus.CONNECTED } },
+      },
+    }),
     db.repository.count({
       where: {
         ...repositoryScope,
@@ -30,7 +36,7 @@ export async function getDashboardSummary(userId: string) {
     connectedCount,
     installationCount,
     configuredCount,
-    enabledCount,
+    readyCount,
     requiringAwsCount,
   };
 }

@@ -23,7 +23,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
           <span className="text-sm font-semibold tracking-tight">Semantic Terraform Agent</span>
         </Link>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="hidden bg-card/70 text-muted-foreground sm:inline-flex">Phase 3 configuration</Badge>
+          <Badge variant="outline" className="hidden bg-card/70 text-muted-foreground sm:inline-flex">Phase 4 AWS onboarding</Badge>
           <ThemeToggle />
           {session?.user ? <Link href="/dashboard" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "hidden sm:inline-flex")}>Dashboard</Link> : null}
         </div>
@@ -54,7 +54,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
           <div className="mt-12 grid max-w-xl gap-3 sm:grid-cols-3">
             <Mode icon={TerminalSquare} label="CLI" state="Available in agent repo" />
             <Mode icon={Github} label="GitHub Actions" state="Reusable integration" />
-            <Mode icon={CircleDashed} label="Hosted GitHub App" state="Identity + repository configuration" pending={!configuration.githubApp} />
+            <Mode icon={CircleDashed} label="Hosted GitHub App" state="Identity + repository + AWS onboarding" pending={!configuration.githubApp} />
           </div>
         </section>
 

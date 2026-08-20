@@ -11,6 +11,7 @@ import { PAGE_TITLES } from "@/lib/constants";
 function getTitle(pathname: string) {
   if (pathname === "/github/install") return "Connect GitHub";
   if (pathname === "/github/error") return "GitHub connection";
+  if (pathname.endsWith("/aws") && pathname.startsWith("/repositories/")) return "AWS connection";
   if (pathname.startsWith("/repositories/") && pathname !== "/repositories") return "Repository settings";
   if (pathname.startsWith("/runs/") && pathname !== "/runs") return "Run details";
   return PAGE_TITLES[pathname] ?? "Dashboard";

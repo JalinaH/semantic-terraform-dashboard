@@ -14,7 +14,7 @@ export function RepositoryConfigStatusBadge({ status }: { status: RepositoryConf
     <Badge
       variant="outline"
       className={cn(
-        status === "configured" && "border-success/20 bg-success-muted text-success-foreground",
+        status === "configured" && "border-warning/20 bg-warning-muted text-warning-foreground",
         status === "ready" && "border-success/20 bg-success-muted text-success-foreground",
         status === "disabled" && "bg-neutral-status-muted text-neutral-status",
         status === "not_configured" && "border-warning/20 bg-warning-muted text-warning-foreground",

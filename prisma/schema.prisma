@@ -41,8 +41,8 @@ enum FailureStage {
 enum AWSConnectionStatus {
   PENDING
   CONNECTED
-  ATTENTION
-  DISCONNECTED
+  VERIFICATION_FAILED
+  ACCESS_REMOVED
 }
 
 enum VerificationStatus {
@@ -185,14 +185,21 @@ model RepositoryConfig {
 }
 
 model AWSConnection {
-  id           String              @id @default(cuid())
-  repositoryId String              @unique
-  repository   Repository          @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  roleArn      String
-  region       String
-  status       AWSConnectionStatus @default(PENDING)
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  id                String              @id @default(cuid())
+  repositoryId      String              @unique
+  repository        Repository          @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  roleArn           String?
+  region            String
+  status            AWSConnectionStatus @default(PENDING)
+  externalId        String              @unique
+  awsAccountId      String?
+  lastVerifiedAt    DateTime?
+  verificationError String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([status])
+  @@index([awsAccountId])
 }
 
 model AgentRun {

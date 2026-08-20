@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CircleDotDashed, FolderCheck, FolderGit2, GitPullRequestArrow, Github, Power } from "lucide-react";
+import { ArrowRight, CircleDotDashed, FolderCheck, FolderGit2, GitPullRequestArrow, Github, ShieldCheck } from "lucide-react";
 import { beginGitHubInstallationAction } from "@/app/actions/github";
 import { ConnectedRepositoryCard } from "@/components/connected-repository-card";
 import { EmptyState } from "@/components/empty-state";
@@ -25,8 +25,8 @@ export default async function DashboardPage() {
   const metrics = [
     { title: "Connected", value: String(summary.connectedCount), description: `${summary.installationCount} GitHub installation${summary.installationCount === 1 ? "" : "s"}`, icon: FolderGit2 },
     { title: "Configured", value: String(summary.configuredCount), description: "Repositories with saved agent settings", icon: FolderCheck },
-    { title: "Enabled", value: String(summary.enabledCount), description: "Configured for future execution", icon: Power },
-    { title: "Requiring AWS", value: String(summary.requiringAwsCount), description: "Enabled but not operationally ready", icon: CircleDotDashed },
+    { title: "Ready", value: String(summary.readyCount), description: "GitHub, config, agent, and AWS connected", icon: ShieldCheck },
+    { title: "AWS setup required", value: String(summary.requiringAwsCount), description: "Enabled configuration awaiting AWS", icon: CircleDotDashed },
   ];
 
   return (
@@ -35,7 +35,7 @@ export default async function DashboardPage() {
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Control plane</p>
           <h2 className="mt-2 text-2xl font-semibold tracking-[-0.025em]">Terraform failure intelligence</h2>
-          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted-foreground">Connect repositories and persist their Terraform agent settings. Execution and AWS verification access remain intentionally inactive.</p>
+          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted-foreground">Connect repositories, persist their agent settings, and verify repository-scoped AWS roles. Terraform execution remains intentionally inactive.</p>
         </div>
         {repositories.length ? (
           <Link href="/repositories" className={cn(buttonVariants({ variant: "outline" }), "w-fit")}>Manage repositories <ArrowRight aria-hidden="true" /></Link>
@@ -62,7 +62,7 @@ export default async function DashboardPage() {
           </div>
           <span className="text-xs text-muted-foreground">0 persisted runs</span>
         </div>
-        <Card><CardContent className="p-0"><EmptyState icon={GitPullRequestArrow} title="No agent runs yet" description="Phase 3 persists execution configuration only. Terraform execution and result ingestion are deferred." /></CardContent></Card>
+        <Card><CardContent className="p-0"><EmptyState icon={GitPullRequestArrow} title="No agent runs yet" description="Phase 4 establishes verified AWS access only. Terraform execution and result ingestion are deferred." /></CardContent></Card>
       </section>
 
       <section aria-labelledby="repositories-heading">

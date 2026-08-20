@@ -28,11 +28,13 @@ export function RepositoryConfigurationForm({
   repositoryId,
   initialConfig,
   initialStatus,
+  awsConnected,
   disabled = false,
 }: {
   repositoryId: string;
   initialConfig: RepositoryConfigInput;
   initialStatus: RepositoryConfigStatus;
+  awsConnected: boolean;
   disabled?: boolean;
 }) {
   const boundAction = saveRepositoryConfigurationAction.bind(null, repositoryId);
@@ -96,10 +98,10 @@ export function RepositoryConfigurationForm({
             <dl className="grid gap-2 text-xs sm:grid-cols-2">
               <StatusRow label="Configuration" value={state.status === "success" ? "Saved" : formatOption(initialStatus)} />
               <StatusRow label="GitHub" value="Connected" />
-              <StatusRow label="AWS" value="Not connected" />
-              <StatusRow label="Operational status" value="Configuration incomplete" />
+              <StatusRow label="AWS" value={awsConnected ? "Connected" : "Not connected"} />
+              <StatusRow label="Integration status" value={awsConnected && initialConfig.enabled ? "Ready" : "Configuration incomplete"} />
             </dl>
-            <p className="text-[11px] leading-5 text-warning-foreground">AWS connection is required before provider-authenticated verification can run.</p>
+            {!awsConnected ? <p className="text-[11px] leading-5 text-warning-foreground">AWS connection is required before provider-authenticated verification can run.</p> : null}
           </ConfigCard>
 
           <ConfigCard title="Terraform configuration" description="Define the module root and Terraform runtime expected by this repository.">
