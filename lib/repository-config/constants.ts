@@ -17,4 +17,7 @@ export const REPOSITORY_CONFIG_DEFAULTS: RepositoryConfigInput = {
   triggerOnPullRequest: true,
   triggerOnPush: true,
   failedStages: ["plan"],
+  workflowNames: ["Terraform", "Terraform CI", "Infrastructure Plan"],
+  workflowNamePatterns: [],
+  terraformPathPatterns: ["**/*.tf", "**/*.tf.json"],
 };

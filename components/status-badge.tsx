@@ -10,6 +10,7 @@ const statusStyles: Record<VerificationStatus, string> = {
   verification_failed: "border-danger/20 bg-danger-muted text-danger-foreground",
   patch_rejected: "border-danger/20 bg-danger-muted text-danger-foreground",
   verification_unavailable: "border-border bg-neutral-status-muted text-neutral-status",
+  verification_skipped: "border-border bg-neutral-status-muted text-neutral-status",
   pending: "border-border bg-neutral-status-muted text-neutral-status",
 };
 
@@ -19,6 +20,7 @@ const statusIcons = {
   verification_failed: X,
   patch_rejected: ShieldX,
   verification_unavailable: AlertTriangle,
+  verification_skipped: AlertTriangle,
   pending: Clock3,
 } satisfies Record<VerificationStatus, typeof Check>;
 

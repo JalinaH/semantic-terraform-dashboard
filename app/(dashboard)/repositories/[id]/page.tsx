@@ -1,14 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Cloud, ExternalLink, GitBranch, TriangleAlert } from "lucide-react";
+import { ArrowLeft, Cloud, ExternalLink, GitBranch, GitPullRequestArrow, TriangleAlert } from "lucide-react";
 import { AwsStatusBadge } from "@/components/aws-status-badge";
+import { EmptyState } from "@/components/empty-state";
 import { RepositoryConfigurationForm } from "@/components/repository-configuration-form";
 import { RepositoryConfigStatusBadge } from "@/components/repository-config-status-badge";
+import { RunPoller } from "@/components/run-poller";
+import { RunsTable } from "@/components/runs-table";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getRepositoryForUser } from "@/lib/data/repositories";
+import { listAgentRunsForUser } from "@/lib/data/runs";
 import { getGitHubInstallationManagementUrl } from "@/lib/github/urls";
 import { REPOSITORY_CONFIG_DEFAULTS } from "@/lib/repository-config/constants";
 import { toRepositoryConfigInput } from "@/lib/repository-config/mapper";
@@ -21,6 +25,7 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
   const [{ id }, user] = await Promise.all([params, requireAuthenticatedUser()]);
   const repository = await getRepositoryForUser(user.id, id);
   if (!repository) notFound();
+  const recentRuns = await listAgentRunsForUser(user.id, { repositoryId: repository.id }, 5);
 
   const config = repository.config ? toRepositoryConfigInput(repository.config) : REPOSITORY_CONFIG_DEFAULTS;
   const status = getRepositoryConfigStatus(repository.config, repository.awsConnection, repository.accessible);
@@ -29,6 +34,7 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
 
   return (
     <div className="space-y-7">
+      <RunPoller active={recentRuns.some((run) => run.status === "queued" || run.status === "running")} />
       <div>
         <Link href="/repositories" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "-ml-3 text-muted-foreground")}><ArrowLeft aria-hidden="true" />Repositories</Link>
         <div className="mt-3 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -39,7 +45,7 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
               <RepositoryConfigStatusBadge status={status} />
             </div>
             <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em]">{repository.fullName}</h1>
-            <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted-foreground">Configure how this repository will invoke the Semantic Terraform Agent engine in a later execution phase.</p>
+            <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted-foreground">Configure which Terraform workflow failures can dispatch the hosted Semantic Terraform Agent worker.</p>
           </div>
           <Link href={`https://github.com/${repository.fullName}`} target="_blank" rel="noreferrer" className={cn(buttonVariants({ variant: "outline" }), "w-fit")}>View on GitHub <ExternalLink aria-hidden="true" /></Link>
         </div>
@@ -91,7 +97,7 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
       </section>
 
       <section aria-labelledby="configuration-heading">
-        <div className="mb-3"><h2 id="configuration-heading" className="text-base font-semibold">Repository configuration</h2><p className="mt-1 text-xs text-muted-foreground">These settings persist to PostgreSQL. They do not run Terraform or invoke the Python agent.</p></div>
+        <div className="mb-3"><h2 id="configuration-heading" className="text-base font-semibold">Repository configuration</h2><p className="mt-1 text-xs text-muted-foreground">Saved workflow names, path filters, stages, model, context, and bounded repair behavior control hosted dispatch.</p></div>
         <RepositoryConfigurationForm repositoryId={repository.id} initialConfig={config} initialStatus={status} awsConnected={awsConnected} disabled={!repository.accessible} />
       </section>
 
@@ -110,8 +116,8 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
       </section>
 
       <section aria-labelledby="repository-runs-heading">
-        <div className="mb-3"><h2 id="repository-runs-heading" className="text-base font-semibold">Recent runs</h2><p className="mt-1 text-xs text-muted-foreground">No execution or automatic run ingestion exists in Phase 3.</p></div>
-        <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">{repository.agentRuns.length ? `${repository.agentRuns.length} persisted runs` : "No runs recorded for this repository."}</CardContent></Card>
+        <div className="mb-3"><h2 id="repository-runs-heading" className="text-base font-semibold">Recent runs</h2><p className="mt-1 text-xs text-muted-foreground">Signed workflow failures and their hosted execution outcomes.</p></div>
+        <Card><CardContent className="p-0">{recentRuns.length ? <RunsTable runs={recentRuns} /> : <EmptyState icon={GitPullRequestArrow} title="No runs recorded" description="A run appears after a configured Terraform workflow fails and passes the repository readiness gates." />}</CardContent></Card>
       </section>
     </div>
   );

@@ -56,6 +56,11 @@ export interface GitHubAppConfiguration {
   privateKey: string;
 }
 
+export interface GitHubAppSigningConfiguration {
+  clientId: string;
+  privateKey: string;
+}
+
 export class MissingIntegrationConfigurationError extends Error {
   constructor(public readonly missing: string[]) {
     super(`GitHub integration is missing ${missing.length} required configuration value(s).`);
@@ -78,6 +83,18 @@ export function getGitHubAppConfiguration(): GitHubAppConfiguration {
     clientId: process.env.GITHUB_APP_CLIENT_ID!.trim(),
     clientSecret: process.env.GITHUB_APP_CLIENT_SECRET!.trim(),
     slug,
+    privateKey: normalizePrivateKey(process.env.GITHUB_APP_PRIVATE_KEY!),
+  };
+}
+
+export function getGitHubAppSigningConfiguration(): GitHubAppSigningConfiguration {
+  const missing = [
+    ...(!present(process.env.GITHUB_APP_CLIENT_ID) ? ["GITHUB_APP_CLIENT_ID"] : []),
+    ...(!present(process.env.GITHUB_APP_PRIVATE_KEY) ? ["GITHUB_APP_PRIVATE_KEY"] : []),
+  ];
+  if (missing.length) throw new MissingIntegrationConfigurationError(missing);
+  return {
+    clientId: process.env.GITHUB_APP_CLIENT_ID!.trim(),
     privateKey: normalizePrivateKey(process.env.GITHUB_APP_PRIVATE_KEY!),
   };
 }
@@ -142,4 +159,50 @@ export function getAwsControlPlaneConfiguration(): AwsControlPlaneConfiguration 
     region: awsRegionSchema.parse(process.env.AWS_CONTROL_PLANE_REGION?.trim()),
     principalArn: iamPrincipalArnSchema.parse(process.env.AWS_ASSUME_ROLE_PRINCIPAL_ARN?.trim()),
   };
+}
+
+export class MissingWebhookConfigurationError extends Error {
+  constructor() {
+    super("GitHub webhook verification is not configured.");
+    this.name = "MissingWebhookConfigurationError";
+  }
+}
+
+export function getGitHubWebhookSecret() {
+  const secret = process.env.GITHUB_WEBHOOK_SECRET?.trim();
+  if (!secret) throw new MissingWebhookConfigurationError();
+  return secret;
+}
+
+const PINNED_AGENT_SOURCE = "git+https://github.com/JalinaH/semantic-terraform-agent.git@12b9c7a1755921d2e3fea18f8b96eece8e61841f";
+
+export interface WorkerConfiguration {
+  pollIntervalMs: number;
+  jobTimeoutSeconds: number;
+  agentCommand: string;
+  agentVersion: string;
+}
+
+export function getWorkerConfiguration(): WorkerConfiguration {
+  return {
+    pollIntervalMs: boundedInteger(process.env.WORKER_POLL_INTERVAL_MS, 5_000, 500, 60_000),
+    jobTimeoutSeconds: boundedInteger(process.env.WORKER_JOB_TIMEOUT_SECONDS, 600, 60, 1_800),
+    agentCommand: process.env.SEMANTIC_TERRAFORM_AGENT_COMMAND?.trim() || "semantic-terraform-agent",
+    agentVersion: process.env.SEMANTIC_TERRAFORM_AGENT_VERSION?.trim() || PINNED_AGENT_SOURCE,
+  };
+}
+
+export function getHostedExecutionConfigurationStatus() {
+  const missing = [
+    ...(!present(process.env.GITHUB_WEBHOOK_SECRET) ? ["GITHUB_WEBHOOK_SECRET"] : []),
+    ...(!present(process.env.GEMINI_API_KEY) ? ["GEMINI_API_KEY"] : []),
+    ...getAwsControlPlaneConfigurationStatus().missing,
+  ];
+  return { configured: missing.length === 0, missing };
+}
+
+function boundedInteger(value: string | undefined, fallback: number, minimum: number, maximum: number) {
+  if (!value?.trim()) return fallback;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= minimum && parsed <= maximum ? parsed : fallback;
 }

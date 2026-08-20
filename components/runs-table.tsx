@@ -1,7 +1,7 @@
 import { RunRow } from "@/components/run-row";
-import type { AgentRun } from "@/lib/types";
+import type { RunListItem } from "@/lib/runs/types";
 
-export function RunsTable({ runs }: { runs: AgentRun[] }) {
+export function RunsTable({ runs }: { runs: RunListItem[] }) {
   return (
     <div className="scrollbar-thin overflow-x-auto">
       <table className="w-full min-w-[880px] text-left text-sm">
@@ -12,6 +12,7 @@ export function RunsTable({ runs }: { runs: AgentRun[] }) {
             <th scope="col" className="px-4 py-3 font-medium">Resource</th>
             <th scope="col" className="px-4 py-3 font-medium">Status</th>
             <th scope="col" className="px-4 py-3 font-medium">Verification</th>
+            <th scope="col" className="px-4 py-3 font-medium">Failed stage</th>
             <th scope="col" className="px-4 py-3 text-right font-medium">Runtime</th>
           </tr>
         </thead>

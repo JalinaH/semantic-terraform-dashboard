@@ -1,6 +1,6 @@
 # Local GitHub App setup
 
-Phase 2 uses one GitHub App for two separate trust boundaries:
+The dashboard uses one GitHub App for two separate trust boundaries:
 
 1. **User authorization** identifies the dashboard user through the App's OAuth client ID and secret.
 2. **Installation authorization** gives the server short-lived access to repositories explicitly granted to an installation.
@@ -20,7 +20,9 @@ Open **GitHub → Settings → Developer settings → GitHub Apps → New GitHub
 | Request user authorization (OAuth) during installation | **Disabled** |
 | Setup URL | `http://localhost:3000/github/callback` |
 | Redirect on update | Enabled |
-| Webhook Active | Disabled for Phase 2 |
+| Webhook URL | `https://<public-development-origin>/api/github/webhooks` |
+| Webhook secret | The exact value set as `GITHUB_WEBHOOK_SECRET` |
+| Webhook Active | Enabled for Phase 5 |
 | Where can this GitHub App be installed? | Any account |
 
 App names are global, so the development name needs a unique suffix.
@@ -39,6 +41,8 @@ GitHub App setup URL: /github/callback
 
 The two URLs are not interchangeable. The OAuth callback is handled by Auth.js. The Setup URL is handled by the dashboard's installation-verification route.
 
+`localhost` cannot receive GitHub webhooks. Keep the OAuth callback and Setup URL on localhost for browser testing, but expose the webhook endpoint through a trusted HTTPS development tunnel and enter that public URL in the App registration. In production, all three URLs should use the production HTTPS origin.
+
 ## 2. Configure least-privilege permissions
 
 Under **Repository permissions**, set:
@@ -46,10 +50,19 @@ Under **Repository permissions**, set:
 | Permission | Access |
 | --- | --- |
 | Metadata | Read-only (GitHub marks this mandatory) |
+| Actions | Read-only |
+| Contents | Read-only |
+| Pull requests | Read-only |
+| Checks | Read-only |
 
-Leave every other repository, organization, and account permission at **No access**, and subscribe to no events. Metadata read access is sufficient for the Phase 2 repository-discovery fields used by this dashboard: repository identity, owner, visibility, archive state, and default branch.
+Leave every other repository, organization, and account permission at **No access**. These permissions allow the worker to read workflow jobs/logs, clone an exact revision, resolve PR base/head metadata, and receive check-run audit events. No write permission is enabled in Phase 5.
 
-Do not enable contents, actions, checks, issues, pull requests, or write permissions yet. Later execution and PR-comment phases should add only the permissions their designs require, with a visible permission review for existing installations.
+Subscribe to these repository events:
+
+- **Workflow run** — the only Phase 5 event that can queue execution
+- **Pull request**, **Push**, and **Check run** — accepted as bounded audit/context events; they do not start the agent directly
+
+Existing installations must approve newly requested permissions after the App registration changes. Open each installation's GitHub management page and accept the permission update before expecting log collection or checkout to work. Phase 6 PR comments will require a separate, visible pull-request write permission upgrade; do not enable it now.
 
 ## 3. Collect the App credentials
 
@@ -85,12 +98,12 @@ GITHUB_APP_CLIENT_ID="Iv1.example"
 GITHUB_APP_CLIENT_SECRET="server-only-client-secret"
 GITHUB_APP_SLUG="semantic-terraform-agent-dev-example"
 GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
-GITHUB_WEBHOOK_SECRET=""
+GITHUB_WEBHOOK_SECRET="generate-and-paste-the-same-random-secret-used-by-the-app"
 ```
 
 The private key may be stored as a quoted, single-line value with literal `\n` sequences; the server converts them to newlines. A normal multiline quoted value is also accepted by common dotenv loaders. Do not prefix any secret with `NEXT_PUBLIC_`.
 
-`GITHUB_WEBHOOK_SECRET` is reserved and unused because webhooks are outside Phase 2. It may remain empty locally.
+Generate the webhook secret with a cryptographically secure password generator, keep it server-only, and use the exact same value in GitHub's App webhook settings. Never reuse `AUTH_SECRET`, the client secret, or the private key as the webhook secret.
 
 ## 5. Prepare PostgreSQL and start the dashboard
 
@@ -119,6 +132,8 @@ Open [http://localhost:3000](http://localhost:3000).
 10. Confirm removed grants disappear from the accessible list. Their database records are retained with `accessible = false` for future historical integrity.
 11. Open the user menu and select **Sign out**. Confirm `/dashboard` redirects to the landing page.
 
+For hosted automation, also configure a test repository's workflow name and Terraform path patterns, complete its AWS onboarding, start the worker, and follow the end-to-end test in [hosted-agent-execution.md](hosted-agent-execution.md).
+
 ## Troubleshooting
 
 - **GitHub sign-in is not configured:** one or more Auth.js/database values are missing. Compare `.env` with `.env.example` and restart the dev server.
@@ -127,5 +142,8 @@ Open [http://localhost:3000](http://localhost:3000).
 - **Rate limited:** wait for the GitHub API rate limit to reset, then run manual sync again.
 - **Private key parsing failed:** ensure the full PEM header/footer is present and newlines are real line breaks or literal `\n` sequences.
 - **Organization not listed:** an organization owner may restrict GitHub App installation. Ask an owner to approve or install the App.
+- **Webhook delivery is 401:** the dashboard and App webhook secrets differ, or a proxy altered the request body. GitHub must sign the exact bytes the route receives.
+- **Run is queued but log collection fails:** approve the App's Actions read permission update and confirm the workflow/job log is still retained.
+- **Checkout fails:** approve Contents read access and confirm the repository is still granted to the installation.
 
 For a remote development URL, replace both localhost callback URLs with the exact HTTPS origin. Do not add wildcard callback or Setup URLs.

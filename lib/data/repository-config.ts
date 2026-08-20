@@ -58,6 +58,9 @@ export const prismaRepositoryConfigurationStore: RepositoryConfigurationStore = 
       triggerOnPullRequest: config.triggerOnPullRequest,
       triggerOnPush: config.triggerOnPush,
       failedStages: config.failedStages.map((stage) => failureStageToDatabase[stage]),
+      workflowNames: config.workflowNames,
+      workflowNamePatterns: config.workflowNamePatterns,
+      terraformPathPatterns: config.terraformPathPatterns,
     };
     const saved = await db.repositoryConfig.upsert({
       where: { repositoryId },

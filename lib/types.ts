@@ -4,6 +4,7 @@ export type VerificationStatus =
   | "verification_failed"
   | "patch_rejected"
   | "verification_unavailable"
+  | "verification_skipped"
   | "pending";
 
 export type VerificationStage = "patch_check" | "patch_apply" | "fmt" | "init" | "validate" | "plan";

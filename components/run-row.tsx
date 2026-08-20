@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
-import type { AgentRun } from "@/lib/types";
+import { RunStatusBadge } from "@/components/run-status-badge";
+import type { RunListItem } from "@/lib/runs/types";
 import { formatRuntime, truncateSha } from "@/lib/utils";
 
-export function RunRow({ run }: { run: AgentRun }) {
+export function RunRow({ run }: { run: RunListItem }) {
   return (
     <tr className="border-b transition-colors last:border-b-0 hover:bg-secondary/25">
       <td className="px-4 py-3.5">
@@ -16,10 +17,11 @@ export function RunRow({ run }: { run: AgentRun }) {
       <td className="whitespace-nowrap px-4 py-3.5 font-mono text-xs text-muted-foreground">
         {run.pullRequestNumber ? `PR #${run.pullRequestNumber}` : truncateSha(run.commitSha)}
       </td>
-      <td className="max-w-56 px-4 py-3.5 font-mono text-xs"><span className="block truncate">{run.affectedResource}</span></td>
+      <td className="max-w-56 px-4 py-3.5 font-mono text-xs"><span className="block truncate">{run.affectedResource ?? "—"}</span></td>
+      <td className="whitespace-nowrap px-4 py-3.5"><RunStatusBadge status={run.status} /></td>
       <td className="whitespace-nowrap px-4 py-3.5"><StatusBadge status={run.verificationStatus} /></td>
-      <td className="whitespace-nowrap px-4 py-3.5 text-sm text-muted-foreground">{run.failedStage}</td>
-      <td className="whitespace-nowrap px-4 py-3.5 text-right font-mono text-xs text-muted-foreground">{formatRuntime(run.totalRuntimeMs)}</td>
+      <td className="whitespace-nowrap px-4 py-3.5 text-sm text-muted-foreground">{run.failedStage ?? "—"}</td>
+      <td className="whitespace-nowrap px-4 py-3.5 text-right font-mono text-xs text-muted-foreground">{run.totalRuntimeMs === null ? "—" : formatRuntime(run.totalRuntimeMs)}</td>
     </tr>
   );
 }

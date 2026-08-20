@@ -1,11 +1,11 @@
 import { createPrivateKey } from "node:crypto";
 import { SignJWT, decodeProtectedHeader, decodeJwt } from "jose";
 import { Octokit } from "@octokit/rest";
-import { getGitHubAppConfiguration, type GitHubAppConfiguration } from "@/lib/config";
+import { getGitHubAppSigningConfiguration, type GitHubAppSigningConfiguration } from "@/lib/config";
 import { GitHubIntegrationError, mapGitHubApiError } from "@/lib/github/errors";
 
 const API_VERSION = "2022-11-28";
-const USER_AGENT = "semantic-terraform-dashboard/0.2";
+const USER_AGENT = "semantic-terraform-dashboard/0.5";
 
 export interface GitHubInstallationMetadata {
   installationId: string;
@@ -49,7 +49,7 @@ export function inspectAppJwt(token: string) {
   return { algorithm: header.alg, issuer: payload.iss, issuedAt: payload.iat, expiresAt: payload.exp };
 }
 
-async function createAppOctokit(configuration: GitHubAppConfiguration) {
+async function createAppOctokit(configuration: GitHubAppSigningConfiguration) {
   const token = await createGitHubAppJwt({
     issuer: configuration.clientId,
     privateKey: configuration.privateKey,
@@ -67,7 +67,7 @@ function numericInstallationId(value: string) {
 
 export async function fetchInstallationMetadata(
   installationId: string,
-  configuration = getGitHubAppConfiguration(),
+  configuration = getGitHubAppSigningConfiguration(),
 ): Promise<GitHubInstallationMetadata> {
   try {
     const octokit = await createAppOctokit(configuration);
@@ -97,7 +97,7 @@ export async function fetchInstallationMetadata(
 
 export async function createInstallationAccessToken(
   installationId: string,
-  configuration = getGitHubAppConfiguration(),
+  configuration = getGitHubAppSigningConfiguration(),
 ) {
   try {
     const octokit = await createAppOctokit(configuration);

@@ -5,7 +5,7 @@ import { signInWithGitHubAction } from "@/app/actions/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { getIntegrationConfigurationStatus } from "@/lib/config";
+import { getHostedExecutionConfigurationStatus, getIntegrationConfigurationStatus } from "@/lib/config";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function Home({ searchParams }: { searchParams: Promise<{ auth?: string }> }) {
   const session = await auth();
   const configuration = getIntegrationConfigurationStatus();
+  const hostedExecution = getHostedExecutionConfigurationStatus();
   const { auth: authState } = await searchParams;
   return (
     <div className="relative min-h-screen overflow-hidden bg-background">
@@ -23,7 +24,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
           <span className="text-sm font-semibold tracking-tight">Semantic Terraform Agent</span>
         </Link>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="hidden bg-card/70 text-muted-foreground sm:inline-flex">Phase 4 AWS onboarding</Badge>
+          <Badge variant="outline" className="hidden bg-card/70 text-muted-foreground sm:inline-flex">Phase 5 hosted automation</Badge>
           <ThemeToggle />
           {session?.user ? <Link href="/dashboard" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "hidden sm:inline-flex")}>Dashboard</Link> : null}
         </div>
@@ -31,7 +32,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
 
       <main className="relative z-10 mx-auto grid max-w-7xl gap-14 px-5 pb-16 pt-20 sm:px-8 sm:pt-28 lg:grid-cols-[1.03fr_0.97fr] lg:items-center lg:gap-20 lg:pb-24 lg:pt-32">
         <section>
-          <Badge variant="outline" className="bg-card/70 text-muted-foreground"><span className="size-1.5 rounded-full bg-success" />Hosted control plane foundation</Badge>
+          <Badge variant="outline" className="bg-card/70 text-muted-foreground"><span className="size-1.5 rounded-full bg-success" />Hosted failure automation</Badge>
           <h1 className="mt-6 max-w-3xl text-4xl font-semibold leading-[1.08] tracking-[-0.045em] sm:text-5xl lg:text-[3.55rem]">
             Turn Terraform failures into <span className="text-muted-foreground">verified evidence.</span>
           </h1>
@@ -39,7 +40,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
             Automatically diagnose semantic Terraform CI failures, generate bounded candidate fixes, and verify them in an isolated environment for human review.
           </p>
           {authState === "required" ? <p className="mt-5 max-w-xl rounded-lg border border-warning/20 bg-warning-muted px-4 py-3 text-sm text-warning-foreground">Continue with GitHub to access the protected dashboard.</p> : null}
-          {authState === "configuration" || !configuration.authentication ? <p className="mt-5 max-w-xl rounded-lg border bg-secondary/50 px-4 py-3 text-sm text-muted-foreground"><span className="font-medium text-foreground">GitHub sign-in is not configured.</span> Add the documented Phase 2 environment values to enable authentication.</p> : null}
+          {authState === "configuration" || !configuration.authentication ? <p className="mt-5 max-w-xl rounded-lg border bg-secondary/50 px-4 py-3 text-sm text-muted-foreground"><span className="font-medium text-foreground">GitHub sign-in is not configured.</span> Add the documented GitHub App environment values to enable authentication.</p> : null}
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             {session?.user ? (
               <Link href="/dashboard" className={cn(buttonVariants({ size: "lg" }), "w-full sm:w-fit")}>Open Dashboard <ArrowRight aria-hidden="true" /></Link>
@@ -54,7 +55,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
           <div className="mt-12 grid max-w-xl gap-3 sm:grid-cols-3">
             <Mode icon={TerminalSquare} label="CLI" state="Available in agent repo" />
             <Mode icon={Github} label="GitHub Actions" state="Reusable integration" />
-            <Mode icon={CircleDashed} label="Hosted GitHub App" state="Identity + repository + AWS onboarding" pending={!configuration.githubApp} />
+            <Mode icon={CircleDashed} label="Hosted GitHub App" state="Webhook + isolated worker" pending={!configuration.githubApp || !hostedExecution.configured} />
           </div>
         </section>
 
@@ -89,7 +90,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
       </main>
 
       <footer className="relative z-10 mx-auto flex max-w-7xl flex-col gap-2 border-t px-5 py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-8">
-        <span>Semantic Terraform Agent · Dashboard foundation</span>
+        <span>Semantic Terraform Agent · Hosted control plane</span>
         <span>Engine and hosted control plane remain separate by design.</span>
       </footer>
     </div>

@@ -12,7 +12,6 @@ export async function getRepositoryForUser(userId: string, repositoryId: string)
       config: true,
       awsConnection: true,
       installation: true,
-      agentRuns: { orderBy: { createdAt: "desc" }, take: 5 },
     },
   });
 }

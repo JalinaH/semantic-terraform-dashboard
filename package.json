@@ -1,6 +1,6 @@
 {
   "name": "semantic-terraform-dashboard",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -10,6 +10,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "worker": "tsx worker/index.ts",
+    "worker:once": "tsx worker/index.ts --once",
+    "worker:health": "node dist/worker/index.mjs --healthcheck",
+    "worker:build": "esbuild worker/index.ts --bundle --platform=node --format=esm --packages=external --alias:@=. --alias:server-only=./worker/server-only.ts --outfile=dist/worker/index.mjs",
     "prisma:generate": "prisma generate",
     "prisma:format": "prisma format",
     "prisma:validate": "prisma validate"
@@ -36,10 +40,12 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.1",
     "prisma": "6.19.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.12",
     "typescript": "^5",
     "vitest": "^4.1.10"
   }

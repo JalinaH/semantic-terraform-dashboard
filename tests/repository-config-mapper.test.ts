@@ -21,7 +21,13 @@ describe("repository configuration mappers", () => {
         contextMode: "schema-aware",
       },
       repair: { maxAttempts: 1 },
-      triggers: { pullRequest: true, push: true },
+      triggers: {
+        pullRequest: true,
+        push: true,
+        workflowNames: ["Terraform", "Terraform CI", "Infrastructure Plan"],
+        workflowNamePatterns: [],
+        terraformPathPatterns: ["**/*.tf", "**/*.tf.json"],
+      },
     });
   });
 
@@ -37,6 +43,9 @@ describe("repository configuration mappers", () => {
       triggerOnPullRequest: true,
       triggerOnPush: true,
       failedStages: ["PLAN" as const],
+      workflowNames: ["Terraform", "Terraform CI", "Infrastructure Plan"],
+      workflowNamePatterns: [],
+      terraformPathPatterns: ["**/*.tf", "**/*.tf.json"],
       installationToken: "must-not-leak",
       privateKey: "must-not-leak",
     };

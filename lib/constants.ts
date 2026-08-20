@@ -24,6 +24,7 @@ export const STATUS_LABELS: Record<VerificationStatus, string> = {
   verification_failed: "Verification failed",
   patch_rejected: "Patch rejected",
   verification_unavailable: "Verification unavailable",
+  verification_skipped: "Verification skipped",
   pending: "Pending",
 };
 

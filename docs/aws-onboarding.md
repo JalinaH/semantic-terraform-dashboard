@@ -6,7 +6,7 @@ Phase 4 connects one dashboard repository to one customer IAM role. It uses AWS 
 
 The existing Python agent eventually needs to run `terraform init`, `terraform validate`, and `terraform plan -refresh=false` in an isolated worker. Providers can still call AWS APIs while planning, even with refresh disabled. The exact permissions therefore depend on the Terraform resources and providers in a repository.
 
-Phase 4 creates and verifies the trust boundary only. It does not execute Terraform or invoke the Python engine.
+Phase 4 creates and verifies the trust boundary. Phase 5 now consumes that verified connection only inside the hosted worker, requests a fresh short-lived STS session for each run, and passes it to the existing Python engine without persisting credentials.
 
 ## Trust architecture
 
@@ -42,7 +42,7 @@ AWS_ASSUME_ROLE_PRINCIPAL_ARN="arn:aws:iam::111122223333:role/SemanticTerraformA
 
 `AWS_ASSUME_ROLE_PRINCIPAL_ARN` is the real IAM principal that AWS should allow to assume customer roles. Do not use a personal account ID hardcoded in source code. The generated trust policy inserts the configured ARN.
 
-Production should run the dashboard or future worker under a workload IAM role with `sts:AssumeRole` permission for the intended customer role namespace. Local development uses the standard AWS SDK credential provider chain. Prefer AWS IAM Identity Center/SSO or a shared profile:
+Production should run the dashboard/worker under a workload IAM role with `sts:AssumeRole` permission for the intended customer role namespace. Local development uses the standard AWS SDK credential provider chain. Prefer AWS IAM Identity Center/SSO or a shared profile:
 
 ```bash
 aws sso login --profile your-development-profile

@@ -71,7 +71,7 @@ export default async function AwsOnboardingPage({ params }: { params: Promise<{ 
 
       <section aria-labelledby="aws-region-heading">
         <Card>
-          <CardHeader className="border-b"><div className="flex items-start gap-3"><StepIcon step={1} active={currentStep === 1} complete={Boolean(connection)} /><div><CardTitle id="aws-region-heading">Choose a verification region</CardTitle><CardDescription>Select the default region the future verification worker will use for this repository.</CardDescription></div></div></CardHeader>
+          <CardHeader className="border-b"><div className="flex items-start gap-3"><StepIcon step={1} active={currentStep === 1} complete={Boolean(connection)} /><div><CardTitle id="aws-region-heading">Choose a verification region</CardTitle><CardDescription>Select the default region the hosted verification worker will use for this repository.</CardDescription></div></div></CardHeader>
           <CardContent className="pt-5"><div className="max-w-xl"><AwsRegionForm repositoryId={repository.id} currentRegion={connection?.region ?? DEFAULT_AWS_REGION} started={Boolean(connection)} disabled={!repository.accessible || !repository.config} /></div></CardContent>
         </Card>
       </section>

@@ -14,6 +14,9 @@ export interface RepositoryConfigInput {
   triggerOnPullRequest: boolean;
   triggerOnPush: boolean;
   failedStages: FailureStage[];
+  workflowNames: string[];
+  workflowNamePatterns: string[];
+  terraformPathPatterns: string[];
 }
 
 export interface RepositoryConfigRecord extends RepositoryConfigInput {
@@ -40,6 +43,9 @@ export interface AgentExecutionConfig {
   triggers: {
     pullRequest: boolean;
     push: boolean;
+    workflowNames: string[];
+    workflowNamePatterns: string[];
+    terraformPathPatterns: string[];
   };
 }
 

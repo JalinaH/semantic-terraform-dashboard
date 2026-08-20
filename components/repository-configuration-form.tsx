@@ -88,11 +88,11 @@ export function RepositoryConfigurationForm({
     >
       <fieldset disabled={disabled || pending} className="contents">
         <div className="grid gap-5 xl:grid-cols-2">
-          <ConfigCard title="Agent status" description="Control whether this repository can participate in future diagnosis runs.">
+          <ConfigCard title="Agent status" description="Control whether this repository can participate in hosted diagnosis runs.">
             <ToggleRow
               name="enabled"
               label="Enable Semantic Terraform Agent"
-              description="Saving enables configuration only. No agent jobs run in Phase 3."
+              description="When ready, signed matching workflow failures may queue a hosted agent run."
               defaultChecked={initialConfig.enabled}
             />
             <dl className="grid gap-2 text-xs sm:grid-cols-2">
@@ -148,14 +148,26 @@ export function RepositoryConfigurationForm({
             </div>
           </ConfigCard>
 
-          <ConfigCard title="Trigger behavior" description="Describe the future events and failed Terraform stages this repository accepts.">
+          <ConfigCard title="Hosted automation" description="Choose which failed Terraform workflows can queue hosted diagnosis.">
             <div className="space-y-3">
-              <ToggleRow name="triggerOnPullRequest" label="Pull requests" description="Prepare configuration for future pull-request checks." defaultChecked={initialConfig.triggerOnPullRequest} />
-              <ToggleRow name="triggerOnPush" label="Pushes" description="Prepare configuration for future branch-push checks." defaultChecked={initialConfig.triggerOnPush} />
+              <ToggleRow name="triggerOnPullRequest" label="Pull-request workflow failures" description="Queue only after a configured GitHub Actions workflow fails on a trusted pull request." defaultChecked={initialConfig.triggerOnPullRequest} />
+              <ToggleRow name="triggerOnPush" label="Push workflow failures" description="Queue only after a configured workflow fails on a direct branch push." defaultChecked={initialConfig.triggerOnPush} />
             </div>
+            <Field label="Terraform workflow names" name="workflowNames" hint="Comma-separated exact workflow names. Matching is case-insensitive.">
+              <Input name="workflowNames" defaultValue={initialConfig.workflowNames.join(", ")} aria-invalid={Boolean(errors?.workflowNames)} aria-describedby="workflowNames-hint workflowNames-error" />
+            </Field>
+            <FieldError id="workflowNames-error" errors={errors?.workflowNames} />
+            <Field label="Optional workflow patterns" name="workflowNamePatterns" hint="Simple * wildcards, for example Terraform * or Infrastructure *.">
+              <Input name="workflowNamePatterns" defaultValue={initialConfig.workflowNamePatterns.join(", ")} placeholder="Terraform *" aria-invalid={Boolean(errors?.workflowNamePatterns)} aria-describedby="workflowNamePatterns-hint workflowNamePatterns-error" />
+            </Field>
+            <FieldError id="workflowNamePatterns-error" errors={errors?.workflowNamePatterns} />
+            <Field label="Terraform path patterns" name="terraformPathPatterns" hint="Changed files must match at least one pattern before a hosted run is queued.">
+              <Input name="terraformPathPatterns" defaultValue={initialConfig.terraformPathPatterns.join(", ")} className="font-mono text-xs" aria-invalid={Boolean(errors?.terraformPathPatterns)} aria-describedby="terraformPathPatterns-hint terraformPathPatterns-error" />
+            </Field>
+            <FieldError id="terraformPathPatterns-error" errors={errors?.terraformPathPatterns} />
             <fieldset className="space-y-2">
               <legend className="text-xs font-medium">Failed Terraform stages</legend>
-              <p className="text-[11px] text-muted-foreground">Select which CI failures will be eligible for diagnosis in a later execution phase.</p>
+              <p className="text-[11px] text-muted-foreground">Only failed configured Terraform workflows and changed Terraform paths are eligible for hosted diagnosis.</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {FAILURE_STAGE_OPTIONS.map((stage) => (
                   <label key={stage} className="flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2.5 text-xs transition-colors hover:bg-secondary/40">

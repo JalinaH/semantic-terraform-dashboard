@@ -26,7 +26,7 @@ export function AwsRegionForm({ repositoryId, currentRegion, started, disabled =
         <Select id="aws-region" name="region" defaultValue={currentRegion} disabled={disabled || pending} aria-describedby="aws-region-help aws-region-error">
           {AWS_REGIONS.map((region) => <option key={region.value} value={region.value}>{region.value} — {region.label}</option>)}
         </Select>
-        <p id="aws-region-help" className="text-[11px] leading-4 text-muted-foreground">Used as the default AWS provider region for future isolated Terraform verification.</p>
+        <p id="aws-region-help" className="text-[11px] leading-4 text-muted-foreground">Used as the default AWS provider region for isolated hosted Terraform verification.</p>
         <FieldErrors id="aws-region-error" errors={state.fieldErrors?.region} />
       </div>
       <Button type="submit" disabled={pending || disabled}>{pending ? <LoaderCircle aria-hidden="true" className="animate-spin" /> : <CloudCog aria-hidden="true" />}{pending ? "Saving region…" : started ? "Save region" : "Start AWS setup"}</Button>

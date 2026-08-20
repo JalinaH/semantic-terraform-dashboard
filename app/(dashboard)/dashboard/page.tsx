@@ -1,13 +1,15 @@
 import Link from "next/link";
-import { ArrowRight, CircleDotDashed, FolderCheck, FolderGit2, GitPullRequestArrow, Github, ShieldCheck } from "lucide-react";
+import { ArrowRight, BadgeCheck, CircleGauge, FolderGit2, GitPullRequestArrow, Github, ListChecks, TriangleAlert } from "lucide-react";
 import { beginGitHubInstallationAction } from "@/app/actions/github";
 import { ConnectedRepositoryCard } from "@/components/connected-repository-card";
 import { EmptyState } from "@/components/empty-state";
 import { MetricCard } from "@/components/metric-card";
+import { RunPoller } from "@/components/run-poller";
+import { RunsTable } from "@/components/runs-table";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
-import { getDashboardSummary } from "@/lib/data/dashboard";
+import { getRunMetricsForUser, listAgentRunsForUser } from "@/lib/data/runs";
 import { listInstallationsForUser } from "@/lib/github/installations";
 import { cn } from "@/lib/utils";
 
@@ -15,27 +17,29 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const user = await requireAuthenticatedUser();
-  const [summary, userInstallations] = await Promise.all([
-    getDashboardSummary(user.id),
+  const [runMetrics, recentRuns, userInstallations] = await Promise.all([
+    getRunMetricsForUser(user.id),
+    listAgentRunsForUser(user.id, {}, 5),
     listInstallationsForUser(user.id),
   ]);
   const repositories = userInstallations.flatMap(({ githubInstallation }) =>
     githubInstallation.repositories.map((repository) => ({ repository, accountLogin: githubInstallation.accountLogin })),
   );
   const metrics = [
-    { title: "Connected", value: String(summary.connectedCount), description: `${summary.installationCount} GitHub installation${summary.installationCount === 1 ? "" : "s"}`, icon: FolderGit2 },
-    { title: "Configured", value: String(summary.configuredCount), description: "Repositories with saved agent settings", icon: FolderCheck },
-    { title: "Ready", value: String(summary.readyCount), description: "GitHub, config, agent, and AWS connected", icon: ShieldCheck },
-    { title: "AWS setup required", value: String(summary.requiringAwsCount), description: "Enabled configuration awaiting AWS", icon: CircleDotDashed },
+    { title: "Total runs", value: String(runMetrics.total), description: "Real persisted webhook-triggered records", icon: ListChecks },
+    { title: "Verified fixes", value: String(runMetrics.verified), description: `${runMetrics.verifiedAfterRetry} verified after bounded repair`, icon: BadgeCheck },
+    { title: "Verification rate", value: `${runMetrics.verificationRate}%`, description: "Verified fixes across completed diagnoses", icon: CircleGauge },
+    { title: "Failed runs", value: String(runMetrics.failed), description: "Worker or infrastructure failures", icon: TriangleAlert },
   ];
 
   return (
     <div className="space-y-8">
+      <RunPoller active={recentRuns.some((run) => run.status === "queued" || run.status === "running")} />
       <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Control plane</p>
           <h2 className="mt-2 text-2xl font-semibold tracking-[-0.025em]">Terraform failure intelligence</h2>
-          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted-foreground">Connect repositories, persist their agent settings, and verify repository-scoped AWS roles. Terraform execution remains intentionally inactive.</p>
+          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted-foreground">Signed GitHub workflow failures are filtered, queued, executed by the hosted Python agent, and persisted as evidence-backed results.</p>
         </div>
         {repositories.length ? (
           <Link href="/repositories" className={cn(buttonVariants({ variant: "outline" }), "w-fit")}>Manage repositories <ArrowRight aria-hidden="true" /></Link>
@@ -58,11 +62,11 @@ export default async function DashboardPage() {
         <div className="mb-3 flex items-center justify-between">
           <div>
             <h2 id="recent-runs-heading" className="text-base font-semibold">Recent runs</h2>
-            <p className="mt-1 text-xs text-muted-foreground">Real run records will appear after the execution pipeline is connected in a later phase.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Hosted runs from repositories you can access.</p>
           </div>
-          <span className="text-xs text-muted-foreground">0 persisted runs</span>
+          <Link href="/runs" className="text-xs font-medium text-muted-foreground hover:text-foreground">View all</Link>
         </div>
-        <Card><CardContent className="p-0"><EmptyState icon={GitPullRequestArrow} title="No agent runs yet" description="Phase 4 establishes verified AWS access only. Terraform execution and result ingestion are deferred." /></CardContent></Card>
+        <Card><CardContent className="p-0">{recentRuns.length ? <RunsTable runs={recentRuns} /> : <EmptyState icon={GitPullRequestArrow} title="No agent runs yet" description="A run will appear when a configured Terraform workflow fails and passes the readiness, changed-file, and fork-safety gates." />}</CardContent></Card>
       </section>
 
       <section aria-labelledby="repositories-heading">

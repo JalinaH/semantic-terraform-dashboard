@@ -11,6 +11,9 @@ interface PersistedRepositoryConfig {
   triggerOnPullRequest: boolean;
   triggerOnPush: boolean;
   failedStages: Array<"VALIDATE" | "PLAN">;
+  workflowNames: string[];
+  workflowNamePatterns: string[];
+  terraformPathPatterns: string[];
 }
 
 const contextModeFromDatabase = {
@@ -31,6 +34,9 @@ export function toRepositoryConfigInput(config: PersistedRepositoryConfig): Repo
     triggerOnPullRequest: config.triggerOnPullRequest,
     triggerOnPush: config.triggerOnPush,
     failedStages: config.failedStages.map((stage) => stage.toLowerCase() as "validate" | "plan"),
+    workflowNames: [...config.workflowNames],
+    workflowNamePatterns: [...config.workflowNamePatterns],
+    terraformPathPatterns: [...config.terraformPathPatterns],
   };
 }
 
@@ -50,6 +56,9 @@ export function toAgentExecutionConfig(config: RepositoryConfigInput): AgentExec
     triggers: {
       pullRequest: config.triggerOnPullRequest,
       push: config.triggerOnPush,
+      workflowNames: [...config.workflowNames],
+      workflowNamePatterns: [...config.workflowNamePatterns],
+      terraformPathPatterns: [...config.terraformPathPatterns],
     },
   };
 }

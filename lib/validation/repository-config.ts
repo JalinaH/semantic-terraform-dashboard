@@ -9,6 +9,18 @@ import {
 export const MAX_TERRAFORM_DIRECTORY_LENGTH = 240;
 const TERRAFORM_VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
 const SAFE_PATH_SEGMENT_PATTERN = /^[A-Za-z0-9._-]+$/;
+const SAFE_WORKFLOW_PATTERN = /^[A-Za-z0-9 ._()\[\]*/?-]+$/;
+
+function listSchema(label: string, options: { allowGlob?: boolean } = {}) {
+  return z.array(z.string().trim().min(1).max(120)).max(12).superRefine((values, context) => {
+    if (new Set(values.map((value) => value.toLowerCase())).size !== values.length) {
+      context.addIssue({ code: "custom", message: `${label} must not contain duplicates.` });
+    }
+    if (options.allowGlob && values.some((value) => !SAFE_WORKFLOW_PATTERN.test(value) || value.includes(".."))) {
+      context.addIssue({ code: "custom", message: `${label} contain an unsupported pattern.` });
+    }
+  });
+}
 
 export function normalizeTerraformDirectory(value: string) {
   const normalized = value
@@ -61,10 +73,16 @@ export const repositoryConfigSchema = z
     triggerOnPullRequest: formBooleanSchema,
     triggerOnPush: formBooleanSchema,
     failedStages: z.array(z.enum(FAILURE_STAGE_OPTIONS)).min(1, "Select at least one failed stage."),
+    workflowNames: listSchema("Workflow names"),
+    workflowNamePatterns: listSchema("Workflow name patterns", { allowGlob: true }),
+    terraformPathPatterns: listSchema("Terraform path patterns", { allowGlob: true }).refine((values) => values.length > 0, "Add at least one Terraform path pattern."),
   })
   .superRefine((value, context) => {
     if (value.modelProvider === "gemini" && value.model !== "gemini-3.6-flash") {
       context.addIssue({ code: "custom", path: ["model"], message: "Choose a model supported by the selected provider." });
+    }
+    if (value.workflowNames.length === 0 && value.workflowNamePatterns.length === 0) {
+      context.addIssue({ code: "custom", path: ["workflowNames"], message: "Add at least one workflow name or pattern." });
     }
   });
 
@@ -80,7 +98,15 @@ export function repositoryConfigFormDataToValues(formData: FormData) {
     triggerOnPullRequest: formData.get("triggerOnPullRequest"),
     triggerOnPush: formData.get("triggerOnPush"),
     failedStages: formData.getAll("failedStages"),
+    workflowNames: splitList(formData.get("workflowNames")),
+    workflowNamePatterns: splitList(formData.get("workflowNamePatterns")),
+    terraformPathPatterns: splitList(formData.get("terraformPathPatterns")),
   };
+}
+
+function splitList(value: FormDataEntryValue | null) {
+  if (typeof value !== "string") return [];
+  return value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
 }
 
 export function parseRepositoryConfigFormData(formData: FormData) {
