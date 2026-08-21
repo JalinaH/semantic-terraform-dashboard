@@ -4,6 +4,9 @@ The worker is a separate control-plane process. It atomically claims `QUEUED`
 `AgentRun` rows from PostgreSQL, downloads bounded GitHub Actions evidence,
 checks out the exact failing revision in a disposable directory, assumes the
 repository AWS role, and invokes the pinned Python agent CLI.
+After a completed run is persisted, the same process separately claims pending
+PR publications and creates or updates one marked GitHub App comment. A comment
+failure never changes the completed agent-run outcome.
 
 It never pushes, commits, applies Terraform, or persists GitHub/AWS/model
 credentials. The Python engine remains in `semantic-terraform-agent` and is
@@ -29,7 +32,7 @@ pnpm worker:health
 ## Container
 
 ```bash
-docker build -f worker/Dockerfile -t semantic-terraform-worker:0.5.0 .
+docker build -f worker/Dockerfile -t semantic-terraform-worker:0.6.0 .
 ```
 
 The container pins Node 22, Terraform 1.15.7, and the Python agent source

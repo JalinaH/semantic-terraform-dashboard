@@ -102,7 +102,7 @@ An agent result is schema-validated. Safe persistence includes diagnosis, patch,
 ## Local end-to-end test
 
 1. Use a separate private test repository with an ordinary GitHub Actions workflow that runs Terraform `init`, `validate`, and/or `plan` and retains Actions logs.
-2. Register/update the development GitHub App using [github-app-setup.md](github-app-setup.md), including Actions/Contents/Pull requests/Checks read permissions and subscribed events.
+2. Register/update the development GitHub App using [github-app-setup.md](github-app-setup.md), including Actions/Contents/Checks read permissions, Pull requests write permission for Phase 6 publication, and subscribed events.
 3. Expose `http://localhost:3000/api/github/webhooks` through a trusted HTTPS tunnel. Put the public `/api/github/webhooks` URL and the same random `GITHUB_WEBHOOK_SECRET` in the App settings and `.env`.
 4. Sign in, install the App on only the test repository, and approve any permission update.
 5. Save repository configuration. Match the exact workflow name, enable the PR trigger, include `**/*.tf`/`**/*.tf.json`, and choose the expected failed stage.
@@ -130,4 +130,4 @@ For a container worker, run the documented image with server/worker secrets inje
 - no automatic worker retry and no more than one agent repair attempt
 - job logs must still be available through GitHub Actions retention
 - a configured workflow failure is required; the dashboard does not replace the repository's Terraform CI
-- Phase 6 will add idempotent evidence-safe PR comments after an explicit pull-request write permission review
+- Phase 6 publication is documented separately in [pr-publication.md](pr-publication.md)

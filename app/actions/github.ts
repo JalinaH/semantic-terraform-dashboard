@@ -7,6 +7,8 @@ import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getIntegrationConfigurationStatus } from "@/lib/config";
 import { GitHubIntegrationError } from "@/lib/github/errors";
 import { getInstallationForUser } from "@/lib/github/installations";
+import { connectInstallationToUser } from "@/lib/github/installations";
+import { fetchInstallationMetadata } from "@/lib/github/app";
 import { createInstallationState, INSTALLATION_STATE_COOKIE } from "@/lib/github/state";
 import { syncPersistedInstallation } from "@/lib/github/sync";
 import { getGitHubAppInstallationUrl } from "@/lib/github/urls";
@@ -43,7 +45,9 @@ export async function syncRepositoriesAction(formData: FormData) {
   try {
     const installation = await getInstallationForUser(user.id, installationDatabaseId);
     if (!installation) throw new GitHubIntegrationError("installation_inaccessible");
-    result = await syncPersistedInstallation(installation);
+    const metadata = await fetchInstallationMetadata(installation.installationId);
+    const refreshedInstallation = await connectInstallationToUser(user.id, metadata);
+    result = await syncPersistedInstallation(refreshedInstallation);
     revalidatePath("/dashboard");
     revalidatePath("/repositories");
     revalidatePath("/settings");

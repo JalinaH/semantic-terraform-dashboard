@@ -12,6 +12,7 @@ export async function connectInstallationToUser(userId: string, metadata: GitHub
         repositorySelection: metadata.repositorySelection,
         htmlUrl: metadata.htmlUrl,
         suspendedAt: metadata.suspendedAt,
+        pullRequestsPermission: metadata.pullRequestsPermission,
       },
       create: {
         installationId: metadata.installationId,
@@ -21,6 +22,7 @@ export async function connectInstallationToUser(userId: string, metadata: GitHub
         repositorySelection: metadata.repositorySelection,
         htmlUrl: metadata.htmlUrl,
         suspendedAt: metadata.suspendedAt,
+        pullRequestsPermission: metadata.pullRequestsPermission,
       },
     });
     await transaction.userInstallation.upsert({

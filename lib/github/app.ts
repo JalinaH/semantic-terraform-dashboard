@@ -5,7 +5,7 @@ import { getGitHubAppSigningConfiguration, type GitHubAppSigningConfiguration } 
 import { GitHubIntegrationError, mapGitHubApiError } from "@/lib/github/errors";
 
 const API_VERSION = "2022-11-28";
-const USER_AGENT = "semantic-terraform-dashboard/0.5";
+const USER_AGENT = "semantic-terraform-dashboard/0.6";
 
 export interface GitHubInstallationMetadata {
   installationId: string;
@@ -15,6 +15,7 @@ export interface GitHubInstallationMetadata {
   repositorySelection: "ALL" | "SELECTED";
   htmlUrl: string | null;
   suspendedAt: Date | null;
+  pullRequestsPermission: string | null;
 }
 
 export interface GitHubRepositorySnapshot {
@@ -88,6 +89,7 @@ export async function fetchInstallationMetadata(
       repositorySelection: response.data.repository_selection === "all" ? "ALL" : "SELECTED",
       htmlUrl: response.data.html_url ?? null,
       suspendedAt: response.data.suspended_at ? new Date(response.data.suspended_at) : null,
+      pullRequestsPermission: response.data.permissions?.pull_requests ?? null,
     };
   } catch (error) {
     if (error instanceof GitHubIntegrationError) throw error;
@@ -106,6 +108,25 @@ export async function createInstallationAccessToken(
       headers: { "X-GitHub-Api-Version": API_VERSION },
     });
     return response.data.token;
+  } catch (error) {
+    throw mapGitHubApiError(error, "github_unavailable");
+  }
+}
+
+export async function createInstallationAccess(
+  installationId: string,
+  configuration = getGitHubAppSigningConfiguration(),
+) {
+  try {
+    const octokit = await createAppOctokit(configuration);
+    const response = await octokit.rest.apps.createInstallationAccessToken({
+      installation_id: numericInstallationId(installationId),
+      headers: { "X-GitHub-Api-Version": API_VERSION },
+    });
+    return {
+      token: response.data.token,
+      pullRequestsPermission: response.data.permissions?.pull_requests ?? null,
+    };
   } catch (error) {
     throw mapGitHubApiError(error, "github_unavailable");
   }

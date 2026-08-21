@@ -64,6 +64,14 @@ enum WebhookDeliveryStatus {
   FAILED
 }
 
+enum PublicationStatus {
+  PENDING
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  SKIPPED
+}
+
 model User {
   id                String             @id @default(cuid())
   name              String?
@@ -83,19 +91,20 @@ model User {
 }
 
 model GitHubInstallation {
-  id                  String              @id @default(cuid())
-  installationId      String              @unique
-  accountId           String?
-  accountLogin        String
-  accountType         AccountType
-  repositorySelection RepositorySelection
-  htmlUrl             String?
-  suspendedAt         DateTime?
-  userInstallations   UserInstallation[]
-  repositories        Repository[]
-  agentRuns           AgentRun[]
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
+  id                     String              @id @default(cuid())
+  installationId         String              @unique
+  accountId              String?
+  accountLogin           String
+  accountType            AccountType
+  repositorySelection    RepositorySelection
+  htmlUrl                String?
+  suspendedAt            DateTime?
+  pullRequestsPermission String?
+  userInstallations      UserInstallation[]
+  repositories           Repository[]
+  agentRuns              AgentRun[]
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
 
   @@index([accountId])
   @@index([accountLogin])
@@ -116,24 +125,25 @@ model UserInstallation {
 }
 
 model Repository {
-  id                 String             @id @default(cuid())
-  githubRepositoryId String             @unique
+  id                 String                @id @default(cuid())
+  githubRepositoryId String                @unique
   owner              String
   name               String
-  fullName           String             @unique
-  defaultBranch      String             @default("main")
-  private            Boolean            @default(false)
-  archived           Boolean            @default(false)
-  accessible         Boolean            @default(true)
+  fullName           String                @unique
+  defaultBranch      String                @default("main")
+  private            Boolean               @default(false)
+  archived           Boolean               @default(false)
+  accessible         Boolean               @default(true)
   removedAt          DateTime?
   installationId     String
-  installation       GitHubInstallation @relation(fields: [installationId], references: [id], onDelete: Cascade)
+  installation       GitHubInstallation    @relation(fields: [installationId], references: [id], onDelete: Cascade)
   config             RepositoryConfig?
   awsConnection      AWSConnection?
   agentRuns          AgentRun[]
+  publications       AgentRunPublication[]
   webhookDeliveries  WebhookDelivery[]
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
 
   @@index([installationId])
   @@index([installationId, accessible])
@@ -267,6 +277,7 @@ model AgentRun {
   completedAt          DateTime?
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
+  publication          AgentRunPublication?
 
   @@unique([repositoryId, githubRunId, githubRunAttempt])
   @@index([repositoryId, createdAt])
@@ -275,6 +286,34 @@ model AgentRun {
   @@index([verificationStatus, createdAt])
   @@index([commitSha])
   @@index([repositoryId, pullRequestNumber])
+}
+
+model AgentRunPublication {
+  id                    String            @id @default(cuid())
+  agentRunId            String            @unique
+  agentRun              AgentRun          @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+  repositoryId          String
+  repository            Repository        @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  pullRequestNumber     Int?
+  provider              String            @default("github")
+  externalCommentId     String?
+  externalCommentNodeId String?
+  commentUrl            String?
+  status                PublicationStatus @default(PENDING)
+  attemptCount          Int               @default(0)
+  lastErrorCode         String?
+  lastErrorMessage      String?
+  skipReason            String?
+  redactionWarnings     String[]          @default([])
+  workerId              String?
+  claimedAt             DateTime?
+  nextAttemptAt         DateTime?
+  publishedAt           DateTime?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  @@index([status, nextAttemptAt, createdAt])
+  @@index([repositoryId, pullRequestNumber, createdAt])
 }
 
 model WebhookDelivery {

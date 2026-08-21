@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { RunStatusBadge } from "@/components/run-status-badge";
+import { PublicationStatusBadge } from "@/components/publication-status-badge";
 import type { RunListItem } from "@/lib/runs/types";
 import { formatRuntime, truncateSha } from "@/lib/utils";
 
@@ -20,6 +21,7 @@ export function RunRow({ run }: { run: RunListItem }) {
       <td className="max-w-56 px-4 py-3.5 font-mono text-xs"><span className="block truncate">{run.affectedResource ?? "—"}</span></td>
       <td className="whitespace-nowrap px-4 py-3.5"><RunStatusBadge status={run.status} /></td>
       <td className="whitespace-nowrap px-4 py-3.5"><StatusBadge status={run.verificationStatus} /></td>
+      <td className="whitespace-nowrap px-4 py-3.5">{run.publicationStatus ? <PublicationStatusBadge status={run.publicationStatus} /> : <span className="text-xs text-muted-foreground">—</span>}</td>
       <td className="whitespace-nowrap px-4 py-3.5 text-sm text-muted-foreground">{run.failedStage ?? "—"}</td>
       <td className="whitespace-nowrap px-4 py-3.5 text-right font-mono text-xs text-muted-foreground">{run.totalRuntimeMs === null ? "—" : formatRuntime(run.totalRuntimeMs)}</td>
     </tr>

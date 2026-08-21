@@ -85,6 +85,7 @@ export default async function RepositoriesPage({ searchParams }: RepositoriesPag
                     <Link href={manageUrl} target="_blank" rel="noreferrer" className={cn(buttonVariants({ size: "sm", variant: "outline" }))}>Manage on GitHub <ExternalLink aria-hidden="true" /></Link>
                   </div>
                 </div>
+                {githubInstallation.pullRequestsPermission !== "write" ? <Notice tone="error" title="GitHub permission upgrade required">Approve Pull requests: Write from the installation management page, then synchronize repositories to enable PR publication.</Notice> : null}
                 {githubInstallation.repositories.length ? (
                   <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
                     {githubInstallation.repositories.map((repository) => <ConnectedRepositoryCard key={repository.id} repository={repository} accountLogin={githubInstallation.accountLogin} />)}

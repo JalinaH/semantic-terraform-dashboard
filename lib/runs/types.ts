@@ -21,6 +21,7 @@ export interface RunListItem {
   verificationStatus: RunVerificationStatus;
   totalRuntimeMs: number | null;
   createdAt: string;
+  publicationStatus: import("@/lib/publication/types").PublicationStatus | null;
 }
 
 export interface RunCommandView {
@@ -56,4 +57,5 @@ export interface RunDetail extends RunListItem {
   skipReason: string | null;
   startedAt: string | null;
   completedAt: string | null;
+  publication: import("@/lib/publication/types").PublicationView | null;
 }

@@ -1,6 +1,6 @@
 # Semantic Terraform Agent Dashboard
 
-The hosted dashboard and control plane for **Semantic Terraform Agent**. Phase 5 receives signed GitHub workflow events, queues ready Terraform failures in PostgreSQL, and dispatches an isolated worker that invokes the existing Python engine.
+The hosted dashboard and control plane for **Semantic Terraform Agent**. Phase 6 adds an idempotent, evidence-safe GitHub PR publication layer to the hosted diagnosis path.
 
 The repositories remain intentionally separate:
 
@@ -11,7 +11,7 @@ semantic-terraform-dashboard   Hosted identity, GitHub/AWS trust, queue, worker,
 
 The dashboard does not copy or reimplement the Python agent. The worker installs it from a pinned source commit and invokes its published CLI contract.
 
-## Phase 5 capabilities
+## Phase 6 capabilities
 
 - Auth.js GitHub user authorization and PostgreSQL sessions
 - Multiple GitHub App installations with soft repository access removal
@@ -26,10 +26,14 @@ The dashboard does not copy or reimplement the Python agent. The worker installs
 - separate Node worker container with git, Python, Terraform, and a pinned `semantic-terraform-agent`
 - exact-revision checkout, explicit base/head diff, temporary AWS role credentials, and service-owned Gemini credentials
 - validated, redacted result ingestion and real run dashboard/detail views with polling
+- separate `AgentRunPublication` queue and lifecycle that never changes a completed diagnosis outcome
+- one marked GitHub App comment per pull request, created or updated with a fresh installation token
+- newer-run ownership and stale-completion protection
+- bounded Markdown-safe patches, final secret redaction, canonical comment URL persistence, and manual republish
 
 Consumers do **not** add `GEMINI_API_KEY`, `AWS_ROLE_ARN`, or a Semantic Terraform Agent reusable workflow to their repositories for the hosted path. They still need an existing GitHub Actions Terraform CI workflow whose failure provides Actions logs.
 
-Read [GitHub App setup](docs/github-app-setup.md), [AWS onboarding](docs/aws-onboarding.md), and [hosted execution](docs/hosted-agent-execution.md).
+Read [GitHub App setup](docs/github-app-setup.md), [AWS onboarding](docs/aws-onboarding.md), [hosted execution](docs/hosted-agent-execution.md), and [PR publication](docs/pr-publication.md).
 
 ## Hosted architecture
 
@@ -46,6 +50,8 @@ Isolated worker ── installation token ── exact Git checkout + bounded Ac
         └── service GEMINI_API_KEY
         ▼
 Pinned semantic-terraform-agent CLI → validated safe result → PostgreSQL → dashboard
+        │
+        └── publication queue → fresh installation token → create/update one PR comment
 ```
 
 The webhook returns after filtering and queue insertion. It never runs Terraform or the Python process inline. The worker claims each queued row atomically; Redis is not required in this phase.
@@ -84,8 +90,8 @@ pnpm worker
 Or build the container:
 
 ```bash
-docker build -f worker/Dockerfile -t semantic-terraform-worker:0.5.0 .
-docker run --rm --env-file .env semantic-terraform-worker:0.5.0
+docker build -f worker/Dockerfile -t semantic-terraform-worker:0.6.0 .
+docker run --rm --env-file .env semantic-terraform-worker:0.6.0
 ```
 
 The public application still builds when integration variables are absent. Sign-in, signed webhook processing, and worker execution remain unavailable rather than being simulated.
@@ -122,6 +128,7 @@ User ──< UserInstallation >── GitHubInstallation ──< Repository
 
 AgentRun: queued → running → completed | failed | skipped | cancelled
 Verification: pending → verified_* | verification_failed | patch_rejected | unavailable | skipped
+Publication: pending → publishing → published | failed | skipped
 ```
 
 Orchestration status and verification outcome are separate. An unverified candidate is a completed diagnosis, not a worker crash. Delivery metadata is bounded; full webhook payloads and unbounded log archives are not stored.
@@ -136,6 +143,9 @@ Orchestration status and verification outcome are separate. An unverified candid
 - STS credentials exist only in worker memory/child environment and are never persisted.
 - the model credential belongs to the hosted worker, not the customer repository.
 - result ingestion rejects malformed payloads, strips command output/raw logs, bounds data, and redacts recognizable secrets.
+- PR rendering uses only persisted safe fields, performs another secret-redaction pass, bounds the patch/comment, and uses a fence longer than any backtick run in an untrusted patch.
+- Pull requests require only Pull requests: Write; Contents, Actions, Checks, and Metadata remain read-only.
+- a marked comment is updated only when it is authored by this GitHub App bot. Older runs cannot overwrite a newer completed run.
 - disposable checkouts are removed after every outcome. The worker never commits, pushes, applies, destroys, or merges.
 
 ## Validation
@@ -149,18 +159,17 @@ pnpm prisma:validate
 pnpm build
 pnpm worker:build
 pnpm worker:health
-docker build -f worker/Dockerfile -t semantic-terraform-worker:0.5.0 .
+docker build -f worker/Dockerfile -t semantic-terraform-worker:0.6.0 .
 git diff --check
 ```
 
 The normal test suite uses fake signed webhooks and mocked GitHub/AWS/agent boundaries. It requires no live GitHub App, AWS account, or Gemini call.
 
-## Deferred to Phase 6 and later
+## Deferred beyond Phase 6
 
-- hosted GitHub App PR comments and permission upgrade to pull-request write
 - auto-commit, auto-merge, Terraform apply/destroy, or any source mutation
 - infrastructure retry policy or recurring job scheduler
 - billing, email/Slack notifications, charts, Marketplace, organization RBAC, MCP, and multi-cloud
 - more than one agent repair attempt
 
-The recommended Phase 6 starting point is a result-publication service that renders an evidence-safe PR comment, uses a fresh installation token with narrowly upgraded pull-request write permission, and is idempotent per `AgentRun` without changing repository source.
+The recommended Phase 7 starting point is operational hardening: stale-claim recovery, deployment health/readiness, bounded manual infrastructure retries, retention controls, and observability for webhook, worker, and publication queues—without expanding repository write access.

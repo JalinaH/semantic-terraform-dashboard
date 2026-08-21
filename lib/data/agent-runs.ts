@@ -108,30 +108,56 @@ export const prismaWorkerRunStore: WorkerRunStore = {
     await db.agentRun.update({ where: { id }, data: { failedStage: stage } });
   },
   async markCompleted(id, result) {
-    await db.agentRun.update({
+    const run = await db.agentRun.findUnique({
       where: { id },
-      data: {
-        status: AgentRunStatus.COMPLETED,
-        verificationStatus: verificationStatusToDatabase[result.verificationStatus],
-        rootCause: result.rootCause,
-        violatedConstraint: result.violatedConstraint,
-        suggestedPatch: result.suggestedPatch,
-        affectedResources: result.affectedResources,
-        modelConfidence: result.modelConfidence,
-        evidenceScore: result.evidenceScore,
-        attempts: result.attempts,
-        timing: result.timing,
-        tokenUsage: result.tokenUsage,
-        verificationDetails: result.verificationDetails,
-        safeResultPayload: result.safeResultPayload,
-        totalRuntimeMs: result.totalRuntimeMs,
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        completedAt: new Date(),
-        errorCode: null,
-        errorMessage: null,
-      },
+      select: { repositoryId: true, pullRequestNumber: true },
     });
+    if (!run) return;
+    await db.$transaction([
+      db.agentRun.update({
+        where: { id },
+        data: {
+          status: AgentRunStatus.COMPLETED,
+          verificationStatus: verificationStatusToDatabase[result.verificationStatus],
+          rootCause: result.rootCause,
+          violatedConstraint: result.violatedConstraint,
+          suggestedPatch: result.suggestedPatch,
+          affectedResources: result.affectedResources,
+          modelConfidence: result.modelConfidence,
+          evidenceScore: result.evidenceScore,
+          attempts: result.attempts,
+          timing: result.timing,
+          tokenUsage: result.tokenUsage,
+          verificationDetails: result.verificationDetails,
+          safeResultPayload: result.safeResultPayload,
+          totalRuntimeMs: result.totalRuntimeMs,
+          inputTokens: result.inputTokens,
+          outputTokens: result.outputTokens,
+          completedAt: new Date(),
+          errorCode: null,
+          errorMessage: null,
+        },
+      }),
+      db.agentRunPublication.upsert({
+        where: { agentRunId: id },
+        create: {
+          agentRunId: id,
+          repositoryId: run.repositoryId,
+          pullRequestNumber: run.pullRequestNumber,
+        },
+        update: {
+          repositoryId: run.repositoryId,
+          pullRequestNumber: run.pullRequestNumber,
+          status: "PENDING",
+          nextAttemptAt: null,
+          workerId: null,
+          claimedAt: null,
+          lastErrorCode: null,
+          lastErrorMessage: null,
+          skipReason: null,
+        },
+      }),
+    ]);
   },
 };
 

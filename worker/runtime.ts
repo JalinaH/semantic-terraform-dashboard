@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import { getWorkerConfiguration } from "@/lib/config";
 import { claimNextAgentRun, prismaWorkerRunStore } from "@/lib/data/agent-runs";
+import { claimNextPublication } from "@/lib/data/publications";
+import { publishClaimedAgentRun } from "@/lib/publication/publish-agent-run";
 import { processClaimedAgentRun } from "@/lib/worker/process";
 import { claimNextWorkerJob } from "@/lib/worker/queue";
 import { invokeSemanticTerraformAgent } from "@/worker/agent";
@@ -20,8 +22,16 @@ export async function runWorker(options: { once?: boolean } = {}) {
   do {
     const run = await claimNextWorkerJob({ claim: claimNextAgentRun }, workerId);
     if (!run) {
-      if (options.once) break;
-      await delay(configuration.pollIntervalMs);
+      const publicationId = await claimNextPublication(workerId);
+      if (publicationId) {
+        const startedAt = Date.now();
+        safeLog({ event: "publication_claimed", workerId, publicationId });
+        const result = await publishClaimedAgentRun(publicationId);
+        safeLog({ event: "publication_finished", workerId, publicationId, outcome: result.outcome, durationMs: Date.now() - startedAt });
+      } else {
+        if (options.once) break;
+        await delay(configuration.pollIntervalMs);
+      }
       continue;
     }
     const startedAt = Date.now();

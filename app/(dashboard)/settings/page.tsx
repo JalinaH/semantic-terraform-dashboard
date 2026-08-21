@@ -54,7 +54,7 @@ export default async function SettingsPage() {
               {userInstallations.map(({ githubInstallation }) => (
                 <div key={githubInstallation.id} className="rounded-lg border p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2"><span className="text-sm font-medium">{githubInstallation.accountLogin}</span><Badge variant="outline">{githubInstallation.accountType === "ORGANIZATION" ? "Organization" : "Personal"}</Badge></div>
+                    <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-medium">{githubInstallation.accountLogin}</span><Badge variant="outline">{githubInstallation.accountType === "ORGANIZATION" ? "Organization" : "Personal"}</Badge><Badge variant="outline" className={githubInstallation.pullRequestsPermission === "write" ? "border-success/25 bg-success-muted text-success-foreground" : "border-warning/25 bg-warning-muted text-warning-foreground"}>{githubInstallation.pullRequestsPermission === "write" ? "PR publication ready" : "Permission upgrade required"}</Badge></div>
                     <span className="text-xs text-muted-foreground">{githubInstallation.repositories.length} repositories</span>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">

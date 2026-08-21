@@ -34,7 +34,7 @@ export async function listAgentRunsForUser(userId: string, filters: RunFilters =
       ...(filters.status ? { status: databaseRunStatus(filters.status) } : {}),
       ...(createdAt ? { createdAt: { gte: createdAt } } : {}),
     },
-    include: { repository: { select: { fullName: true } } },
+    include: { repository: { select: { fullName: true } }, publication: true },
     orderBy: { createdAt: "desc" },
     take: Math.min(Math.max(take, 1), 200),
   });
@@ -46,7 +46,7 @@ export async function listAgentRunsForUser(userId: string, filters: RunFilters =
 export async function getAgentRunForUser(userId: string, id: string): Promise<RunDetail | null> {
   const row = await db.agentRun.findFirst({
     where: { id, repository: { installation: { userInstallations: { some: { userId } } } } },
-    include: { repository: { select: { fullName: true } } },
+    include: { repository: { select: { fullName: true } }, publication: true },
   });
   if (!row) return null;
   const listItem = toListItem(row);
@@ -71,6 +71,15 @@ export async function getAgentRunForUser(userId: string, id: string): Promise<Ru
     skipReason: row.skipReason,
     startedAt: row.startedAt?.toISOString() ?? null,
     completedAt: row.completedAt?.toISOString() ?? null,
+    publication: row.publication ? {
+      status: row.publication.status.toLowerCase() as import("@/lib/publication/types").PublicationStatus,
+      commentUrl: row.publication.commentUrl,
+      publishedAt: row.publication.publishedAt?.toISOString() ?? null,
+      errorCode: row.publication.lastErrorCode,
+      errorMessage: row.publication.lastErrorMessage,
+      skipReason: row.publication.skipReason,
+      attemptCount: row.publication.attemptCount,
+    } : null,
   };
 }
 
@@ -87,7 +96,7 @@ export async function getRunMetricsForUser(userId: string) {
   return { total, verified, verifiedAfterRetry, failed, verificationRate: completed ? Math.round((verified / completed) * 100) : 0 };
 }
 
-function toListItem(row: Prisma.AgentRunGetPayload<{ include: { repository: { select: { fullName: true } } } }>): RunListItem {
+function toListItem(row: Prisma.AgentRunGetPayload<{ include: { repository: { select: { fullName: true } }; publication: true } }>): RunListItem {
   const resources = stringArray(row.affectedResources);
   return {
     id: row.id,
@@ -101,6 +110,7 @@ function toListItem(row: Prisma.AgentRunGetPayload<{ include: { repository: { se
     verificationStatus: row.verificationStatus.toLowerCase() as RunVerificationStatus,
     totalRuntimeMs: row.totalRuntimeMs,
     createdAt: row.createdAt.toISOString(),
+    publicationStatus: row.publication?.status.toLowerCase() as import("@/lib/publication/types").PublicationStatus | undefined ?? null,
   };
 }
 

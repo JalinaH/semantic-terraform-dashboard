@@ -1,6 +1,6 @@
 {
   "name": "semantic-terraform-dashboard",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -10,8 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "worker": "tsx worker/index.ts",
-    "worker:once": "tsx worker/index.ts --once",
+    "worker": "tsx --tsconfig worker/tsconfig.json worker/index.ts",
+    "worker:once": "tsx --tsconfig worker/tsconfig.json worker/index.ts --once",
     "worker:health": "node dist/worker/index.mjs --healthcheck",
     "worker:build": "esbuild worker/index.ts --bundle --platform=node --format=esm --packages=external --alias:@=. --alias:server-only=./worker/server-only.ts --outfile=dist/worker/index.mjs",
     "prisma:generate": "prisma generate",

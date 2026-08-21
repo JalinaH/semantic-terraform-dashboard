@@ -61,6 +61,16 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
         </div>
       ) : null}
 
+      {repository.accessible && repository.installation.pullRequestsPermission !== "write" ? (
+        <div role="alert" className="flex flex-col justify-between gap-4 rounded-xl border border-warning/25 bg-warning-muted p-4 sm:flex-row sm:items-center">
+          <div className="flex items-start gap-3">
+            <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning-foreground" />
+            <div><p className="text-sm font-medium">GitHub permission upgrade required</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Semantic Terraform Agent needs Pull requests: Write to publish evidence-backed diagnoses directly to pull requests.</p></div>
+          </div>
+          <Link href={manageUrl} target="_blank" rel="noreferrer" className={cn(buttonVariants({ size: "sm", variant: "outline" }), "w-fit bg-background")}>Review GitHub App permissions <ExternalLink aria-hidden="true" /></Link>
+        </div>
+      ) : null}
+
       <section aria-labelledby="configuration-summary-heading">
         <Card>
           <CardHeader className="border-b">

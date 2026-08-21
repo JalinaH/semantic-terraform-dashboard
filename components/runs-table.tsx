@@ -4,7 +4,7 @@ import type { RunListItem } from "@/lib/runs/types";
 export function RunsTable({ runs }: { runs: RunListItem[] }) {
   return (
     <div className="scrollbar-thin overflow-x-auto">
-      <table className="w-full min-w-[880px] text-left text-sm">
+      <table className="w-full min-w-[980px] text-left text-sm">
         <thead>
           <tr className="border-b bg-secondary/30 text-xs text-muted-foreground">
             <th scope="col" className="px-4 py-3 font-medium">Repository</th>
@@ -12,6 +12,7 @@ export function RunsTable({ runs }: { runs: RunListItem[] }) {
             <th scope="col" className="px-4 py-3 font-medium">Resource</th>
             <th scope="col" className="px-4 py-3 font-medium">Status</th>
             <th scope="col" className="px-4 py-3 font-medium">Verification</th>
+            <th scope="col" className="px-4 py-3 font-medium">PR publication</th>
             <th scope="col" className="px-4 py-3 font-medium">Failed stage</th>
             <th scope="col" className="px-4 py-3 text-right font-medium">Runtime</th>
           </tr>

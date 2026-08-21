@@ -130,6 +130,12 @@ export function normalizeGitHubAppSlug(value: string | undefined) {
   }
 }
 
+export function getGitHubAppBotLogin() {
+  const slug = normalizeGitHubAppSlug(process.env.GITHUB_APP_SLUG);
+  if (!slug) throw new MissingIntegrationConfigurationError(["GITHUB_APP_SLUG"]);
+  return `${slug}[bot]`;
+}
+
 export interface AwsControlPlaneConfiguration {
   region: string;
   principalArn: string;
@@ -199,6 +205,20 @@ export function getHostedExecutionConfigurationStatus() {
     ...getAwsControlPlaneConfigurationStatus().missing,
   ];
   return { configured: missing.length === 0, missing };
+}
+
+export function getApplicationOrigin() {
+  const value = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+    if (url.protocol !== "https:" && !(local && url.protocol === "http:")) return null;
+    if (url.username || url.password || url.search || url.hash) return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
 }
 
 function boundedInteger(value: string | undefined, fallback: number, minimum: number, maximum: number) {

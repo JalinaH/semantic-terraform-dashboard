@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BrainCircuit, CheckCircle2, Clock3, FileCode2, GitCommitHorizontal, GitPullRequest, ShieldCheck, Sparkles, Timer, TriangleAlert } from "lucide-react";
+import { ArrowLeft, BrainCircuit, CheckCircle2, Clock3, ExternalLink, FileCode2, GitCommitHorizontal, GitPullRequest, MessageSquareText, ShieldCheck, Sparkles, Timer, TriangleAlert } from "lucide-react";
+import { republishPrCommentAction } from "@/app/actions/publication";
 import { DiffViewer } from "@/components/diff-viewer";
 import { RunPoller } from "@/components/run-poller";
 import { RunStatusBadge } from "@/components/run-status-badge";
+import { PublicationStatusBadge } from "@/components/publication-status-badge";
+import { RepublishButton } from "@/components/republish-button";
 import { StatusBadge } from "@/components/status-badge";
 import { VerificationSteps } from "@/components/verification-steps";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getAgentRunForUser } from "@/lib/data/runs";
 import { STAGE_LABELS } from "@/lib/constants";
-import type { RunAttemptView } from "@/lib/runs/types";
+import type { RunAttemptView, RunDetail } from "@/lib/runs/types";
 import type { VerificationStep, VerificationStage } from "@/lib/types";
 import { cn, formatDate, formatRuntime, truncateSha } from "@/lib/utils";
 
@@ -53,6 +56,26 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
       {active ? <StateCard title={run.status === "queued" ? "Waiting for a worker" : "Diagnosis in progress"} description={run.status === "queued" ? "The signed GitHub delivery passed filtering and is queued for a hosted worker." : "The worker is collecting evidence, assuming the repository AWS role, and invoking the pinned Python agent."} /> : null}
       {run.status === "failed" ? <ErrorCard title="Hosted execution failed" code={run.errorCode} message={run.errorMessage} /> : null}
       {run.status === "skipped" ? <StateCard title="Execution skipped" description={skipMessage(run.skipReason)} /> : null}
+
+      <section aria-labelledby="publication-heading">
+        <SectionHeading id="publication-heading" icon={MessageSquareText} title="PR publication" description="A separate idempotent publication lifecycle; GitHub failures never change the diagnosis outcome." />
+        <Card>
+          <CardContent className="flex flex-col justify-between gap-4 pt-5 sm:flex-row sm:items-center">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                {run.publication ? <PublicationStatusBadge status={run.publication.status} /> : run.pullRequestNumber ? <Badge variant="outline">Not started</Badge> : <PublicationStatusBadge status="skipped" />}
+                {run.publication?.attemptCount ? <span className="text-xs text-muted-foreground">{run.publication.attemptCount} publication attempt{run.publication.attemptCount === 1 ? "" : "s"}</span> : null}
+              </div>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">{publicationDescription(run.publication, Boolean(run.pullRequestNumber))}</p>
+              {run.publication?.publishedAt ? <p className="mt-1 text-[11px] text-muted-foreground">Published {formatDate(run.publication.publishedAt)}</p> : null}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {run.publication?.commentUrl ? <Link href={run.publication.commentUrl} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "outline", size: "sm" })}>View on GitHub <ExternalLink aria-hidden="true" /></Link> : null}
+              {run.status === "completed" && run.pullRequestNumber ? <form action={republishPrCommentAction}><input type="hidden" name="runId" value={run.id} /><RepublishButton /></form> : null}
+            </div>
+          </CardContent>
+        </Card>
+      </section>
 
       {run.rootCause ? (
         <section aria-labelledby="diagnosis-heading">
@@ -102,3 +125,11 @@ function StateCard({ title, description }: { title: string; description: string 
 function ErrorCard({ title, code, message }: { title: string; code: string | null; message: string | null }) { return <Card className="border-danger/25"><CardContent className="flex items-start gap-3 py-5"><TriangleAlert aria-hidden="true" className="mt-0.5 size-4 text-danger-foreground" /><div><h2 className="text-sm font-semibold">{title}</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">{message ?? "The worker reported a safe internal execution error."}</p>{code ? <code className="mt-2 block text-[11px] text-danger-foreground">{code}</code> : null}</div></CardContent></Card>; }
 function formatLabel(value: string) { return value.replace(/_ms$/, "").split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" "); }
 function skipMessage(reason: string | null) { return ({ not_terraform_change: "No configured Terraform file changed.", workflow_not_configured: "The failed workflow did not match the configured Terraform workflow names.", repository_not_ready: "GitHub, repository configuration, agent state, or AWS readiness changed before execution.", trigger_disabled: "The matching event or failed stage is disabled in repository settings.", fork_pr_untrusted: "Untrusted fork pull requests are never executed with customer AWS credentials.", not_terraform_failure: "No bounded Terraform validate or plan failure was found in the job log." } as Record<string, string>)[reason ?? ""] ?? "The event did not pass the hosted execution safety gates."; }
+function publicationDescription(publication: RunDetail["publication"], hasPullRequest: boolean) {
+  if (!hasPullRequest) return "Not applicable: direct-push runs remain available in the dashboard and never create a pull request.";
+  if (!publication) return "No publication has been queued for this completed run yet.";
+  if (publication.status === "published") return "One marked GitHub App comment contains the latest safe diagnosis for this pull request.";
+  if (publication.status === "pending" || publication.status === "publishing") return "The worker will publish or update the existing marked bot comment without rerunning diagnosis.";
+  if (publication.status === "failed") return publication.errorMessage ?? "GitHub could not publish this diagnosis. Fix the reported permission or installation issue, then republish.";
+  return publication.skipReason === "superseded_by_newer_run" ? "Skipped because a newer completed run owns the current pull-request comment." : "This run is not eligible for pull-request publication.";
+}

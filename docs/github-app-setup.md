@@ -22,7 +22,7 @@ Open **GitHub → Settings → Developer settings → GitHub Apps → New GitHub
 | Redirect on update | Enabled |
 | Webhook URL | `https://<public-development-origin>/api/github/webhooks` |
 | Webhook secret | The exact value set as `GITHUB_WEBHOOK_SECRET` |
-| Webhook Active | Enabled for Phase 5 |
+| Webhook Active | Enabled |
 | Where can this GitHub App be installed? | Any account |
 
 App names are global, so the development name needs a unique suffix.
@@ -52,17 +52,17 @@ Under **Repository permissions**, set:
 | Metadata | Read-only (GitHub marks this mandatory) |
 | Actions | Read-only |
 | Contents | Read-only |
-| Pull requests | Read-only |
+| Pull requests | **Read and write** |
 | Checks | Read-only |
 
-Leave every other repository, organization, and account permission at **No access**. These permissions allow the worker to read workflow jobs/logs, clone an exact revision, resolve PR base/head metadata, and receive check-run audit events. No write permission is enabled in Phase 5.
+Leave every other repository, organization, and account permission at **No access**. These permissions allow the worker to read workflow jobs/logs, clone an exact revision, resolve PR metadata, and publish or update one marked PR issue comment. Phase 6 adds only **Pull requests: Write**; Contents, Actions, Checks, and Metadata remain read-only.
 
 Subscribe to these repository events:
 
 - **Workflow run** — the only Phase 5 event that can queue execution
 - **Pull request**, **Push**, and **Check run** — accepted as bounded audit/context events; they do not start the agent directly
 
-Existing installations must approve newly requested permissions after the App registration changes. Open each installation's GitHub management page and accept the permission update before expecting log collection or checkout to work. Phase 6 PR comments will require a separate, visible pull-request write permission upgrade; do not enable it now.
+Existing installations must approve the new permission. Open each installation's GitHub management page, review the request for **Pull requests: Write**, and approve it. Return to **Repositories** and select **Sync repositories** so the dashboard refreshes its recorded permission state. Until approval, diagnosis can complete but publication fails separately with `github_permission_missing`.
 
 ## 3. Collect the App credentials
 
