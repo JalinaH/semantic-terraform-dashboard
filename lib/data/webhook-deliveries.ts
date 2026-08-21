@@ -74,6 +74,8 @@ export const prismaWebhookDeliveryStore: WebhookDeliveryStore = {
           branch: input.context.branch,
           comparisonFallback: input.context.comparisonFallback,
           status: input.status === "queued" ? AgentRunStatus.QUEUED : AgentRunStatus.SKIPPED,
+          workerStage: input.status === "queued" ? "queued" : "skipped",
+          heartbeatAt: input.status === "skipped" ? new Date() : null,
           skipReason: input.skipReason,
           verificationStatus: input.status === "queued" ? VerificationStatus.PENDING : VerificationStatus.VERIFICATION_SKIPPED,
           contextMode: databaseContextMode(config.contextMode),

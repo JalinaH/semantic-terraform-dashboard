@@ -4,6 +4,9 @@ The worker is a separate control-plane process. It atomically claims `QUEUED`
 `AgentRun` rows from PostgreSQL, downloads bounded GitHub Actions evidence,
 checks out the exact failing revision in a disposable directory, assumes the
 repository AWS role, and invokes the pinned Python agent CLI.
+The configured job deadline covers that complete sequence, not only the Python
+child process. Progress and heartbeats are persisted on the run, and a worker
+recovers expired `RUNNING` claims as safe failures after a short grace period.
 After a completed run is persisted, the same process separately claims pending
 PR publications and creates or updates one marked GitHub App comment. A comment
 failure never changes the completed agent-run outcome.

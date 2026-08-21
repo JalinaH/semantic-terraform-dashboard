@@ -4,6 +4,7 @@ import type { WorkflowExecutionContext, WorkflowRunWebhook } from "@/lib/github/
 
 const API_VERSION = "2022-11-28";
 const USER_AGENT = "semantic-terraform-dashboard/0.5";
+const GITHUB_REQUEST_TIMEOUT_MS = 15_000;
 const MAX_JOB_LOG_BYTES = 2 * 1024 * 1024;
 const MAX_FAILURE_LOG_CHARS = 40_000;
 const TERRAFORM_SIGNAL = /(?:\bterraform\b|\btofu\b|error:|╷|invalid (?:argument|value|resource)|unsupported argument|failed to (?:plan|validate|initialize))/i;
@@ -17,7 +18,7 @@ export function createWorkflowContextSource(): WorkflowContextSource {
   return {
     async resolve(payload) {
       const token = await createInstallationAccessToken(String(payload.installation.id));
-      const octokit = new Octokit({ auth: token, userAgent: USER_AGENT });
+      const octokit = new Octokit({ auth: token, userAgent: USER_AGENT, request: { timeout: GITHUB_REQUEST_TIMEOUT_MS } });
       const owner = payload.repository.owner.login;
       const repo = payload.repository.name;
       const run = payload.workflow_run;
@@ -151,7 +152,7 @@ export function inferFailedStage(text: string): CollectedTerraformFailure["faile
 
 export async function createActionsLogSource(installationId: string, owner: string, repo: string): Promise<ActionsLogSource> {
   const token = await createInstallationAccessToken(installationId);
-  const octokit = new Octokit({ auth: token, userAgent: USER_AGENT });
+  const octokit = new Octokit({ auth: token, userAgent: USER_AGENT, request: { timeout: GITHUB_REQUEST_TIMEOUT_MS } });
   return {
     async listJobs(runId) {
       const jobs = await octokit.paginate(octokit.rest.actions.listJobsForWorkflowRun, {
@@ -170,19 +171,32 @@ export async function createActionsLogSource(installationId: string, owner: stri
       }));
     },
     async downloadJobLog(jobId) {
-      const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/actions/jobs/${jobId}/logs`, {
-        headers: {
-          Accept: "application/vnd.github+json",
-          Authorization: `Bearer ${token}`,
-          "User-Agent": USER_AGENT,
-          "X-GitHub-Api-Version": API_VERSION,
+      const response = await fetchWithTimeout(
+        `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/actions/jobs/${jobId}/logs`,
+        {
+          headers: {
+            Accept: "application/vnd.github+json",
+            Authorization: `Bearer ${token}`,
+            "User-Agent": USER_AGENT,
+            "X-GitHub-Api-Version": API_VERSION,
+          },
+          redirect: "follow",
         },
-        redirect: "follow",
-      });
+      );
       if (!response.ok) throw new Error(`GitHub job log request failed with status ${response.status}.`);
       const bytes = new Uint8Array(await response.arrayBuffer());
       if (bytes.byteLength > MAX_JOB_LOG_BYTES) throw new Error("GitHub job log exceeded the bounded download limit.");
       return new TextDecoder().decode(bytes);
     },
   };
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), GITHUB_REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
 }

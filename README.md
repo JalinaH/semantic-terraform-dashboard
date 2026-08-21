@@ -113,7 +113,7 @@ The public application still builds when integration variables are absent. Sign-
 | `GEMINI_API_KEY` | worker secret | service-owned model credential |
 | `SEMANTIC_TERRAFORM_AGENT_VERSION` | worker | pinned agent source/version label |
 | `WORKER_POLL_INTERVAL_MS` | worker | queue poll interval, default 5000 |
-| `WORKER_JOB_TIMEOUT_SECONDS` | worker | bounded agent timeout, default 600 |
+| `WORKER_JOB_TIMEOUT_SECONDS` | worker | complete hosted-job deadline, default 600 |
 
 Use production workload identity for control-plane AWS credentials and the standard AWS SDK provider chain locally. Do not place AWS permanent access keys in this product template. Never prefix server credentials with `NEXT_PUBLIC_`.
 

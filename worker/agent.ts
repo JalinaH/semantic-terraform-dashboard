@@ -11,17 +11,19 @@ export async function invokeSemanticTerraformAgent(input: {
   run: ClaimedAgentRun;
   workspace: PreparedAgentWorkspace;
   awsCredentials: TemporaryAwsCredentials;
+  signal?: AbortSignal;
 }) {
   const configuration = getWorkerConfiguration();
   const outputPath = path.join(path.dirname(input.workspace.failureLogPath), "result.json");
   const args = buildAgentArguments(input, outputPath);
-  await verifyTerraformRuntime(input.run.config.terraformVersion);
+  await verifyTerraformRuntime(input.run.config.terraformVersion, input.signal);
   let result;
   try {
     result = await runCommand(configuration.agentCommand, args, {
       cwd: input.workspace.checkoutPath,
       env: createAgentEnvironment(input.awsCredentials),
       timeoutMs: configuration.jobTimeoutSeconds * 1_000,
+      signal: input.signal,
     });
   } catch (error) {
     if (getErrorCode(error) === "ENOENT") throw new WorkerExecutionError("agent_execution_failed", { cause: error });
@@ -91,12 +93,13 @@ export function createAgentEnvironment(credentials: TemporaryAwsCredentials): No
   };
 }
 
-async function verifyTerraformRuntime(expectedVersion: string) {
+async function verifyTerraformRuntime(expectedVersion: string, signal?: AbortSignal) {
   let result;
   try {
     result = await runCommand("terraform", ["version", "-json"], {
       env: { NODE_ENV: process.env.NODE_ENV, PATH: process.env.PATH },
       timeoutMs: 10_000,
+      signal,
     });
   } catch (error) {
     throw new WorkerExecutionError("terraform_not_found", { cause: error });

@@ -1,14 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import { getWorkerConfiguration } from "@/lib/config";
-import { claimNextAgentRun, prismaWorkerRunStore } from "@/lib/data/agent-runs";
+import { claimNextAgentRun, prismaWorkerRunStore, recoverStaleAgentRuns } from "@/lib/data/agent-runs";
 import { claimNextPublication } from "@/lib/data/publications";
 import { publishClaimedAgentRun } from "@/lib/publication/publish-agent-run";
 import { processClaimedAgentRun } from "@/lib/worker/process";
-import { claimNextWorkerJob } from "@/lib/worker/queue";
+import { claimNextWorkerJob, staleRunCutoff } from "@/lib/worker/queue";
 import { invokeSemanticTerraformAgent } from "@/worker/agent";
 import { assumeWorkerRepositoryRole } from "@/worker/aws";
 import { prepareGitHubWorkspace } from "@/worker/github";
+import { safeStartupDiagnostic } from "@/worker/diagnostics";
 
 export async function runWorker(options: { once?: boolean } = {}) {
   const configuration = getWorkerConfiguration();
@@ -18,11 +19,45 @@ export async function runWorker(options: { once?: boolean } = {}) {
   process.once("SIGTERM", stop);
   process.once("SIGINT", stop);
   safeLog({ event: "worker_started", workerId, pollIntervalMs: configuration.pollIntervalMs });
+  let nextRecoveryAt = 0;
 
   do {
-    const run = await claimNextWorkerJob({ claim: claimNextAgentRun }, workerId);
+    let run;
+    try {
+      if (Date.now() >= nextRecoveryAt) {
+        const recovered = await recoverStaleAgentRuns(staleRunCutoff(configuration.jobTimeoutSeconds * 1_000));
+        if (recovered > 0) safeLog({ event: "stale_runs_recovered", workerId, count: recovered });
+        nextRecoveryAt = Date.now() + 60_000;
+      }
+      run = await claimNextWorkerJob({ claim: claimNextAgentRun }, workerId);
+    } catch (error) {
+      if (options.once) throw error;
+      const diagnostic = safeStartupDiagnostic(error);
+      safeLog({
+        event: "worker_database_unavailable",
+        workerId,
+        errorCode: diagnostic.errorCode,
+        retryInMs: configuration.pollIntervalMs,
+      });
+      await delay(configuration.pollIntervalMs);
+      continue;
+    }
     if (!run) {
-      const publicationId = await claimNextPublication(workerId);
+      let publicationId: string | null;
+      try {
+        publicationId = await claimNextPublication(workerId);
+      } catch (error) {
+        if (options.once) throw error;
+        const diagnostic = safeStartupDiagnostic(error);
+        safeLog({
+          event: "worker_database_unavailable",
+          workerId,
+          errorCode: diagnostic.errorCode,
+          retryInMs: configuration.pollIntervalMs,
+        });
+        await delay(configuration.pollIntervalMs);
+        continue;
+      }
       if (publicationId) {
         const startedAt = Date.now();
         safeLog({ event: "publication_claimed", workerId, publicationId });
@@ -41,6 +76,9 @@ export async function runWorker(options: { once?: boolean } = {}) {
       github: { prepare: prepareGitHubWorkspace },
       aws: { assume: assumeWorkerRepositoryRole },
       agent: { invoke: invokeSemanticTerraformAgent },
+    }, {
+      timeoutMs: configuration.jobTimeoutSeconds * 1_000,
+      onProgress: (stage) => safeLog({ event: "run_progress", workerId, agentRunId: run.id, stage }),
     });
     safeLog({ event: "run_finished", workerId, agentRunId: run.id, repositoryId: run.repositoryId, outcome: result.outcome, durationMs: Date.now() - startedAt });
   } while (!stopping && !options.once);

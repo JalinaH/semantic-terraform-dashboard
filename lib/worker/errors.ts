@@ -9,6 +9,7 @@ export type WorkerErrorCode =
   | "agent_result_invalid"
   | "model_unavailable"
   | "execution_timeout"
+  | "worker_stale"
   | "worker_internal_error";
 
 export const WORKER_ERROR_MESSAGES: Record<WorkerErrorCode, string> = {
@@ -22,6 +23,7 @@ export const WORKER_ERROR_MESSAGES: Record<WorkerErrorCode, string> = {
   agent_result_invalid: "The agent returned a result that did not match the safe hosted result contract.",
   model_unavailable: "The hosted model credential or model service is unavailable.",
   execution_timeout: "The hosted diagnosis exceeded the configured execution timeout.",
+  worker_stale: "The worker stopped reporting progress before the hosted diagnosis completed.",
   worker_internal_error: "The hosted worker encountered an internal error.",
 };
 

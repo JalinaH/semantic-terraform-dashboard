@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { parseAgentResult, sanitizeSuccessfulAgentResult } from "@/lib/agent-result";
 import { WorkerExecutionError } from "@/lib/worker/errors";
 import { processClaimedAgentRun } from "@/lib/worker/process";
-import { claimNextWorkerJob, type AgentRunQueue } from "@/lib/worker/queue";
+import { claimNextWorkerJob, staleRunCutoff, type AgentRunQueue } from "@/lib/worker/queue";
 import type { WorkerDependencies, WorkerRunStore } from "@/lib/worker/types";
 import { claimedRun, validAgentResult } from "@/tests/phase5-fixtures";
 
@@ -29,6 +29,8 @@ describe("hosted worker orchestration", () => {
     expect(outcome).toEqual({ outcome: "completed", verificationStatus: "verified_first_attempt" });
     expect(store.markCompleted).toHaveBeenCalledOnce();
     expect(store.updateFailedStage).toHaveBeenCalledWith("run_1", "plan");
+    expect(store.updateProgress).toHaveBeenCalledWith("run_1", "collecting_github_context");
+    expect(store.updateProgress).toHaveBeenCalledWith("run_1", "running_agent");
     expect(dependencies.aws.assume).toHaveBeenCalledOnce();
     expect(dependencies.agent.invoke).toHaveBeenCalledOnce();
     expect(cleanup).toHaveBeenCalledOnce();
@@ -62,6 +64,25 @@ describe("hosted worker orchestration", () => {
     expect(outcome).toMatchObject({ outcome: "failed", errorCode: code });
     expect(store.markFailed).toHaveBeenCalledWith("run_1", code, expect.any(String));
   });
+
+  it("bounds a hung pre-agent operation with the complete job deadline", async () => {
+    const store = memoryRunStore();
+    const outcome = await processClaimedAgentRun(claimedRun(), {
+      store,
+      github: { prepare: async () => new Promise<never>(() => undefined) },
+      aws: { assume: async () => temporaryCredentials() },
+      agent: { invoke: async () => validAgentResult() },
+    }, { timeoutMs: 20 });
+    expect(outcome).toEqual({ outcome: "failed", errorCode: "execution_timeout" });
+    expect(store.markFailed).toHaveBeenCalledWith("run_1", "execution_timeout", expect.any(String));
+  });
+});
+
+describe("stale worker recovery window", () => {
+  it("adds a grace period beyond the configured complete-job timeout", () => {
+    const now = new Date("2026-08-21T12:00:00.000Z");
+    expect(staleRunCutoff(600_000, now)).toEqual(new Date("2026-08-21T11:49:00.000Z"));
+  });
 });
 
 describe("safe result ingestion", () => {
@@ -89,6 +110,7 @@ function memoryRunStore(): WorkerRunStore & Record<keyof WorkerRunStore, ReturnT
   return {
     markFailed: vi.fn(async () => undefined),
     markSkipped: vi.fn(async () => undefined),
+    updateProgress: vi.fn(async () => undefined),
     updateFailedStage: vi.fn(async () => undefined),
     markCompleted: vi.fn(async () => undefined),
   };

@@ -4,7 +4,7 @@ import { WorkerExecutionError } from "@/lib/worker/errors";
 import type { ClaimedAgentRun, TemporaryAwsCredentials } from "@/lib/worker/types";
 import { parseIamRoleArn } from "@/lib/validation/aws-connection";
 
-export async function assumeWorkerRepositoryRole(run: ClaimedAgentRun): Promise<TemporaryAwsCredentials> {
+export async function assumeWorkerRepositoryRole(run: ClaimedAgentRun, signal?: AbortSignal): Promise<TemporaryAwsCredentials> {
   if (!run.aws) throw new WorkerExecutionError("repository_access_removed");
   const expected = parseIamRoleArn(run.aws.roleArn);
   const controlPlane = new STSClient({ region: getAwsControlPlaneConfiguration().region });
@@ -15,7 +15,7 @@ export async function assumeWorkerRepositoryRole(run: ClaimedAgentRun): Promise<
       ExternalId: run.aws.externalId,
       RoleSessionName: `stfa-${run.id.slice(0, 24)}`,
       DurationSeconds: 900,
-    }));
+    }), { abortSignal: signal });
     const credentials = assumed.Credentials;
     if (!credentials?.AccessKeyId || !credentials.SecretAccessKey || !credentials.SessionToken) {
       throw new WorkerExecutionError("aws_assume_role_failed");
@@ -29,7 +29,7 @@ export async function assumeWorkerRepositoryRole(run: ClaimedAgentRun): Promise<
         expiration: credentials.Expiration,
       },
     });
-    const identity = await customer.send(new GetCallerIdentityCommand({}));
+    const identity = await customer.send(new GetCallerIdentityCommand({}), { abortSignal: signal });
     if (identity.Account !== expected.accountId || !identity.Arn?.includes(`:assumed-role/${expected.roleName}/`)) {
       throw new WorkerExecutionError("aws_assume_role_failed");
     }
@@ -41,6 +41,7 @@ export async function assumeWorkerRepositoryRole(run: ClaimedAgentRun): Promise<
       region: run.aws.region,
     };
   } catch (error) {
+    if (signal?.aborted) throw new WorkerExecutionError("execution_timeout", { cause: error });
     if (error instanceof WorkerExecutionError) throw error;
     throw new WorkerExecutionError("aws_assume_role_failed", { cause: error });
   } finally {

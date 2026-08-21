@@ -16,6 +16,7 @@ export interface RunListItem {
   pullRequestNumber: number | null;
   commitSha: string;
   failedStage: string | null;
+  workerStage: string;
   affectedResource: string | null;
   status: RunStatus;
   verificationStatus: RunVerificationStatus;

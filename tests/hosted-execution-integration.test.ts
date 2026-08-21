@@ -35,7 +35,13 @@ describe("signed webhook to completed hosted run", () => {
     expect(run).not.toBeNull();
     const markCompleted = vi.fn(async () => undefined);
     const outcome = await processClaimedAgentRun(run!, {
-      store: { markFailed: vi.fn(), markSkipped: vi.fn(), updateFailedStage: vi.fn(), markCompleted },
+      store: {
+        markFailed: vi.fn(async () => undefined),
+        markSkipped: vi.fn(async () => undefined),
+        updateProgress: vi.fn(async () => undefined),
+        updateFailedStage: vi.fn(async () => undefined),
+        markCompleted,
+      },
       github: { prepare: async () => ({ checkoutPath: "/tmp/repo", failureLogPath: "/tmp/log", diffPath: "/tmp/diff", failedStage: "plan", cleanup: async () => undefined }) },
       aws: { assume: async () => ({ accessKeyId: "tmp", secretAccessKey: "tmp", sessionToken: "tmp", region: "us-east-1" }) },
       agent: { invoke: async () => validAgentResult() },

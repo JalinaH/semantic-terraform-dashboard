@@ -105,6 +105,7 @@ function toListItem(row: Prisma.AgentRunGetPayload<{ include: { repository: { se
     pullRequestNumber: row.pullRequestNumber,
     commitSha: row.commitSha,
     failedStage: row.failedStage,
+    workerStage: row.workerStage,
     affectedResource: resources[0] ?? null,
     status: row.status.toLowerCase() as RunStatus,
     verificationStatus: row.verificationStatus.toLowerCase() as RunVerificationStatus,

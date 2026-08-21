@@ -53,7 +53,7 @@ If no bounded Terraform validate/plan failure is found, the claimed run becomes 
 
 ## Queue and worker
 
-The queue is PostgreSQL-backed: `AgentRun.status=QUEUED`. A worker claims the oldest row with one atomic update over `SELECT ... FOR UPDATE SKIP LOCKED`, setting `RUNNING`, `workerId`, and claim/start timestamps. A second worker cannot claim that row. Phase 5 deliberately has no Redis and no automatic infrastructure retry loop.
+The queue is PostgreSQL-backed: `AgentRun.status=QUEUED`. A worker claims the oldest row with one atomic update over `SELECT ... FOR UPDATE SKIP LOCKED`, setting `RUNNING`, `workerId`, claim/start timestamps, and an initial heartbeat. A second worker cannot claim that row. Progress stages and heartbeats make active work diagnosable. Expired claims are changed to a bounded `worker_stale` failure; they are not executed again automatically. Phase 5 deliberately has no Redis and no automatic infrastructure retry loop.
 
 `worker/Dockerfile` pins:
 
@@ -93,7 +93,7 @@ semantic-terraform-agent diagnose
   --output <temporary result.json>
 ```
 
-The worker verifies that the installed Terraform CLI exactly matches the saved repository version before invocation. The default process timeout is ten minutes. Timeouts terminate the child and record `execution_timeout`. Other bounded error codes include `github_log_unavailable`, `github_checkout_failed`, `repository_access_removed`, `aws_assume_role_failed`, `terraform_not_found`, `terraform_version_unavailable`, `agent_execution_failed`, `agent_result_invalid`, `model_unavailable`, and `worker_internal_error`.
+The worker verifies that the installed Terraform CLI exactly matches the saved repository version before invocation. The default complete-job deadline is ten minutes and covers GitHub evidence collection, checkout, AWS role assumption, agent execution, and safe result ingestion. GitHub requests and child processes also have operation-level timeouts. Deadline expiry aborts child work and records `execution_timeout`; an orphaned claim discovered after the deadline plus grace period records `worker_stale`. Other bounded error codes include `github_log_unavailable`, `github_checkout_failed`, `repository_access_removed`, `aws_assume_role_failed`, `terraform_not_found`, `terraform_version_unavailable`, `agent_execution_failed`, `agent_result_invalid`, `model_unavailable`, and `worker_internal_error`.
 
 An agent result is schema-validated. Safe persistence includes diagnosis, patch, resource list, verification attempts/stages, timing, token counts, scores, and a bounded safe payload. It excludes raw logs, command stdout/stderr, repository source, Terraform state/provider cache, and all credentials. Recognizable credential forms are redacted defensively.
 

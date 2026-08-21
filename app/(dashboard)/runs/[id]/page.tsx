@@ -49,11 +49,11 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
               <span className="inline-flex items-center gap-1.5"><Clock3 aria-hidden="true" className="size-3.5" />{formatDate(run.createdAt)}</span>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3"><HeaderMetric label="Failed stage" value={run.failedStage ?? "Collecting"} /><HeaderMetric label="Context" value={run.contextMode} /><HeaderMetric label="Runtime" value={run.totalRuntimeMs === null ? "—" : formatRuntime(run.totalRuntimeMs)} /></div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3"><HeaderMetric label={active ? "Worker stage" : "Failed stage"} value={active ? formatLabel(run.workerStage) : run.failedStage ?? "—"} /><HeaderMetric label="Context" value={run.contextMode} /><HeaderMetric label="Runtime" value={run.totalRuntimeMs === null ? "—" : formatRuntime(run.totalRuntimeMs)} /></div>
         </div>
       </header>
 
-      {active ? <StateCard title={run.status === "queued" ? "Waiting for a worker" : "Diagnosis in progress"} description={run.status === "queued" ? "The signed GitHub delivery passed filtering and is queued for a hosted worker." : "The worker is collecting evidence, assuming the repository AWS role, and invoking the pinned Python agent."} /> : null}
+      {active ? <StateCard title={run.status === "queued" ? "Waiting for a worker" : "Diagnosis in progress"} description={run.status === "queued" ? "The signed GitHub delivery passed filtering and is queued for a hosted worker." : `Current stage: ${formatLabel(run.workerStage)}. The complete hosted job is protected by a bounded execution deadline.`} /> : null}
       {run.status === "failed" ? <ErrorCard title="Hosted execution failed" code={run.errorCode} message={run.errorMessage} /> : null}
       {run.status === "skipped" ? <StateCard title="Execution skipped" description={skipMessage(run.skipReason)} /> : null}
 

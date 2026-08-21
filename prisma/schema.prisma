@@ -271,6 +271,8 @@ model AgentRun {
   outputTokens         Int?
   errorCode            String?
   errorMessage         String?
+  workerStage          String                @default("queued")
+  heartbeatAt          DateTime?
   workerId             String?
   claimedAt            DateTime?
   startedAt            DateTime?
@@ -283,6 +285,7 @@ model AgentRun {
   @@index([repositoryId, createdAt])
   @@index([githubInstallationId])
   @@index([status, createdAt])
+  @@index([status, heartbeatAt])
   @@index([verificationStatus, createdAt])
   @@index([commitSha])
   @@index([repositoryId, pullRequestNumber])

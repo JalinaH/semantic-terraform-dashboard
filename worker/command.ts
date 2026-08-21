@@ -12,7 +12,7 @@ export interface CommandResult {
 export function runCommand(
   command: string,
   args: string[],
-  options: { cwd?: string; env?: NodeJS.ProcessEnv; timeoutMs?: number } = {},
+  options: { cwd?: string; env?: NodeJS.ProcessEnv; timeoutMs?: number; signal?: AbortSignal } = {},
 ): Promise<CommandResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -24,18 +24,32 @@ export function runCommand(
     let stdout = Buffer.alloc(0);
     let stderr = Buffer.alloc(0);
     let timedOut = false;
+    let settled = false;
     const append = (current: Buffer, chunk: Buffer) => Buffer.concat([current, chunk]).subarray(0, MAX_CAPTURED_OUTPUT_BYTES);
-    child.stdout.on("data", (chunk: Buffer) => { stdout = append(stdout, chunk); });
-    child.stderr.on("data", (chunk: Buffer) => { stderr = append(stderr, chunk); });
-    const timeout = options.timeoutMs ? setTimeout(() => {
+    const terminate = () => {
+      if (settled) return;
       timedOut = true;
       child.kill("SIGTERM");
       setTimeout(() => child.kill("SIGKILL"), 5_000).unref();
-    }, options.timeoutMs) : null;
+    };
+    child.stdout.on("data", (chunk: Buffer) => { stdout = append(stdout, chunk); });
+    child.stderr.on("data", (chunk: Buffer) => { stderr = append(stderr, chunk); });
+    const timeout = options.timeoutMs ? setTimeout(terminate, options.timeoutMs) : null;
     timeout?.unref();
-    child.once("error", reject);
-    child.once("close", (exitCode) => {
+    options.signal?.addEventListener("abort", terminate, { once: true });
+    if (options.signal?.aborted) terminate();
+    child.once("error", (error) => {
+      if (settled) return;
+      settled = true;
       if (timeout) clearTimeout(timeout);
+      options.signal?.removeEventListener("abort", terminate);
+      reject(error);
+    });
+    child.once("close", (exitCode) => {
+      if (settled) return;
+      settled = true;
+      if (timeout) clearTimeout(timeout);
+      options.signal?.removeEventListener("abort", terminate);
       resolve({ exitCode, stdout: stdout.toString("utf8"), stderr: stderr.toString("utf8"), timedOut });
     });
   });

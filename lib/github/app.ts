@@ -6,6 +6,7 @@ import { GitHubIntegrationError, mapGitHubApiError } from "@/lib/github/errors";
 
 const API_VERSION = "2022-11-28";
 const USER_AGENT = "semantic-terraform-dashboard/0.6";
+const GITHUB_REQUEST_TIMEOUT_MS = 15_000;
 
 export interface GitHubInstallationMetadata {
   installationId: string;
@@ -55,7 +56,7 @@ async function createAppOctokit(configuration: GitHubAppSigningConfiguration) {
     issuer: configuration.clientId,
     privateKey: configuration.privateKey,
   });
-  return new Octokit({ auth: token, userAgent: USER_AGENT });
+  return new Octokit({ auth: token, userAgent: USER_AGENT, request: { timeout: GITHUB_REQUEST_TIMEOUT_MS } });
 }
 
 function numericInstallationId(value: string) {
@@ -135,7 +136,7 @@ export async function createInstallationAccess(
 export async function listInstallationRepositories(installationId: string) {
   try {
     const token = await createInstallationAccessToken(installationId);
-    const octokit = new Octokit({ auth: token, userAgent: USER_AGENT });
+    const octokit = new Octokit({ auth: token, userAgent: USER_AGENT, request: { timeout: GITHUB_REQUEST_TIMEOUT_MS } });
     const repositories: GitHubRepositorySnapshot[] = [];
     let page = 1;
 

@@ -36,6 +36,8 @@ export async function claimNextAgentRun(workerId: string): Promise<ClaimedAgentR
     SET
       "status" = 'RUNNING'::"AgentRunStatus",
       "workerId" = ${workerId},
+      "workerStage" = 'collecting_github_context',
+      "heartbeatAt" = CURRENT_TIMESTAMP,
       "claimedAt" = CURRENT_TIMESTAMP,
       "startedAt" = COALESCE("startedAt", CURRENT_TIMESTAMP),
       "updatedAt" = CURRENT_TIMESTAMP
@@ -83,10 +85,12 @@ export async function claimNextAgentRun(workerId: string): Promise<ClaimedAgentR
 
 export const prismaWorkerRunStore: WorkerRunStore = {
   async markFailed(id, code, message) {
-    await db.agentRun.update({
-      where: { id },
+    await db.agentRun.updateMany({
+      where: { id, status: AgentRunStatus.RUNNING },
       data: {
         status: AgentRunStatus.FAILED,
+        workerStage: "failed",
+        heartbeatAt: new Date(),
         errorCode: code,
         errorMessage: message.slice(0, 1_000),
         completedAt: new Date(),
@@ -94,18 +98,29 @@ export const prismaWorkerRunStore: WorkerRunStore = {
     });
   },
   async markSkipped(id, reason) {
-    await db.agentRun.update({
-      where: { id },
+    await db.agentRun.updateMany({
+      where: { id, status: AgentRunStatus.RUNNING },
       data: {
         status: AgentRunStatus.SKIPPED,
+        workerStage: "skipped",
+        heartbeatAt: new Date(),
         skipReason: reason,
         verificationStatus: VerificationStatus.VERIFICATION_SKIPPED,
         completedAt: new Date(),
       },
     });
   },
+  async updateProgress(id, stage) {
+    await db.agentRun.updateMany({
+      where: { id, status: AgentRunStatus.RUNNING },
+      data: { workerStage: stage, heartbeatAt: new Date() },
+    });
+  },
   async updateFailedStage(id, stage) {
-    await db.agentRun.update({ where: { id }, data: { failedStage: stage } });
+    await db.agentRun.updateMany({
+      where: { id, status: AgentRunStatus.RUNNING },
+      data: { failedStage: stage, heartbeatAt: new Date() },
+    });
   },
   async markCompleted(id, result) {
     const run = await db.agentRun.findUnique({
@@ -113,11 +128,13 @@ export const prismaWorkerRunStore: WorkerRunStore = {
       select: { repositoryId: true, pullRequestNumber: true },
     });
     if (!run) return;
-    await db.$transaction([
-      db.agentRun.update({
-        where: { id },
+    await db.$transaction(async (transaction) => {
+      const completed = await transaction.agentRun.updateMany({
+        where: { id, status: AgentRunStatus.RUNNING },
         data: {
           status: AgentRunStatus.COMPLETED,
+          workerStage: "completed",
+          heartbeatAt: new Date(),
           verificationStatus: verificationStatusToDatabase[result.verificationStatus],
           rootCause: result.rootCause,
           violatedConstraint: result.violatedConstraint,
@@ -137,8 +154,9 @@ export const prismaWorkerRunStore: WorkerRunStore = {
           errorCode: null,
           errorMessage: null,
         },
-      }),
-      db.agentRunPublication.upsert({
+      });
+      if (completed.count !== 1) return;
+      await transaction.agentRunPublication.upsert({
         where: { agentRunId: id },
         create: {
           agentRunId: id,
@@ -156,10 +174,33 @@ export const prismaWorkerRunStore: WorkerRunStore = {
           lastErrorMessage: null,
           skipReason: null,
         },
-      }),
-    ]);
+      });
+    });
   },
 };
+
+export async function recoverStaleAgentRuns(staleBefore: Date) {
+  const recovered = await db.agentRun.updateMany({
+    where: {
+      status: AgentRunStatus.RUNNING,
+      OR: [
+        { heartbeatAt: { lt: staleBefore } },
+        { heartbeatAt: null, claimedAt: { lt: staleBefore } },
+      ],
+    },
+    data: {
+      status: AgentRunStatus.FAILED,
+      workerStage: "failed",
+      heartbeatAt: new Date(),
+      errorCode: "worker_stale",
+      errorMessage: WORKER_STALE_MESSAGE,
+      completedAt: new Date(),
+    },
+  });
+  return recovered.count;
+}
+
+const WORKER_STALE_MESSAGE = "The worker stopped reporting progress before the hosted diagnosis completed.";
 
 export function contextModeLabel(value: RepositoryContextMode) {
   return { AUTO: "auto", LIGHTWEIGHT: "lightweight", SCHEMA_AWARE: "schema-aware" }[value];

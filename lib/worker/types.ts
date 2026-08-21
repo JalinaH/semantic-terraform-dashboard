@@ -1,5 +1,16 @@
 import type { WorkerErrorCode } from "@/lib/worker/errors";
 
+export type WorkerStage =
+  | "queued"
+  | "collecting_github_context"
+  | "checking_out_repository"
+  | "assuming_aws_role"
+  | "running_agent"
+  | "ingesting_result"
+  | "completed"
+  | "failed"
+  | "skipped";
+
 export interface WorkerConfigSnapshot {
   terraformDir: string;
   terraformVersion: string;
@@ -52,19 +63,26 @@ export interface TemporaryAwsCredentials {
 export interface WorkerRunStore {
   markFailed(id: string, code: WorkerErrorCode, message: string): Promise<void>;
   markSkipped(id: string, reason: string): Promise<void>;
+  updateProgress(id: string, stage: WorkerStage): Promise<void>;
   updateFailedStage(id: string, stage: string): Promise<void>;
   markCompleted(id: string, result: ReturnType<typeof import("@/lib/agent-result").sanitizeSuccessfulAgentResult>): Promise<void>;
 }
 
 export interface WorkerDependencies {
   store: WorkerRunStore;
-  github: { prepare(run: ClaimedAgentRun): Promise<PreparedAgentWorkspace> };
-  aws: { assume(run: ClaimedAgentRun): Promise<TemporaryAwsCredentials> };
+  github: {
+    prepare(
+      run: ClaimedAgentRun,
+      options?: { signal?: AbortSignal; onProgress?(stage: WorkerStage): Promise<void> },
+    ): Promise<PreparedAgentWorkspace>;
+  };
+  aws: { assume(run: ClaimedAgentRun, signal?: AbortSignal): Promise<TemporaryAwsCredentials> };
   agent: {
     invoke(input: {
       run: ClaimedAgentRun;
       workspace: PreparedAgentWorkspace;
       awsCredentials: TemporaryAwsCredentials;
+      signal?: AbortSignal;
     }): Promise<unknown>;
   };
 }
