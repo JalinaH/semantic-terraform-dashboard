@@ -59,6 +59,7 @@ export async function saveRepositoryConfigurationAction(
       if (error.code === "repository_access_removed") {
         return { status: "error", message: "GitHub access was removed. Restore access before editing this repository." };
       }
+      if (error.code === "model_policy_invalid") return { status: "error", message: error.message, fieldErrors: { fixedModelId: [error.message] } };
       return { status: "error", message: "This repository is not available to your account." };
     }
     console.error("Repository configuration save failed", { repositoryId, userId: session.user.id });

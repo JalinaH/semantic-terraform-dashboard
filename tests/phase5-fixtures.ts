@@ -30,6 +30,10 @@ export function repositorySnapshot(overrides: Record<string, unknown> = {}) {
     accessible: true,
     config: { ...REPOSITORY_CONFIG_DEFAULTS },
     awsConnected: true,
+    modelPolicyValid: true,
+    accessLevel: "FREE" as const,
+    modelRegistry: [],
+    catalogSyncedAt: null,
     ...overrides,
   };
 }
@@ -64,7 +68,7 @@ export function claimedRun(overrides: Partial<ClaimedAgentRun> = {}): ClaimedAge
     headSha: "b".repeat(40),
     pullRequestNumber: 12,
     aws: { roleArn: "arn:aws:iam::123456789012:role/STFA", externalId: "external", region: "us-east-1", connected: true },
-    config: { terraformDir: "terraform", terraformVersion: "1.15.7", modelProvider: "gemini", model: "gemini-3.6-flash", contextMode: "auto", maxRepairAttempts: 1, failedStages: ["validate", "plan"] },
+    config: { terraformDir: "terraform", terraformVersion: "1.15.7", modelProvider: "gemini", model: "gemini-3.6-flash", modelRouting: "fixed", maxModelTier: "free", fixedModelId: "gemini-3.6-flash", modelPolicyVersion: "legacy_phase8", accessLevel: "FREE", modelRegistry: [], catalogSyncedAt: null, contextMode: "auto", maxRepairAttempts: 1, failedStages: ["validate", "plan"] },
     ...overrides,
   };
 }

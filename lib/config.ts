@@ -199,9 +199,10 @@ export function getWorkerConfiguration(): WorkerConfiguration {
 }
 
 export function getHostedExecutionConfigurationStatus() {
+  const hasModelGateway = present(process.env.OPENROUTER_API_KEY) || present(process.env.GEMINI_API_KEY);
   const missing = [
     ...(!present(process.env.GITHUB_WEBHOOK_SECRET) ? ["GITHUB_WEBHOOK_SECRET"] : []),
-    ...(!present(process.env.GEMINI_API_KEY) ? ["GEMINI_API_KEY"] : []),
+    ...(!hasModelGateway ? ["OPENROUTER_API_KEY or GEMINI_API_KEY"] : []),
     ...getAwsControlPlaneConfigurationStatus().missing,
   ];
   return { configured: missing.length === 0, missing };

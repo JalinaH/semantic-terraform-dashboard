@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, CircleUserRound, Cloud, ExternalLink, Github, RefreshCw, SlidersHorizontal, type LucideIcon } from "lucide-react";
+import { Bell, CircleUserRound, Cloud, ExternalLink, Github, RefreshCw, ShieldCheck, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { beginGitHubInstallationAction, syncRepositoriesAction } from "@/app/actions/github";
 import { PageIntro } from "@/components/page-intro";
 import { Badge } from "@/components/ui/badge";
@@ -14,12 +14,13 @@ import { listInstallationsForUser } from "@/lib/github/installations";
 import { getGitHubInstallationManagementUrl } from "@/lib/github/urls";
 import { cn } from "@/lib/utils";
 import { REPOSITORY_CONFIG_DEFAULTS } from "@/lib/repository-config/constants";
+import { getCatalogViewForUser } from "@/lib/model-policy/catalog";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const user = await requireAuthenticatedUser();
-  const userInstallations = await listInstallationsForUser(user.id);
+  const [userInstallations, catalog] = await Promise.all([listInstallationsForUser(user.id), getCatalogViewForUser(user.id)]);
   const repositoryCount = userInstallations.reduce((count, item) => count + item.githubInstallation.repositories.length, 0);
   const awsConnectedCount = userInstallations.reduce((count, item) => count + item.githubInstallation.repositories.filter((repository) => repository.awsConnection?.status === "CONNECTED").length, 0);
   const avatarUrl = user.avatarUrl ?? user.image;
@@ -35,6 +36,10 @@ export default async function SettingsPage() {
               {avatarUrl ? <Image src={avatarUrl} alt="" width={36} height={36} className="size-9 rounded-full border" /> : <span className="flex size-9 items-center justify-center rounded-full border bg-secondary text-xs font-semibold">{(user.githubLogin ?? user.name ?? "U").slice(0, 1).toUpperCase()}</span>}
               <div className="min-w-0"><p className="truncate text-sm font-medium">{user.name ?? user.githubLogin ?? "GitHub user"}</p><p className="truncate text-xs text-muted-foreground">@{user.githubLogin ?? "github"}</p></div>
             </div>
+          </SettingsSection>
+
+          <SettingsSection icon={ShieldCheck} title="TerraFix Access" description="Server-enforced model access policy for this account.">
+            <dl className="grid gap-2 text-xs sm:grid-cols-2"><div className="rounded-lg border p-3"><dt className="text-muted-foreground">Current access</dt><dd className="mt-1 font-medium">{formatAccess(catalog.access.accessLevel)}</dd></div><div className="rounded-lg border p-3"><dt className="text-muted-foreground">Maximum model tier</dt><dd className="mt-1 font-mono font-medium">{catalog.access.maximumTier}</dd></div><div className="rounded-lg border p-3"><dt className="text-muted-foreground">Available models</dt><dd className="mt-1 font-medium">{catalog.models.filter((model) => model.allowed).length}</dd></div><div className="rounded-lg border p-3"><dt className="text-muted-foreground">Catalog sync</dt><dd className="mt-1 font-medium">{catalog.sync?.lastSuccessfulAt ? catalog.sync.lastSuccessfulAt.toLocaleString() : "Not synchronized"}</dd></div><p className="col-span-full rounded-lg bg-secondary/30 p-3 leading-5 text-muted-foreground">Paid access levels and billing are not enabled in this prototype. No checkout or subscription is created.</p></dl>
           </SettingsSection>
 
           <SettingsSection icon={Cloud} title="AWS" description="Repository-scoped AWS access for provider-authenticated Terraform verification.">
@@ -70,7 +75,8 @@ export default async function SettingsPage() {
           <SettingsSection icon={SlidersHorizontal} title="Repository defaults" description="Preview values used when a repository has not been configured. Per-repository settings remain authoritative." comingLater>
             <div className="grid gap-3 sm:grid-cols-2">
               <DefaultSelect label="Terraform version" value={REPOSITORY_CONFIG_DEFAULTS.terraformVersion}><option value={REPOSITORY_CONFIG_DEFAULTS.terraformVersion}>{REPOSITORY_CONFIG_DEFAULTS.terraformVersion}</option></DefaultSelect>
-              <DefaultSelect label="Model" value={REPOSITORY_CONFIG_DEFAULTS.model}><option value={REPOSITORY_CONFIG_DEFAULTS.model}>{REPOSITORY_CONFIG_DEFAULTS.model}</option></DefaultSelect>
+              <DefaultSelect label="Model routing" value={REPOSITORY_CONFIG_DEFAULTS.modelRouting}><option value="auto">Auto Optimize</option></DefaultSelect>
+              <DefaultSelect label="Maximum tier" value={REPOSITORY_CONFIG_DEFAULTS.maxModelTier}><option value="free">FREE</option></DefaultSelect>
               <DefaultSelect label="Context mode" value={REPOSITORY_CONFIG_DEFAULTS.contextMode}><option value="auto">Auto</option><option value="lightweight">Lightweight</option><option value="schema-aware">Schema-aware</option></DefaultSelect>
               <DefaultSelect label="Repair attempts" value={String(REPOSITORY_CONFIG_DEFAULTS.maxRepairAttempts)}><option value="0">0</option><option value="1">1</option></DefaultSelect>
             </div>
@@ -84,6 +90,8 @@ export default async function SettingsPage() {
     </div>
   );
 }
+
+function formatAccess(value: string) { return value.charAt(0) + value.slice(1).toLowerCase(); }
 
 function DefaultSelect({ label, value, children }: { label: string; value: string; children: React.ReactNode }) {
   const id = `default-${label.toLowerCase().replaceAll(" ", "-")}`;

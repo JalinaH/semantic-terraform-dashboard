@@ -14,6 +14,7 @@
     "worker:once": "tsx --tsconfig worker/tsconfig.json worker/index.ts --once",
     "worker:health": "node dist/worker/index.mjs --healthcheck",
     "worker:build": "esbuild worker/index.ts --bundle --platform=node --format=esm --packages=external --alias:@=. --alias:server-only=./worker/server-only.ts --outfile=dist/worker/index.mjs",
+    "models:sync": "esbuild scripts/sync-openrouter-models.ts --bundle --platform=node --format=esm --packages=external --alias:@=. --alias:server-only=./worker/server-only.ts --outfile=dist/scripts/sync-openrouter-models.mjs && node dist/scripts/sync-openrouter-models.mjs",
     "prisma:generate": "prisma generate",
     "prisma:format": "prisma format",
     "prisma:validate": "prisma validate"

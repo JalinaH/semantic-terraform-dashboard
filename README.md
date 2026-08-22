@@ -1,6 +1,6 @@
 # TerraFix Dashboard
 
-The hosted control plane and observability product for **TerraFix**. Phase 8 turns real AI usage, provider-reported cost, verification, routing, and optimization telemetry into authorization-scoped trends and drilldowns without adding billing or usage limits.
+The hosted control plane and observability product for **TerraFix**. Phase 9 adds an authorization-enforced OpenRouter model catalog, per-repository model policy, and exact Semantic Terraform Agent v1.0 routing configuration without adding billing or usage limits.
 
 The repositories remain intentionally separate:
 
@@ -11,7 +11,7 @@ semantic-terraform-dashboard   TerraFix hosted control plane and observability U
 
 The dashboard does not copy or reimplement the Python agent. The worker installs it from a pinned source commit and invokes its published CLI contract.
 
-## Phase 7 capabilities
+## Current capabilities
 
 - Auth.js GitHub user authorization and PostgreSQL sessions
 - Multiple GitHub App installations with soft repository access removal
@@ -24,7 +24,7 @@ The dashboard does not copy or reimplement the Python agent. The worker installs
 - bounded GitHub Actions job-log collection and Terraform validate/plan detection
 - PostgreSQL-backed `AgentRun` queue claimed with `FOR UPDATE SKIP LOCKED`
 - separate Node worker container with git, Python, Terraform, and a pinned `semantic-terraform-agent`
-- exact-revision checkout, explicit base/head diff, temporary AWS role credentials, and service-owned Gemini credentials
+- exact-revision checkout, explicit base/head diff, temporary AWS role credentials, and service-owned model-gateway credentials
 - validated, redacted result ingestion and real run dashboard/detail views with polling
 - separate `AgentRunPublication` queue and lifecycle that never changes a completed diagnosis outcome
 - one marked GitHub App comment per pull request, created or updated with a fresh installation token
@@ -34,6 +34,8 @@ The dashboard does not copy or reimplement the Python agent. The worker installs
 - exact per-run AI usage with expandable per-call detail and explicit zero-versus-unknown semantics
 - 7-day, 30-day, and all-time dashboard/usage summaries with repository and model breakdowns
 - transparent cost/token completeness, verification-rate, schema-avoidance, escalation, memory-reuse, and zero-LLM metrics
+- synchronized, last-known-good OpenRouter metadata with explicit TerraFix tier policy and conservative model enablement
+- FREE-by-default account access, Auto Optimize or fixed-model repository policy, server-side enforcement, and immutable per-run policy snapshots
 
 Consumers do **not** add a model key, `AWS_ROLE_ARN`, or a TerraFix reusable workflow to their repositories for the hosted path. They still need an existing GitHub Actions Terraform CI workflow whose failure provides Actions logs.
 
@@ -51,7 +53,7 @@ Next.js control plane ── PostgreSQL WebhookDelivery / AgentRun queue
 Isolated worker ── installation token ── exact Git checkout + bounded Actions log
         │
         ├── STS AssumeRole + repository External ID → temporary AWS credentials
-        └── service GEMINI_API_KEY
+        └── service OPENROUTER_API_KEY (legacy Gemini configurations remain supported)
         ▼
 Pinned semantic-terraform-agent CLI → validated safe result → PostgreSQL → dashboard
         │
@@ -59,6 +61,19 @@ Pinned semantic-terraform-agent CLI → validated safe result → PostgreSQL →
 ```
 
 The webhook returns after filtering and queue insertion. It never runs Terraform or the Python process inline. The worker claims each queued row atomically; Redis is not required in this phase.
+
+## Model Selection and Routing
+
+TerraFix separates provider metadata, product policy, account access, repository configuration, and agent execution. `pnpm models:sync` fetches the current public OpenRouter models API from the server, validates and bounds the complete response, applies `config/model-policy.json`, and transactionally updates the local catalog. New/unclassified models remain disabled. A failed fetch records a safe error while preserving the last-known-good model rows; disappeared models are retained as unavailable for historical display.
+
+For the current prototype, users default to the `FREE` access level and can select only the `FREE` model tier. `PRO` and `ADVANCED` exist only as future-ready feature-policy values; there is no subscription, checkout, billing portal, or payment record. The centralized mapping is `FREE → FREE`, `PRO → BALANCED`, and `ADVANCED → PREMIUM`.
+
+- **Auto Optimize** is recommended for new repository configurations. The worker supplies `--provider openrouter --model-routing auto --max-model-tier free --model-registry <snapshot>`; the agent applies its deterministic routing policy within that bound.
+- **Fixed model** supplies `--provider openrouter --model <allowed-id> --model-routing fixed`. The model must still exist, be enabled, available, compatible with structured output or safe JSON fallback, and be permitted for the authenticated user's access.
+- **Pricing metadata** is provider usage pricing captured at catalog sync, not TerraFix subscription pricing or a pre-run cost estimate. A FREE assignment requires authoritative zero prompt and completion price in addition to explicit TerraFix policy.
+- **Reproducibility** comes from snapshotting routing, maximum tier, fixed model, access level, policy version, sync time, and the bounded agent registry when the `AgentRun` is queued.
+
+Hosted TerraFix owns `OPENROUTER_API_KEY`; it is never sent to a browser or stored per repository. A self-hosted `semantic-terraform-agent` operator supplies their own gateway credential. Catalog synchronization is manual in Phase 9 and can later be scheduled by deployment automation.
 
 ## AI Usage and Cost Observability
 
@@ -146,6 +161,7 @@ The public application still builds when integration variables are absent. Sign-
 | `AWS_CONTROL_PLANE_REGION` | server | STS client region |
 | `AWS_ASSUME_ROLE_PRINCIPAL_ARN` | server configuration | principal placed in generated customer trust policies |
 | `GEMINI_API_KEY` | worker secret | service-owned model credential |
+| `OPENROUTER_API_KEY` | dashboard sync + worker secret | service-owned OpenRouter catalog and inference credential; never public |
 | `SEMANTIC_TERRAFORM_AGENT_VERSION` | worker | pinned agent source/version label |
 | `WORKER_POLL_INTERVAL_MS` | worker | queue poll interval, default 5000 |
 | `WORKER_JOB_TIMEOUT_SECONDS` | worker | complete hosted-job deadline, default 600 |
@@ -198,15 +214,15 @@ docker build -f worker/Dockerfile -t semantic-terraform-worker:0.6.0 .
 git diff --check
 ```
 
-The normal test suite uses fake signed webhooks and mocked GitHub/AWS/agent boundaries. It requires no live GitHub App, AWS account, or Gemini call.
+The normal test suite uses fake signed webhooks, deterministic OpenRouter catalog fixtures, and mocked GitHub/AWS/agent boundaries. It requires no live GitHub App, AWS account, OpenRouter key, or model call.
 
-## Deferred beyond Phase 8
+## Deferred beyond Phase 9
 
 - auto-commit, auto-merge, Terraform apply/destroy, or any source mutation
 - infrastructure retry policy or recurring job scheduler
 - Stripe/billing, subscriptions, hard usage limits or budgets, BYOK, email/Slack notifications, Marketplace, organization RBAC, MCP, and multi-cloud
-- model policy selection, catalog synchronization, and plan-based model access (Phase 9)
+- Stripe/billing integration for access levels, model-catalog scheduling/admin UI, account-level model defaults, and plan enablement
 - custom date ranges, CSV export, deeper distributions, and visualization polish beyond the restrained Phase 8 charts
 - more than one agent repair attempt
 
-The recommended Phase 9 starting point is to centralize the existing read-only model policy into an authorization-checked policy service, then add model catalog and access-policy concepts without coupling observability to billing.
+The recommended Phase 10 starting point is a full authenticated onboarding journey test—from GitHub installation and catalog readiness through repository/AWS setup, queued execution, PR publication, and observability—followed by deployment environment hardening.

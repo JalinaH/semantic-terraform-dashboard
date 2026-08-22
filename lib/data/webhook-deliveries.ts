@@ -3,13 +3,19 @@ import "server-only";
 import {
   AgentRunStatus,
   AWSConnectionStatus,
+  ModelProvider,
+  ModelRouting,
+  ModelTier,
   Prisma,
+  UserAccessLevel,
   VerificationStatus,
   WebhookDeliveryStatus,
 } from "@prisma/client";
 import { db } from "@/lib/db";
 import type { WebhookDeliveryStore } from "@/lib/webhooks/service";
 import { toRepositoryConfigInput } from "@/lib/repository-config/mapper";
+import { listRegistryModels } from "@/lib/model-policy/catalog";
+import { toAgentModelRegistry } from "@/lib/model-policy/registry";
 
 export const prismaWebhookDeliveryStore: WebhookDeliveryStore = {
   async reserve(input) {
@@ -43,14 +49,24 @@ export const prismaWebhookDeliveryStore: WebhookDeliveryStore = {
       include: { config: true, awsConnection: true, installation: true },
     });
     if (!repository) return null;
+    const config = repository.config ? toRepositoryConfigInput(repository.config) : null;
+    const maximumTier = repository.config?.maxModelTier ?? ModelTier.FREE;
+    const registryModels = config?.modelPolicyVersion === "terrafix_model_policy_v1" ? await listRegistryModels(maximumTier) : [];
+    const modelRegistry = toAgentModelRegistry(registryModels, maximumTier).models;
+    const catalogSync = config?.modelPolicyVersion === "terrafix_model_policy_v1" ? await db.modelCatalogSync.findUnique({ where: { provider: "openrouter" }, select: { lastSuccessfulAt: true } }) : null;
+    const modelPolicyValid = !config || config.modelPolicyVersion === "legacy_phase8" || (config.modelRouting === "auto" ? modelRegistry.length > 0 : Boolean(config.fixedModelId && modelRegistry.some((model) => model.model_id === config.fixedModelId)));
     return {
       id: repository.id,
       installationDatabaseId: repository.installationId,
       installationId: repository.installation.installationId,
       installationActive: repository.installation.suspendedAt === null,
       accessible: repository.accessible,
-      config: repository.config ? toRepositoryConfigInput(repository.config) : null,
+      config,
       awsConnected: repository.awsConnection?.status === AWSConnectionStatus.CONNECTED,
+      modelPolicyValid,
+      accessLevel: repository.config?.accessLevelSnapshot ?? UserAccessLevel.FREE,
+      modelRegistry,
+      catalogSyncedAt: catalogSync?.lastSuccessfulAt?.toISOString() ?? null,
     };
   },
 
@@ -79,8 +95,14 @@ export const prismaWebhookDeliveryStore: WebhookDeliveryStore = {
           skipReason: input.skipReason,
           verificationStatus: input.status === "queued" ? VerificationStatus.PENDING : VerificationStatus.VERIFICATION_SKIPPED,
           contextMode: databaseContextMode(config.contextMode),
-          modelProvider: "GEMINI",
-          model: config.model,
+          modelProvider: config.modelProvider === "openrouter" ? ModelProvider.OPENROUTER : ModelProvider.GEMINI,
+          model: config.modelRouting === "fixed" ? config.fixedModelId ?? config.model : config.model,
+          configuredModelRouting: config.modelRouting === "auto" ? ModelRouting.AUTO : ModelRouting.FIXED,
+          configuredMaxModelTier: ModelTier[config.maxModelTier.toUpperCase() as keyof typeof ModelTier],
+          configuredModelId: config.fixedModelId,
+          accountAccessLevel: input.repository.accessLevel,
+          modelPolicyVersion: config.modelPolicyVersion,
+          catalogSyncedAt: input.repository.catalogSyncedAt ? new Date(input.repository.catalogSyncedAt) : null,
           maxRepairAttempts: config.maxRepairAttempts,
           eventMetadata: {
             workflowEvent: input.workflowEvent,
@@ -92,6 +114,13 @@ export const prismaWebhookDeliveryStore: WebhookDeliveryStore = {
             terraformVersion: config.terraformVersion,
             modelProvider: config.modelProvider,
             model: config.model,
+            modelRouting: config.modelRouting,
+            maxModelTier: config.maxModelTier,
+            fixedModelId: config.fixedModelId,
+            modelPolicyVersion: config.modelPolicyVersion,
+            accessLevel: input.repository.accessLevel,
+            modelRegistry: input.repository.modelRegistry,
+            catalogSyncedAt: input.repository.catalogSyncedAt,
             contextMode: config.contextMode,
             maxRepairAttempts: config.maxRepairAttempts,
             failedStages: config.failedStages,

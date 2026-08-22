@@ -16,6 +16,9 @@ import { formatCompactTokens, formatPercent, formatUsd } from "@/lib/analytics/f
 import { parseUsagePeriod } from "@/lib/analytics/usage";
 import { getUsageAnalytics } from "@/lib/analytics/trends";
 import { listInstallationsForUser } from "@/lib/github/installations";
+import { getCatalogViewForUser } from "@/lib/model-policy/catalog";
+import { isModelPolicyReady } from "@/lib/model-policy/readiness";
+import { toRepositoryConfigInput } from "@/lib/repository-config/mapper";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -23,10 +26,11 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const [user, params] = await Promise.all([requireAuthenticatedUser(), searchParams]);
   const period = parseUsagePeriod(single(params.period));
-  const [analytics, recentRuns, userInstallations] = await Promise.all([
+  const [analytics, recentRuns, userInstallations, catalog] = await Promise.all([
     getUsageAnalytics({ userId: user.id, period }),
     listAgentRunsForUser(user.id, {}, 5),
     listInstallationsForUser(user.id),
+    getCatalogViewForUser(user.id),
   ]);
   const usage = analytics!.current;
   const repositories = userInstallations.flatMap(({ githubInstallation }) =>
@@ -96,7 +100,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </div>
         {repositories.length ? (
           <div className="grid gap-4 xl:grid-cols-3">
-            {repositories.slice(0, 3).map(({ repository, accountLogin }) => <ConnectedRepositoryCard key={repository.id} repository={repository} accountLogin={accountLogin} />)}
+            {repositories.slice(0, 3).map(({ repository, accountLogin }) => <ConnectedRepositoryCard key={repository.id} repository={repository} accountLogin={accountLogin} modelPolicyValid={isModelPolicyReady(repository.config ? toRepositoryConfigInput(repository.config) : null, catalog.models, catalog.access)} />)}
           </div>
         ) : (
           <EmptyState

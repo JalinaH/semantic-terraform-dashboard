@@ -25,6 +25,25 @@ enum RepositoryContextMode {
 
 enum ModelProvider {
   GEMINI
+  OPENROUTER
+}
+
+enum UserAccessLevel {
+  FREE
+  PRO
+  ADVANCED
+}
+
+enum ModelTier {
+  FREE
+  ECONOMY
+  BALANCED
+  PREMIUM
+}
+
+enum ModelRouting {
+  AUTO
+  FIXED
 }
 
 enum FailureStage {
@@ -81,6 +100,7 @@ model User {
   githubUserId      String?            @unique
   githubLogin       String?
   avatarUrl         String?
+  accessLevel       UserAccessLevel    @default(FREE)
   accounts          Account[]
   sessions          Session[]
   userInstallations UserInstallation[]
@@ -197,6 +217,11 @@ model RepositoryConfig {
   terraformVersion      String                @default("1.15.7")
   modelProvider         ModelProvider         @default(GEMINI)
   model                 String                @default("gemini-3.6-flash")
+  modelRouting          ModelRouting          @default(FIXED)
+  maxModelTier          ModelTier             @default(FREE)
+  fixedModelId          String?
+  modelPolicyVersion    String                @default("legacy_phase8")
+  accessLevelSnapshot   UserAccessLevel       @default(FREE)
   contextMode           RepositoryContextMode @default(AUTO)
   maxRepairAttempts     Int                   @default(1)
   triggerOnPullRequest  Boolean               @default(true)
@@ -310,6 +335,12 @@ model AgentRun {
   historicalTokensAvoided   Int?
   historicalCostAvoidedUsd  Decimal?              @db.Decimal(20, 10)
   agentVersion              String?
+  configuredModelRouting    ModelRouting?
+  configuredMaxModelTier    ModelTier?
+  configuredModelId         String?
+  accountAccessLevel        UserAccessLevel?
+  modelPolicyVersion        String?
+  catalogSyncedAt           DateTime?
   errorCode                 String?
   errorMessage              String?
   workerStage               String                @default("queued")
@@ -334,6 +365,52 @@ model AgentRun {
   @@index([reportedModel, createdAt])
   @@index([commitSha])
   @@index([repositoryId, pullRequestNumber])
+}
+
+model ModelCatalogEntry {
+  id                       String     @id @default(cuid())
+  provider                 String
+  modelId                  String
+  canonicalSlug            String?
+  displayName              String
+  description              String?
+  tier                     ModelTier?
+  enabled                  Boolean    @default(false)
+  recommended              Boolean    @default(false)
+  available                Boolean    @default(true)
+  isFree                   Boolean?
+  supportsStructuredOutput Boolean    @default(false)
+  supportsJsonFallback     Boolean    @default(false)
+  contextLength            Int?
+  pricingPromptPerMillion  Decimal?   @db.Decimal(20, 10)
+  pricingOutputPerMillion  Decimal?   @db.Decimal(20, 10)
+  upstreamProvider         String?
+  priority                 Int        @default(100)
+  policyVersion            String     @default("terrafix_model_policy_v1")
+  lastSeenAt               DateTime
+  lastSyncedAt             DateTime
+  createdAt                DateTime   @default(now())
+  updatedAt                DateTime   @updatedAt
+
+  @@unique([provider, modelId])
+  @@index([provider])
+  @@index([enabled, available])
+  @@index([tier, enabled])
+  @@index([isFree])
+}
+
+model ModelCatalogSync {
+  id               String    @id @default(cuid())
+  provider         String    @unique
+  lastAttemptAt    DateTime?
+  lastSuccessfulAt DateTime?
+  lastErrorCode    String?
+  lastErrorMessage String?
+  modelsReceived   Int?
+  modelsNormalized Int?
+  modelsEnabled    Int?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 }
 
 model AgentRunPublication {

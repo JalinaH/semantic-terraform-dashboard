@@ -1,4 +1,5 @@
 import type { WorkerErrorCode } from "@/lib/worker/errors";
+import type { AgentModelRegistryEntry } from "@/lib/model-policy/types";
 
 export type WorkerStage =
   | "queued"
@@ -14,8 +15,15 @@ export type WorkerStage =
 export interface WorkerConfigSnapshot {
   terraformDir: string;
   terraformVersion: string;
-  modelProvider: "gemini";
+  modelProvider: "gemini" | "openrouter";
   model: string;
+  modelRouting: "auto" | "fixed";
+  maxModelTier: "free" | "economy" | "balanced" | "premium";
+  fixedModelId: string | null;
+  modelPolicyVersion: string;
+  accessLevel: "FREE" | "PRO" | "ADVANCED";
+  modelRegistry: AgentModelRegistryEntry[];
+  catalogSyncedAt: string | null;
   contextMode: "auto" | "lightweight" | "schema-aware";
   maxRepairAttempts: 0 | 1;
   failedStages: Array<"validate" | "plan">;

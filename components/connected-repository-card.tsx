@@ -19,6 +19,19 @@ interface ConnectedRepositoryCardProps {
       enabled: boolean;
       terraformDir: string;
       model: string;
+      modelRouting: "AUTO" | "FIXED";
+      maxModelTier: "FREE" | "ECONOMY" | "BALANCED" | "PREMIUM";
+      fixedModelId: string | null;
+      modelProvider: "GEMINI" | "OPENROUTER";
+      terraformVersion: string;
+      maxRepairAttempts: number;
+      triggerOnPullRequest: boolean;
+      triggerOnPush: boolean;
+      failedStages: Array<"VALIDATE" | "PLAN">;
+      workflowNames: string[];
+      workflowNamePatterns: string[];
+      terraformPathPatterns: string[];
+      modelPolicyVersion: string;
       contextMode: "AUTO" | "LIGHTWEIGHT" | "SCHEMA_AWARE";
     } | null;
     awsConnection: {
@@ -28,11 +41,12 @@ interface ConnectedRepositoryCardProps {
     } | null;
   };
   accountLogin: string;
+  modelPolicyValid: boolean;
 }
 
-export function ConnectedRepositoryCard({ repository, accountLogin }: ConnectedRepositoryCardProps) {
-  const configStatus = getRepositoryConfigStatus(repository.config, repository.awsConnection, repository.accessible);
-  const setupLabel = getRepositorySetupLabel(repository.accessible, repository.config, repository.awsConnection);
+export function ConnectedRepositoryCard({ repository, accountLogin, modelPolicyValid }: ConnectedRepositoryCardProps) {
+  const configStatus = getRepositoryConfigStatus(repository.config, repository.awsConnection, repository.accessible, modelPolicyValid);
+  const setupLabel = getRepositorySetupLabel(repository.accessible, repository.config, repository.awsConnection, modelPolicyValid);
   const action = getCardAction(repository.id, repository.accessible, configStatus);
 
   return (
@@ -68,8 +82,8 @@ export function ConnectedRepositoryCard({ repository, accountLogin }: ConnectedR
             <p className="mt-1 truncate font-mono font-medium">{repository.config?.terraformDir ?? "—"}</p>
           </div>
           <div className="min-w-0 rounded-md bg-secondary/40 px-3 py-2.5">
-            <span className="text-muted-foreground">Model</span>
-            <p className="mt-1 truncate font-mono font-medium">{repository.config?.model ?? "—"}</p>
+            <span className="text-muted-foreground">Model policy</span>
+            <p className="mt-1 truncate font-mono font-medium">{repository.config ? repository.config.modelRouting === "AUTO" ? `Auto · ${repository.config.maxModelTier}` : repository.config.fixedModelId ?? repository.config.model : "—"}</p>
           </div>
         </div>
         <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2.5 text-xs">
@@ -90,6 +104,7 @@ function getCardAction(repositoryId: string, accessible: boolean, status: Return
   if (!accessible) return { href: repositoryHref, label: "View saved configuration", primary: false };
   if (status === "not_configured") return { href: repositoryHref, label: "Configure repository", primary: true };
   if (status === "configured") return { href: `${repositoryHref}/aws`, label: "Connect AWS", primary: true };
+  if (status === "attention") return { href: repositoryHref, label: "Review model policy", primary: true };
   return { href: repositoryHref, label: status === "ready" ? "Manage repository" : "Manage configuration", primary: false };
 }
 

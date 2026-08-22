@@ -15,6 +15,12 @@ It never pushes, commits, applies Terraform, or persists GitHub/AWS/model
 credentials. The Python engine remains in `semantic-terraform-agent` and is
 installed from the exact commit configured in `worker/Dockerfile`.
 
+Each queued run contains an immutable model-policy snapshot. Fixed policy adds
+`--model-routing fixed` and the validated model ID. Auto Optimize writes the
+snapshotted, TerraFix-filtered registry to a mode-0600 temporary JSON file and
+adds `--model-routing auto`, `--max-model-tier`, and `--model-registry`. The
+worker owns `OPENROUTER_API_KEY`; repository users never provide gateway keys.
+
 ## Local process
 
 Install the Python agent and Terraform on the host, configure the server/worker

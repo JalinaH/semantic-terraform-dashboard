@@ -24,7 +24,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
           <span className="text-sm font-semibold tracking-tight">TerraFix</span>
         </Link>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="hidden bg-card/70 text-muted-foreground sm:inline-flex">Phase 7 AI observability</Badge>
+          <Badge variant="outline" className="hidden bg-card/70 text-muted-foreground sm:inline-flex">Phase 9 model policy</Badge>
           <ThemeToggle />
           {session?.user ? <Link href="/dashboard" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "hidden sm:inline-flex")}>Dashboard</Link> : null}
         </div>

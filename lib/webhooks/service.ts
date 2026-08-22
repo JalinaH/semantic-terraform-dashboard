@@ -5,6 +5,7 @@ import {
   type WorkflowExecutionContext,
 } from "@/lib/github/webhook-types";
 import type { RepositoryConfigInput } from "@/lib/repository-config/types";
+import type { AgentModelRegistryEntry } from "@/lib/model-policy/types";
 
 export type WebhookSkipReason =
   | "not_terraform_change"
@@ -22,6 +23,10 @@ export interface WebhookRepositorySnapshot {
   accessible: boolean;
   config: RepositoryConfigInput | null;
   awsConnected: boolean;
+  modelPolicyValid: boolean;
+  accessLevel: "FREE" | "PRO" | "ADVANCED";
+  modelRegistry: AgentModelRegistryEntry[];
+  catalogSyncedAt: string | null;
 }
 
 export interface CreateWebhookRunInput {
@@ -118,7 +123,7 @@ export async function processWebhookDelivery(
 }
 
 function repositoryReadinessSkipReason(repository: WebhookRepositorySnapshot, workflowEvent: string): WebhookSkipReason | null {
-  if (!repository.accessible || !repository.installationActive || !repository.config || !repository.config.enabled || !repository.awsConnected) {
+  if (!repository.accessible || !repository.installationActive || !repository.config || !repository.config.enabled || !repository.awsConnected || !repository.modelPolicyValid) {
     return "repository_not_ready";
   }
   if (workflowEvent === "pull_request") return repository.config.triggerOnPullRequest ? null : "trigger_disabled";

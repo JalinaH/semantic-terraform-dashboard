@@ -4,8 +4,13 @@ interface PersistedRepositoryConfig {
   enabled: boolean;
   terraformDir: string;
   terraformVersion: string;
-  modelProvider: "GEMINI";
+  modelProvider: "GEMINI" | "OPENROUTER";
   model: string;
+  modelRouting?: "AUTO" | "FIXED";
+  maxModelTier?: "FREE" | "ECONOMY" | "BALANCED" | "PREMIUM";
+  fixedModelId?: string | null;
+  modelPolicyVersion?: string;
+  accessLevelSnapshot?: "FREE" | "PRO" | "ADVANCED";
   contextMode: "AUTO" | "LIGHTWEIGHT" | "SCHEMA_AWARE";
   maxRepairAttempts: number;
   triggerOnPullRequest: boolean;
@@ -27,8 +32,12 @@ export function toRepositoryConfigInput(config: PersistedRepositoryConfig): Repo
     enabled: config.enabled,
     terraformDir: config.terraformDir,
     terraformVersion: config.terraformVersion,
-    modelProvider: "gemini",
+    modelProvider: config.modelProvider.toLowerCase() as "gemini" | "openrouter",
     model: config.model,
+    modelRouting: config.modelRouting?.toLowerCase() as "auto" | "fixed" ?? "fixed",
+    maxModelTier: config.maxModelTier?.toLowerCase() as "free" | "economy" | "balanced" | "premium" ?? "free",
+    fixedModelId: config.fixedModelId === undefined ? config.model : config.fixedModelId,
+    modelPolicyVersion: config.modelPolicyVersion ?? "legacy_phase8",
     contextMode: contextModeFromDatabase[config.contextMode],
     maxRepairAttempts: config.maxRepairAttempts === 0 ? 0 : 1,
     triggerOnPullRequest: config.triggerOnPullRequest,
@@ -40,7 +49,7 @@ export function toRepositoryConfigInput(config: PersistedRepositoryConfig): Repo
   };
 }
 
-export function toAgentExecutionConfig(config: RepositoryConfigInput): AgentExecutionConfig {
+export function toAgentExecutionConfig(config: RepositoryConfigInput, options: { accessLevel?: "FREE" | "PRO" | "ADVANCED"; registry?: import("@/lib/model-policy/types").AgentModelRegistryEntry[] } = {}): AgentExecutionConfig {
   return {
     terraform: {
       directory: config.terraformDir,
@@ -50,6 +59,12 @@ export function toAgentExecutionConfig(config: RepositoryConfigInput): AgentExec
     model: {
       provider: config.modelProvider,
       name: config.model,
+      routing: config.modelRouting,
+      maxTier: config.maxModelTier,
+      fixedModelId: config.fixedModelId,
+      policyVersion: config.modelPolicyVersion,
+      accessLevel: options.accessLevel ?? "FREE",
+      registry: options.registry ?? [],
       contextMode: config.contextMode,
     },
     repair: { maxAttempts: config.maxRepairAttempts },

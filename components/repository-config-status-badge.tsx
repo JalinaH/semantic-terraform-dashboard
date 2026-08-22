@@ -7,6 +7,7 @@ const labels: Record<RepositoryConfigStatus, string> = {
   configured: "Configured",
   ready: "Ready",
   disabled: "Disabled",
+  attention: "Needs attention",
 };
 
 export function RepositoryConfigStatusBadge({ status }: { status: RepositoryConfigStatus }) {
@@ -18,6 +19,7 @@ export function RepositoryConfigStatusBadge({ status }: { status: RepositoryConf
         status === "ready" && "border-success/20 bg-success-muted text-success-foreground",
         status === "disabled" && "bg-neutral-status-muted text-neutral-status",
         status === "not_configured" && "border-warning/20 bg-warning-muted text-warning-foreground",
+        status === "attention" && "border-destructive/25 bg-destructive/5 text-destructive",
       )}
     >
       {labels[status]}

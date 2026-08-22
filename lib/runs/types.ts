@@ -67,6 +67,12 @@ export interface RunDetail extends RunListItem {
   upstreamProvider: string | null;
   routingMode: string | null;
   maxModelTier: string | null;
+  configuredModelRouting: string | null;
+  configuredMaxModelTier: string | null;
+  configuredModelId: string | null;
+  accountAccessLevel: string | null;
+  modelPolicyVersion: string | null;
+  catalogSyncedAt: string | null;
   initialModel: string | null;
   finalModel: string | null;
   initialModelTier: string | null;

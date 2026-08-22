@@ -38,9 +38,9 @@ describe("repository configuration validation", () => {
     expect(repositoryConfigSchema.safeParse({ ...REPOSITORY_CONFIG_DEFAULTS, contextMode: "full" }).success).toBe(false);
   });
 
-  it("rejects unsupported providers and models", () => {
+  it("rejects unsupported providers and malformed model identifiers", () => {
     expect(repositoryConfigSchema.safeParse({ ...REPOSITORY_CONFIG_DEFAULTS, modelProvider: "openai" }).success).toBe(false);
-    expect(repositoryConfigSchema.safeParse({ ...REPOSITORY_CONFIG_DEFAULTS, model: "gemini-2.5-pro" }).success).toBe(false);
+    expect(repositoryConfigSchema.safeParse({ ...REPOSITORY_CONFIG_DEFAULTS, model: "model id with spaces" }).success).toBe(false);
   });
 
   it("requires at least one failed stage", () => {

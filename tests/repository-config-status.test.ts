@@ -9,5 +9,6 @@ describe("repository configuration status", () => {
     expect(getRepositoryConfigStatus({ enabled: true }, { status: "CONNECTED" })).toBe("ready");
     expect(getRepositoryConfigStatus({ enabled: true }, { status: "CONNECTED" }, false)).toBe("configured");
     expect(getRepositoryConfigStatus({ enabled: false }, { status: "CONNECTED" })).toBe("disabled");
+    expect(getRepositoryConfigStatus({ enabled: true }, { status: "CONNECTED" }, true, false)).toBe("attention");
   });
 });

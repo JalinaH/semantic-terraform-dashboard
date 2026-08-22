@@ -9,6 +9,9 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getGitHubErrorMessage } from "@/lib/github/errors";
 import { listInstallationsForUser } from "@/lib/github/installations";
+import { getCatalogViewForUser } from "@/lib/model-policy/catalog";
+import { isModelPolicyReady } from "@/lib/model-policy/readiness";
+import { toRepositoryConfigInput } from "@/lib/repository-config/mapper";
 import { getGitHubInstallationManagementUrl } from "@/lib/github/urls";
 import { cn } from "@/lib/utils";
 
@@ -20,9 +23,10 @@ interface RepositoriesPageProps {
 
 export default async function RepositoriesPage({ searchParams }: RepositoriesPageProps) {
   const user = await requireAuthenticatedUser();
-  const [params, userInstallations] = await Promise.all([
+  const [params, userInstallations, catalog] = await Promise.all([
     searchParams,
     listInstallationsForUser(user.id, { includeInaccessible: true }),
+    getCatalogViewForUser(user.id),
   ]);
   const error = singleValue(params.error);
   const connected = singleValue(params.github) === "connected";
@@ -88,7 +92,7 @@ export default async function RepositoriesPage({ searchParams }: RepositoriesPag
                 {githubInstallation.pullRequestsPermission !== "write" ? <Notice tone="error" title="GitHub permission upgrade required">Approve Pull requests: Write from the installation management page, then synchronize repositories to enable PR publication.</Notice> : null}
                 {githubInstallation.repositories.length ? (
                   <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-                    {githubInstallation.repositories.map((repository) => <ConnectedRepositoryCard key={repository.id} repository={repository} accountLogin={githubInstallation.accountLogin} />)}
+                    {githubInstallation.repositories.map((repository) => <ConnectedRepositoryCard key={repository.id} repository={repository} accountLogin={githubInstallation.accountLogin} modelPolicyValid={isModelPolicyReady(repository.config ? toRepositoryConfigInput(repository.config) : null, catalog.models, catalog.access)} />)}
                   </div>
                 ) : (
                   <EmptyState icon={FolderGit2} title="No repositories granted" description="Manage this installation on GitHub to grant one or more repositories, then synchronize again." />

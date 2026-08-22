@@ -17,6 +17,7 @@ function run(overrides: Partial<RunDetail> = {}): RunDetail {
     evidenceScore: 0.9, attempts: [], timing: {}, inputTokens: 1842, outputTokens: 218, cachedInputTokens: 1100,
     reasoningTokens: 20, llmCallCount: 1, llmLatencyMs: 1820, llmProvider: "openrouter", requestedModel: "openrouter/free",
     reportedModel: "provider/model", upstreamProvider: "Provider", routingMode: "auto", maxModelTier: "free", initialModel: "provider/model",
+    configuredModelRouting: "auto", configuredMaxModelTier: "free", configuredModelId: null, accountAccessLevel: "FREE", modelPolicyVersion: "terrafix_model_policy_v1", catalogSyncedAt: "2026-08-23T00:00:00.000Z",
     finalModel: "provider/model", initialModelTier: "free", finalModelTier: "free", modelEscalated: false, initialContextLevel: "minimal",
     finalContextLevel: "minimal", contextEscalated: false, contextEscalationReason: null, schemaRetrieved: false, schemaAvoided: true,
     sourceCharactersAvailable: 18200, sourceCharactersSelected: 3100, sourceReductionRatio: 0.83, schemaCharactersAvailable: null,

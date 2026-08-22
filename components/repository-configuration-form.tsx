@@ -9,11 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { ModelPolicySelector, type ModelPickerEntry } from "@/components/model-policy-selector";
 import {
   CONTEXT_MODE_OPTIONS,
   FAILURE_STAGE_OPTIONS,
-  MODEL_OPTIONS,
-  MODEL_PROVIDER_OPTIONS,
 } from "@/lib/repository-config/constants";
 import type {
   RepositoryConfigActionState,
@@ -30,12 +29,20 @@ export function RepositoryConfigurationForm({
   initialStatus,
   awsConnected,
   disabled = false,
+  modelCatalog,
+  maximumAllowedTier,
+  catalogLastSyncedAt,
+  catalogPricingMayBeStale,
 }: {
   repositoryId: string;
   initialConfig: RepositoryConfigInput;
   initialStatus: RepositoryConfigStatus;
   awsConnected: boolean;
   disabled?: boolean;
+  modelCatalog: ModelPickerEntry[];
+  maximumAllowedTier: "FREE" | "ECONOMY" | "BALANCED" | "PREMIUM";
+  catalogLastSyncedAt: string | null;
+  catalogPricingMayBeStale: boolean;
 }) {
   const boundAction = saveRepositoryConfigurationAction.bind(null, repositoryId);
   const [state, formAction, pending] = useActionState(boundAction, INITIAL_STATE);
@@ -99,7 +106,7 @@ export function RepositoryConfigurationForm({
               <StatusRow label="Configuration" value={state.status === "success" ? "Saved" : formatOption(initialStatus)} />
               <StatusRow label="GitHub" value="Connected" />
               <StatusRow label="AWS" value={awsConnected ? "Connected" : "Not connected"} />
-              <StatusRow label="Integration status" value={awsConnected && initialConfig.enabled ? "Ready" : "Configuration incomplete"} />
+              <StatusRow label="Integration status" value={initialStatus === "ready" ? "Ready" : initialStatus === "attention" ? "Model policy needs attention" : "Configuration incomplete"} />
             </dl>
             {!awsConnected ? <p className="text-[11px] leading-5 text-warning-foreground">AWS connection is required before provider-authenticated verification can run.</p> : null}
           </ConfigCard>
@@ -115,19 +122,11 @@ export function RepositoryConfigurationForm({
             <FieldError id="terraformVersion-error" errors={errors?.terraformVersion} />
           </ConfigCard>
 
+          <ConfigCard title="AI model policy" description="Choose deterministic routing for the Semantic Terraform Agent v1.0 engine.">
+            <ModelPolicySelector initial={initialConfig} maximumAllowedTier={maximumAllowedTier} models={modelCatalog} lastSyncedAt={catalogLastSyncedAt} pricingMayBeStale={catalogPricingMayBeStale} />
+          </ConfigCard>
+
           <ConfigCard title="Agent configuration" description="Choose bounded context and repair behavior for the existing Python engine.">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Model provider" name="modelProvider">
-                <Select name="modelProvider" defaultValue={initialConfig.modelProvider}>
-                  {MODEL_PROVIDER_OPTIONS.map((provider) => <option key={provider} value={provider}>Gemini</option>)}
-                </Select>
-              </Field>
-              <Field label="Model" name="model">
-                <Select name="model" defaultValue={initialConfig.model}>
-                  {MODEL_OPTIONS.map((model) => <option key={model} value={model}>{model}</option>)}
-                </Select>
-              </Field>
-            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Context mode" name="contextMode">
                 <Select name="contextMode" defaultValue={initialConfig.contextMode}>

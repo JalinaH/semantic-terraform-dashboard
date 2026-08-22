@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getWorkerConfiguration } from "@/lib/config";
 import { WorkerExecutionError } from "@/lib/worker/errors";
@@ -15,7 +15,12 @@ export async function invokeSemanticTerraformAgent(input: {
 }) {
   const configuration = getWorkerConfiguration();
   const outputPath = path.join(path.dirname(input.workspace.failureLogPath), "result.json");
-  const args = buildAgentArguments(input, outputPath);
+  const registryPath = input.run.config.modelRouting === "auto" ? path.join(path.dirname(outputPath), "model-registry.json") : undefined;
+  if (registryPath) {
+    if (!input.run.config.modelRegistry.length) throw new WorkerExecutionError("model_unavailable");
+    await writeFile(registryPath, `${JSON.stringify({ models: input.run.config.modelRegistry }, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+  }
+  const args = buildAgentArguments(input, outputPath, registryPath);
   await verifyTerraformRuntime(input.run.config.terraformVersion, input.signal);
   let result;
   try {
@@ -46,7 +51,7 @@ export async function invokeSemanticTerraformAgent(input: {
   }
   if (result.exitCode !== 0) {
     const safeError = getResultError(parsed);
-    if (/GEMINI_API_KEY|model|quota|rate limit/i.test(safeError)) throw new WorkerExecutionError("model_unavailable");
+    if (/GEMINI_API_KEY|OPENROUTER_API_KEY|model|quota|rate limit/i.test(safeError)) throw new WorkerExecutionError("model_unavailable");
     if (/terraform.*(?:not found|unavailable)|no such file.*terraform/i.test(safeError)) throw new WorkerExecutionError("terraform_not_found");
     throw new WorkerExecutionError("agent_execution_failed");
   }
@@ -56,8 +61,8 @@ export async function invokeSemanticTerraformAgent(input: {
 export function buildAgentArguments(input: {
   run: ClaimedAgentRun;
   workspace: PreparedAgentWorkspace;
-}, outputPath: string) {
-  return [
+}, outputPath: string, registryPath?: string) {
+  const args = [
     "diagnose",
     "--repo-path", input.workspace.checkoutPath,
     "--terraform-dir", input.run.config.terraformDir,
@@ -65,12 +70,20 @@ export function buildAgentArguments(input: {
     "--diff-file", input.workspace.diffPath,
     "--failed-stage", input.workspace.failedStage,
     "--provider", input.run.config.modelProvider,
-    "--model", input.run.config.model,
+    "--model-routing", input.run.config.modelRouting,
+    "--max-model-tier", input.run.config.maxModelTier,
     "--context-mode", input.run.config.contextMode,
     "--verify-patch",
     "--max-repair-attempts", String(input.run.config.maxRepairAttempts),
     "--output", outputPath,
   ];
+  if (input.run.config.modelRouting === "auto") {
+    if (!registryPath) throw new WorkerExecutionError("model_unavailable");
+    args.push("--model-registry", registryPath);
+  } else {
+    args.push("--model", input.run.config.fixedModelId ?? input.run.config.model);
+  }
+  return args;
 }
 
 export function createAgentEnvironment(credentials: TemporaryAwsCredentials): NodeJS.ProcessEnv {
@@ -85,6 +98,7 @@ export function createAgentEnvironment(credentials: TemporaryAwsCredentials): No
     HTTP_PROXY: process.env.HTTP_PROXY,
     NO_PROXY: process.env.NO_PROXY,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
     AWS_ACCESS_KEY_ID: credentials.accessKeyId,
     AWS_SECRET_ACCESS_KEY: credentials.secretAccessKey,
     AWS_SESSION_TOKEN: credentials.sessionToken,

@@ -14,6 +14,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { formatCompactTokens, formatPercent, formatUsd } from "@/lib/analytics/format";
 import { getUsageAnalytics } from "@/lib/analytics/trends";
+import { getCatalogViewForUser } from "@/lib/model-policy/catalog";
+import { isModelPolicyReady } from "@/lib/model-policy/readiness";
 import { getRepositoryForUser } from "@/lib/data/repositories";
 import { listAgentRunsForUser } from "@/lib/data/runs";
 import { getGitHubInstallationManagementUrl } from "@/lib/github/urls";
@@ -28,13 +30,15 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
   const [{ id }, user] = await Promise.all([params, requireAuthenticatedUser()]);
   const repository = await getRepositoryForUser(user.id, id);
   if (!repository) notFound();
-  const [recentRuns, usage] = await Promise.all([
+  const [recentRuns, usage, catalog] = await Promise.all([
     listAgentRunsForUser(user.id, { repositoryId: repository.id }, 5),
     getUsageAnalytics({ userId: user.id, period: "30d", repositoryId: repository.id }),
+    getCatalogViewForUser(user.id),
   ]);
 
   const config = repository.config ? toRepositoryConfigInput(repository.config) : REPOSITORY_CONFIG_DEFAULTS;
-  const status = getRepositoryConfigStatus(repository.config, repository.awsConnection, repository.accessible);
+  const modelPolicyReady = isModelPolicyReady(repository.config ? toRepositoryConfigInput(repository.config) : null, catalog.models, catalog.access);
+  const status = getRepositoryConfigStatus(repository.config, repository.awsConnection, repository.accessible, modelPolicyReady);
   const awsConnected = repository.awsConnection?.status === "CONNECTED";
   const manageUrl = getGitHubInstallationManagementUrl(repository.installation.installationId, repository.installation.htmlUrl);
 
@@ -67,6 +71,13 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
         </div>
       ) : null}
 
+      {repository.accessible && status === "attention" ? (
+        <div role="alert" className="flex items-start gap-3 rounded-xl border border-destructive/25 bg-destructive/5 p-4">
+          <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-destructive" />
+          <div><p className="text-sm font-medium">{config.modelRouting === "fixed" ? "Configured model unavailable" : "Model setup required"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{config.modelRouting === "fixed" ? "The selected model is no longer enabled, available, compatible, or allowed. TerraFix will not silently switch it; choose another model or Auto Optimize." : "No eligible model is currently available within this repository’s maximum tier. Review the catalog and model policy before the next run."}</p></div>
+        </div>
+      ) : null}
+
       {repository.accessible && repository.installation.pullRequestsPermission !== "write" ? (
         <div role="alert" className="flex flex-col justify-between gap-4 rounded-xl border border-warning/25 bg-warning-muted p-4 sm:flex-row sm:items-center">
           <div className="flex items-start gap-3">
@@ -93,7 +104,8 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
             <SummaryItem label="Status" value={formatLabel(status)} />
             <SummaryItem label="Terraform root" value={config.terraformDir} mono />
             <SummaryItem label="Terraform version" value={config.terraformVersion} mono />
-            <SummaryItem label="Model" value={config.model} mono />
+            <SummaryItem label="Model policy" value={config.modelRouting === "auto" ? "Auto Optimize" : "Fixed"} />
+            <SummaryItem label={config.modelRouting === "auto" ? "Maximum tier" : "Model"} value={config.modelRouting === "auto" ? config.maxModelTier.toUpperCase() : config.fixedModelId ?? config.model} mono={config.modelRouting === "fixed"} />
             <SummaryItem label="Context" value={formatLabel(config.contextMode)} />
             <SummaryItem label="Repair attempts" value={String(config.maxRepairAttempts)} />
           </CardContent>
@@ -119,8 +131,8 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
 
       <section aria-labelledby="configuration-heading">
         <div className="mb-3"><h2 id="configuration-heading" className="text-base font-semibold">Repository configuration</h2><p className="mt-1 text-xs text-muted-foreground">Saved workflow names, path filters, stages, model, context, and bounded repair behavior control hosted dispatch.</p></div>
-        <RepositoryConfigurationForm repositoryId={repository.id} initialConfig={config} initialStatus={status} awsConnected={awsConnected} disabled={!repository.accessible} />
-        <div className="mt-3 rounded-lg border bg-secondary/25 px-4 py-3 text-xs"><span className="font-medium">Usage policy</span><span className="ml-2 text-muted-foreground">Current model policy: Fixed · {config.model}. Model policy selection remains read-only in Phase 7.</span></div>
+        <RepositoryConfigurationForm repositoryId={repository.id} initialConfig={config} initialStatus={status} awsConnected={awsConnected} disabled={!repository.accessible} maximumAllowedTier={catalog.access.maximumTier} catalogLastSyncedAt={catalog.sync?.lastSuccessfulAt?.toISOString() ?? null} catalogPricingMayBeStale={catalog.pricingMayBeStale} modelCatalog={catalog.models.filter((model) => model.tier !== null && (model.supportsStructuredOutput || model.supportsJsonFallback)).map((model) => ({ modelId: model.modelId, displayName: model.displayName, upstreamProvider: model.upstreamProvider, tier: model.tier!, allowed: model.allowed, available: model.available && model.enabled, recommended: model.recommended, isFree: model.isFree, contextLength: model.contextLength, pricingPromptPerMillion: model.pricingPromptPerMillion, pricingOutputPerMillion: model.pricingOutputPerMillion }))} />
+        <div className="mt-3 rounded-lg border bg-secondary/25 px-4 py-3 text-xs"><span className="font-medium">Usage policy</span><span className="ml-2 text-muted-foreground">Current model policy: {config.modelRouting === "auto" ? `Auto Optimize · maximum ${config.maxModelTier.toUpperCase()}` : `Fixed · ${config.fixedModelId ?? config.model}`}.</span></div>
       </section>
 
       <section aria-labelledby="aws-heading">

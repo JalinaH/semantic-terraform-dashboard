@@ -416,7 +416,7 @@ export function redactSensitiveText(value: string) {
     .replace(/\bAKIA[0-9A-Z]{16}\b/g, "[REDACTED]")
     .replace(/\b(?:github_pat_|gh[opsu]_)[A-Za-z0-9_]{16,}\b/g, "[REDACTED]")
     .replace(/\bAIza[A-Za-z0-9_-]{20,}\b/g, "[REDACTED]")
-    .replace(/\b(AWS_SECRET_ACCESS_KEY|AWS_SESSION_TOKEN|GEMINI_API_KEY|GITHUB_TOKEN)\s*[:=]\s*[^\s,;]+/gi, "$1=[REDACTED]")
+    .replace(/\b(AWS_SECRET_ACCESS_KEY|AWS_SESSION_TOKEN|GEMINI_API_KEY|OPENROUTER_API_KEY|GITHUB_TOKEN)\s*[:=]\s*[^\s,;]+/gi, "$1=[REDACTED]")
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{16,}/gi, "Bearer [REDACTED]")
     .replace(/x-access-token:[^@\s]+/gi, "x-access-token:[REDACTED]");
 }

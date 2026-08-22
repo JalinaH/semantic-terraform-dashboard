@@ -16,8 +16,14 @@ describe("repository configuration mappers", () => {
         failedStages: ["validate", "plan"],
       },
       model: {
-        provider: "gemini",
-        name: "gemini-3.6-flash",
+        provider: "openrouter",
+        name: "openrouter/free",
+        routing: "auto",
+        maxTier: "free",
+        fixedModelId: null,
+        policyVersion: "terrafix_model_policy_v1",
+        accessLevel: "FREE",
+        registry: [],
         contextMode: "schema-aware",
       },
       repair: { maxAttempts: 1 },
@@ -38,6 +44,10 @@ describe("repository configuration mappers", () => {
       terraformVersion: "1.15.7",
       modelProvider: "GEMINI" as const,
       model: "gemini-3.6-flash",
+      modelRouting: "AUTO" as const,
+      maxModelTier: "FREE" as const,
+      fixedModelId: null,
+      modelPolicyVersion: "terrafix_model_policy_v1",
       contextMode: "AUTO" as const,
       maxRepairAttempts: 1,
       triggerOnPullRequest: true,
@@ -50,7 +60,7 @@ describe("repository configuration mappers", () => {
       privateKey: "must-not-leak",
     };
     const serialized = toRepositoryConfigInput(source);
-    expect(serialized).toEqual(REPOSITORY_CONFIG_DEFAULTS);
+    expect(serialized).toEqual({ ...REPOSITORY_CONFIG_DEFAULTS, modelProvider: "gemini", model: "gemini-3.6-flash" });
     expect(JSON.stringify(serialized)).not.toContain("must-not-leak");
     expect(serialized).not.toHaveProperty("installationToken");
   });
