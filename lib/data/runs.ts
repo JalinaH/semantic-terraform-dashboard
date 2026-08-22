@@ -23,6 +23,12 @@ export interface RunFilters {
   resource?: string;
   verificationStatus?: RunVerificationStatus;
   model?: string;
+  modelEscalated?: boolean;
+  contextEscalated?: boolean;
+  memoryReused?: boolean;
+  zeroLlm?: boolean;
+  schemaAvoided?: boolean;
+  resolutionSource?: string;
 }
 
 export async function listAgentRunsForUser(userId: string, filters: RunFilters = {}, take = 100): Promise<RunListItem[]> {
@@ -36,6 +42,12 @@ export async function listAgentRunsForUser(userId: string, filters: RunFilters =
       ...(filters.status ? { status: databaseRunStatus(filters.status) } : {}),
       ...(filters.verificationStatus ? { verificationStatus: databaseVerificationStatus(filters.verificationStatus) } : {}),
       ...(filters.model ? { OR: [{ reportedModel: filters.model }, { requestedModel: filters.model }, { model: filters.model }] } : {}),
+      ...(filters.modelEscalated !== undefined ? { modelEscalated: filters.modelEscalated } : {}),
+      ...(filters.contextEscalated !== undefined ? { contextEscalated: filters.contextEscalated } : {}),
+      ...(filters.memoryReused !== undefined ? { failureMemoryReused: filters.memoryReused } : {}),
+      ...(filters.schemaAvoided !== undefined ? { schemaAvoided: filters.schemaAvoided } : {}),
+      ...(filters.resolutionSource ? { resolutionSource: filters.resolutionSource } : {}),
+      ...(filters.zeroLlm === true ? { resolutionSource: "verified_failure_memory", llmCallCount: 0 } : filters.zeroLlm === false ? { NOT: { resolutionSource: "verified_failure_memory", llmCallCount: 0 } } : {}),
       ...(createdAt ? { createdAt: { gte: createdAt } } : {}),
     },
     include: { repository: { select: { fullName: true } }, publication: true },

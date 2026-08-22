@@ -4,6 +4,8 @@ TerraFix is the hosted control plane and observability product. It owns authenti
 
 `semantic-terraform-agent` remains the inference and verification engine. Semantic Terraform Agent v1.0.0 collects bounded Terraform evidence, builds deterministic context, optionally retrieves/slices provider schema, routes model calls, proposes candidates, and verifies patches in isolation. The dashboard does not perform Terraform reasoning.
 
+Phase 8 analytics query only normalized scalar telemetry; raw safe result JSON, per-call JSON, patches, root causes, source, and schemas are not loaded for trend aggregation. The service applies GitHub-installation authorization before optional repository scoping, creates UTC daily buckets, performs Decimal-safe cost sums, and returns current/previous summaries with completeness counts. React pages render this service contract rather than embedding Prisma calculations.
+
 ```text
 GitHub/AWS → TerraFix control plane → isolated worker
                                       │

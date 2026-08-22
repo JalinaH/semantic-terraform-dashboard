@@ -1,6 +1,6 @@
 # TerraFix Dashboard
 
-The hosted control plane and observability product for **TerraFix**. Phase 7 makes real AI usage, provider-reported cost, context optimization, model routing, and Verified Failure Memory behavior visible without adding billing or usage limits.
+The hosted control plane and observability product for **TerraFix**. Phase 8 turns real AI usage, provider-reported cost, verification, routing, and optimization telemetry into authorization-scoped trends and drilldowns without adding billing or usage limits.
 
 The repositories remain intentionally separate:
 
@@ -70,6 +70,21 @@ TerraFix normalizes authoritative Semantic Terraform Agent v1.0.0 telemetry into
 - **Context optimization** reports Terraform source and provider-schema character reduction. Character reduction is never relabeled as token reduction.
 - **Progressive context** records minimal/schema progression, schema retrieval or avoidance, and the reason for context escalation.
 - **Model routing** records requested/reported models, upstream provider, TerraFix policy tier, and model escalation separately from context escalation.
+
+## Analytics
+
+`/usage` is the central analytics view. It supports Last 7 days, Last 30 days, and All time, plus an authorized repository filter and actual/reported-model filter persisted in the URL. Seven- and 30-day views compare against the immediately preceding equal-length UTC period; All time intentionally has no previous-period comparison.
+
+- **Token trends** aggregate daily input, cached input, output, and total tokens from completed diagnosable runs with complete token telemetry.
+- **AI spend trends** use Prisma Decimal-backed provider-reported costs. Explicit zero remains a free-cost day; missing cost remains a chart gap.
+- **Verification trends** use verified-first-attempt and verified-after-retry outcomes over completed diagnosable runs. Worker/infrastructure failures are excluded.
+- **Optimization effectiveness** reports schema avoidance, context escalation, model escalation, Verified Failure Memory reuse, and zero-LLM resolution only across rows where each signal is known.
+- **Context reduction** reports the mean and median of individual Terraform-source and provider-schema reduction ratios; it does not average daily percentages or relabel characters as tokens.
+- **Repository/model comparisons** are drillable and remain restricted to repositories linked to the authenticated user's GitHub installations. Model grouping prefers the actual reported model, falling back to the requested route when unavailable.
+
+Daily buckets are UTC. Days with no runs are present for a stable chart timeline, but missing telemetry is represented as `null`, never numeric zero. Completeness labels disclose reporting diagnoses versus eligible diagnoses. Legacy runs continue to count toward run totals and supported verification metrics while being excluded from v1-only telemetry denominators.
+
+Schema avoidance uses runs where `schemaAvoided` is reported, model/context escalation uses runs where the respective routing/progression flag is reported, and memory reuse uses runs where `failureMemoryReused` is reported. This is the most reliable eligibility signal available in v1.0; cache misses are not classified as failures.
 - **Verified Failure Memory** records misses/reuse, fresh verification, zero-LLM resolutions, and historical tokens/cost avoided only when authoritative historical telemetry exists.
 
 Cost and token totals show their reporting population. Average cost/run and cost/verified fix are withheld unless every completed diagnosable run in the selected period has complete reported cost. Missing values are never silently converted to zero. Historical normalized columns are intentionally left `null`; no mandatory backfill is performed.
@@ -185,13 +200,13 @@ git diff --check
 
 The normal test suite uses fake signed webhooks and mocked GitHub/AWS/agent boundaries. It requires no live GitHub App, AWS account, or Gemini call.
 
-## Deferred beyond Phase 7
+## Deferred beyond Phase 8
 
 - auto-commit, auto-merge, Terraform apply/destroy, or any source mutation
 - infrastructure retry policy or recurring job scheduler
 - Stripe/billing, subscriptions, hard usage limits or budgets, BYOK, email/Slack notifications, Marketplace, organization RBAC, MCP, and multi-cloud
-- rich analytics charts, custom date ranges, trend comparison, and visualization polish (Phase 8)
 - model policy selection, catalog synchronization, and plan-based model access (Phase 9)
+- custom date ranges, CSV export, deeper distributions, and visualization polish beyond the restrained Phase 8 charts
 - more than one agent repair attempt
 
-The recommended Phase 8 starting point is a pair of restrained daily token/spend trends backed by the Phase 7 completeness-aware analytics service, followed by repository/model comparison drill-downs without changing the ingestion contract.
+The recommended Phase 9 starting point is to centralize the existing read-only model policy into an authorization-checked policy service, then add model catalog and access-policy concepts without coupling observability to billing.

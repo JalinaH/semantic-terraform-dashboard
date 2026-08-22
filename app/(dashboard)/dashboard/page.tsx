@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, BadgeCheck, BrainCircuit, CircleDollarSign, CircleGauge, FolderGit2, GitPullRequestArrow, Github, ListChecks, Sparkles } from "lucide-react";
 import { beginGitHubInstallationAction } from "@/app/actions/github";
 import { ConnectedRepositoryCard } from "@/components/connected-repository-card";
+import { TokenTrendChart } from "@/components/analytics/usage-trend-charts";
 import { EmptyState } from "@/components/empty-state";
 import { MetricCard } from "@/components/metric-card";
 import { RunPoller } from "@/components/run-poller";
@@ -12,7 +13,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { listAgentRunsForUser } from "@/lib/data/runs";
 import { formatCompactTokens, formatPercent, formatUsd } from "@/lib/analytics/format";
-import { getUsageAnalyticsForUser, parseUsagePeriod } from "@/lib/analytics/usage";
+import { parseUsagePeriod } from "@/lib/analytics/usage";
+import { getUsageAnalytics } from "@/lib/analytics/trends";
 import { listInstallationsForUser } from "@/lib/github/installations";
 import { cn } from "@/lib/utils";
 
@@ -21,11 +23,12 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const [user, params] = await Promise.all([requireAuthenticatedUser(), searchParams]);
   const period = parseUsagePeriod(single(params.period));
-  const [usage, recentRuns, userInstallations] = await Promise.all([
-    getUsageAnalyticsForUser(user.id, period),
+  const [analytics, recentRuns, userInstallations] = await Promise.all([
+    getUsageAnalytics({ userId: user.id, period }),
     listAgentRunsForUser(user.id, {}, 5),
     listInstallationsForUser(user.id),
   ]);
+  const usage = analytics!.current;
   const repositories = userInstallations.flatMap(({ githubInstallation }) =>
     githubInstallation.repositories.map((repository) => ({ repository, accountLogin: githubInstallation.accountLogin })),
   );
@@ -33,10 +36,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     { title: "Agent runs", value: String(usage.runCount), description: "Real persisted webhook-triggered records", icon: ListChecks },
     { title: "Verified fixes", value: String(usage.verifiedFixes), description: "Fresh isolated Terraform verification passed", icon: BadgeCheck },
     { title: "Verification rate", value: formatPercent(usage.verificationRate), description: "Verified / completed diagnosable runs", icon: CircleGauge },
-    { title: "AI spend", value: formatUsd(usage.aiSpendUsd), description: `${usage.costCompleteRuns} of ${usage.completedRunCount} completed diagnoses reported complete cost`, icon: CircleDollarSign },
+    { title: "AI spend", value: usage.costCompleteRuns ? formatUsd(usage.aiSpendUsd) : "Not reported", description: `${usage.costCompleteRuns} of ${usage.completedRunCount} completed diagnoses reported complete cost`, icon: CircleDollarSign },
   ];
   const secondaryMetrics = [
-    { title: "Total tokens", value: formatCompactTokens(usage.totalTokens), description: `${usage.tokenCompleteRuns} of ${usage.completedRunCount} completed diagnoses`, icon: Sparkles },
+    { title: "Total tokens", value: usage.tokenCompleteRuns ? formatCompactTokens(usage.totalTokens) : "Not reported", description: `${usage.tokenCompleteRuns} of ${usage.completedRunCount} completed diagnoses`, icon: Sparkles },
     { title: "Average tokens / run", value: usage.averageTokensPerRun === null ? "Not enough data" : formatCompactTokens(Math.round(usage.averageTokensPerRun)), description: "Shown only with complete selected token data", icon: BrainCircuit },
     { title: "Average cost / run", value: usage.averageCostPerRunUsd === null ? "Not enough data" : formatUsd(usage.averageCostPerRunUsd), description: "Shown only with complete selected cost data", icon: CircleDollarSign },
     { title: "Cost / verified fix", value: usage.costPerVerifiedFixUsd === null ? "Not enough complete cost data" : formatUsd(usage.costPerVerifiedFixUsd), description: "Complete cost divided by verified fixes", icon: BadgeCheck },
@@ -62,6 +65,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </section>
 
       {usage.runCount ? <section aria-labelledby="usage-secondary-heading"><h2 id="usage-secondary-heading" className="mb-3 text-sm font-semibold">Usage efficiency</h2><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{secondaryMetrics.map((metric) => <MetricCard key={metric.title} {...metric} />)}</div></section> : <EmptyState icon={BrainCircuit} title="No usage data yet" description="TerraFix will show token usage, model cost, and optimization metrics after your first diagnosis." />}
+
+      {usage.runCount ? <section aria-labelledby="usage-preview-heading" className="space-y-3"><div className="flex items-end justify-between gap-3"><div><h2 id="usage-preview-heading" className="text-sm font-semibold">AI usage trend</h2><p className="mt-1 text-xs text-muted-foreground">A restrained preview of reported token telemetry.</p></div><Link href="/usage?period=30d" className="text-xs font-medium text-primary hover:underline">View usage analytics</Link></div><TokenTrendChart data={analytics!.daily} compact />{optimizationInsight(usage)}</section> : null}
 
       <section aria-labelledby="summary-heading">
         <h2 id="summary-heading" className="sr-only">Workspace summary</h2>
@@ -107,3 +112,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 }
 
 function single(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value; }
+
+function optimizationInsight(usage: { zeroLlmRuns: number; schemaAvoidanceRate: number | null; schemaAvoidanceReportedRuns: number }) {
+  const message = usage.zeroLlmRuns > 0
+    ? `${usage.zeroLlmRuns} run${usage.zeroLlmRuns === 1 ? " was" : "s were"} resolved with 0 LLM calls using Verified Failure Memory.`
+    : usage.schemaAvoidanceRate !== null
+      ? `${formatPercent(usage.schemaAvoidanceRate)} of ${usage.schemaAvoidanceReportedRuns} eligible reporting runs avoided provider schema.`
+      : "Optimization insights will appear when v1 telemetry is reported.";
+  return <div className="rounded-lg border bg-secondary/25 px-4 py-3 text-xs"><strong className="font-medium">Top optimization insight:</strong> <span className="text-muted-foreground">{message}</span></div>;
+}

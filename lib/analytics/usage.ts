@@ -76,7 +76,9 @@ export interface RepositoryUsageBreakdown {
   repositoryId: string;
   repository: string;
   runs: number;
+  completedRuns: number;
   tokens: number;
+  tokenCompleteRuns: number;
   costUsd: string;
   costCompleteRuns: number;
   verifiedFixes: number;
@@ -91,9 +93,12 @@ export interface ModelUsageBreakdown {
   model: string;
   tier: string | null;
   calls: number;
+  runs: number;
   inputTokens: number;
   outputTokens: number;
   costUsd: string;
+  tokenCompleteRuns: number;
+  costCompleteRuns: number;
   verifiedFixes: number;
 }
 
@@ -105,6 +110,14 @@ const diagnosableStatuses = new Set<VerificationStatus>([
   VerificationStatus.PATCH_REJECTED,
   VerificationStatus.VERIFICATION_UNAVAILABLE,
 ]);
+
+export function isVerifiedUsageStatus(value: string) {
+  return verifiedStatuses.has(value as VerificationStatus);
+}
+
+export function isDiagnosableUsageStatus(value: string) {
+  return diagnosableStatuses.has(value as VerificationStatus);
+}
 
 export function parseUsagePeriod(value: string | undefined): UsagePeriod {
   return value === "7d" || value === "all" ? value : "30d";
@@ -154,10 +167,9 @@ export async function getUsageAnalyticsForUser(userId: string, period: UsagePeri
       modelEscalated: true,
       failureMemoryReused: true,
       resolutionSource: true,
-      llmCalls: true,
     },
   });
-  return calculateUsageSummary(rows.map((row) => ({ ...row, repositoryFullName: row.repository.fullName })), period);
+  return calculateUsageSummary(rows.map((row) => ({ ...row, repositoryFullName: row.repository.fullName, llmCalls: null })), period);
 }
 
 export async function getAuthorizedRepositoryUsage(userId: string, repositoryId: string, period: UsagePeriod) {
@@ -170,8 +182,8 @@ export async function getAuthorizedRepositoryUsage(userId: string, repositoryId:
 }
 
 export function calculateUsageSummary(rows: UsageRow[], period: UsagePeriod): UsageSummary {
-  const completed = rows.filter((row) => row.status === AgentRunStatus.COMPLETED && diagnosableStatuses.has(row.verificationStatus as VerificationStatus));
-  const verified = completed.filter((row) => verifiedStatuses.has(row.verificationStatus as VerificationStatus));
+  const completed = rows.filter((row) => row.status === AgentRunStatus.COMPLETED && isDiagnosableUsageStatus(row.verificationStatus));
+  const verified = completed.filter((row) => isVerifiedUsageStatus(row.verificationStatus));
   const tokenComplete = completed.filter((row) => row.tokenCountsComplete === true && row.totalTokens !== null);
   const costComplete = completed.filter((row) => row.costComplete === true && row.llmCostUsd !== null);
   const callReported = completed.filter((row) => row.llmCallCount !== null);
@@ -228,14 +240,17 @@ function repositoryBreakdown(key: string, rows: UsageRow[]): RepositoryUsageBrea
 }
 
 function calculateUsageSummaryWithoutBreakdowns(rows: UsageRow[]) {
-  const completed = rows.filter((row) => row.status === AgentRunStatus.COMPLETED && diagnosableStatuses.has(row.verificationStatus as VerificationStatus));
-  const verified = completed.filter((row) => verifiedStatuses.has(row.verificationStatus as VerificationStatus));
+  const completed = rows.filter((row) => row.status === AgentRunStatus.COMPLETED && isDiagnosableUsageStatus(row.verificationStatus));
+  const verified = completed.filter((row) => isVerifiedUsageStatus(row.verificationStatus));
+  const tokenComplete = completed.filter((row) => row.tokenCountsComplete === true && row.totalTokens !== null);
   const costComplete = completed.filter((row) => row.costComplete === true && row.llmCostUsd !== null);
   const cost = sumDecimal(costComplete.map((row) => row.llmCostUsd));
-  const tokens = completed.reduce((sum, row) => sum + (row.tokenCountsComplete === true ? row.totalTokens ?? 0 : 0), 0);
+  const tokens = tokenComplete.reduce((sum, row) => sum + (row.totalTokens ?? 0), 0);
   return {
     runs: rows.length,
+    completedRuns: completed.length,
     tokens,
+    tokenCompleteRuns: tokenComplete.length,
     costUsd: cost.toFixed(),
     costCompleteRuns: costComplete.length,
     verifiedFixes: verified.length,
@@ -248,43 +263,30 @@ function calculateUsageSummaryWithoutBreakdowns(rows: UsageRow[]) {
 }
 
 function modelBreakdown(rows: UsageRow[]): ModelUsageBreakdown[] {
-  const models = new Map<string, { tier: string | null; calls: number; input: number; output: number; cost: Prisma.Decimal; verifiedRunIds: Set<string> }>();
+  const models = new Map<string, { tier: string | null; calls: number; input: number; output: number; cost: Prisma.Decimal; tokenCompleteRuns: number; costCompleteRuns: number; runIds: Set<string>; verifiedRunIds: Set<string> }>();
   for (const row of rows) {
-    const calls = parseCalls(row.llmCalls);
-    if (!calls.length && row.llmCallCount === null) continue;
-    const normalizedCalls = calls.length ? calls : [{
-      requestedModel: row.requestedModel,
-      reportedModel: row.reportedModel,
-      routingTier: row.finalModelTier,
-      inputTokens: row.inputTokens,
-      outputTokens: row.outputTokens,
-      costUsd: row.costComplete ? decimalNumber(row.llmCostUsd) : null,
-    }];
-    for (const call of normalizedCalls) {
-      const model = call.reportedModel ?? call.requestedModel ?? "Not reported";
-      const current = models.get(model) ?? { tier: call.routingTier ?? null, calls: 0, input: 0, output: 0, cost: new Prisma.Decimal(0), verifiedRunIds: new Set<string>() };
-      current.calls += calls.length ? 1 : row.llmCallCount ?? 0;
-      current.input += call.inputTokens ?? 0;
-      current.output += call.outputTokens ?? 0;
-      if (row.costComplete === true && call.costUsd !== null && call.costUsd !== undefined) current.cost = current.cost.add(String(call.costUsd));
-      if (verifiedStatuses.has(row.verificationStatus as VerificationStatus)) current.verifiedRunIds.add(row.id);
-      models.set(model, current);
+    if (row.llmCallCount === null && !row.reportedModel && !row.requestedModel) continue;
+    const model = row.reportedModel ?? row.requestedModel ?? "Not reported";
+    const current = models.get(model) ?? { tier: row.finalModelTier, calls: 0, input: 0, output: 0, cost: new Prisma.Decimal(0), tokenCompleteRuns: 0, costCompleteRuns: 0, runIds: new Set<string>(), verifiedRunIds: new Set<string>() };
+    current.runIds.add(row.id);
+    current.calls += row.llmCallCount ?? 0;
+    if (row.tokenCountsComplete === true) {
+      current.input += row.inputTokens ?? 0;
+      current.output += row.outputTokens ?? 0;
+      current.tokenCompleteRuns += 1;
     }
+    if (row.costComplete === true && row.llmCostUsd !== null) {
+      current.cost = current.cost.add(String(row.llmCostUsd));
+      current.costCompleteRuns += 1;
+    }
+    if (isVerifiedUsageStatus(row.verificationStatus)) current.verifiedRunIds.add(row.id);
+    models.set(model, current);
   }
-  return [...models.entries()].map(([model, value]) => ({ model, tier: value.tier, calls: value.calls, inputTokens: value.input, outputTokens: value.output, costUsd: value.cost.toFixed(), verifiedFixes: value.verifiedRunIds.size })).sort((a, b) => b.calls - a.calls);
-}
-
-function parseCalls(value: unknown): UsageCallRow[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is UsageCallRow => Boolean(item) && typeof item === "object").slice(0, 100);
+  return [...models.entries()].map(([model, value]) => ({ model, tier: value.tier, calls: value.calls, runs: value.runIds.size, inputTokens: value.input, outputTokens: value.output, costUsd: value.cost.toFixed(), tokenCompleteRuns: value.tokenCompleteRuns, costCompleteRuns: value.costCompleteRuns, verifiedFixes: value.verifiedRunIds.size })).sort((a, b) => b.calls - a.calls);
 }
 
 function sumDecimal(values: Array<Prisma.Decimal | number | string | null>) {
   return values.reduce<Prisma.Decimal>((sum, value) => value === null ? sum : sum.add(String(value)), new Prisma.Decimal(0));
-}
-
-function decimalNumber(value: Prisma.Decimal | number | string | null) {
-  return value === null ? null : Number(value);
 }
 
 function rate(numerator: number, denominator: number) {

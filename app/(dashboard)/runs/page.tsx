@@ -1,4 +1,5 @@
 import { CalendarDays, Filter, GitPullRequestArrow, Search } from "lucide-react";
+import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { PageIntro } from "@/components/page-intro";
 import { RunPoller } from "@/components/run-poller";
@@ -30,6 +31,12 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
     date: single(params.date) || undefined,
     verificationStatus: verificationStatuses.includes(verificationValue as RunVerificationStatus) ? verificationValue as RunVerificationStatus : undefined,
     model: single(params.model) || undefined,
+    modelEscalated: optionalBoolean(params.modelEscalated),
+    contextEscalated: optionalBoolean(params.contextEscalated),
+    memoryReused: optionalBoolean(params.memoryReused),
+    zeroLlm: optionalBoolean(params.zeroLlm),
+    schemaAvoided: optionalBoolean(params.schemaAvoided),
+    resolutionSource: single(params.resolutionSource) || undefined,
   };
   const [installations, runs, models] = await Promise.all([
     listInstallationsForUser(user.id),
@@ -43,6 +50,8 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
     <div className="space-y-8">
       <RunPoller active={active} />
       <PageIntro eyebrow="Evidence history" title="Agent runs" description="Hosted webhook-triggered diagnoses and isolated verification outcomes. Orchestration and verification are reported separately." />
+
+      {hasAnalyticsDrilldown(filters) ? <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-secondary/25 px-4 py-3 text-xs"><span className="font-medium">Analytics drilldown</span>{drilldownLabels(filters).map((label) => <span key={label} className="rounded border bg-background px-2 py-1 text-muted-foreground">{label}</span>)}<Link href="/runs" className="ml-auto font-medium text-primary hover:underline">Clear drilldown</Link></div> : null}
 
       <Card>
         <CardContent className="p-4">
@@ -77,4 +86,24 @@ function single(value: string | string[] | undefined) {
 
 function formatLabel(value: string) {
   return value.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+}
+
+function optionalBoolean(value: string | string[] | undefined) {
+  const normalized = single(value);
+  return normalized === "true" ? true : normalized === "false" ? false : undefined;
+}
+
+function hasAnalyticsDrilldown(filters: RunFilters) {
+  return filters.modelEscalated !== undefined || filters.contextEscalated !== undefined || filters.memoryReused !== undefined || filters.zeroLlm !== undefined || filters.schemaAvoided !== undefined || Boolean(filters.resolutionSource);
+}
+
+function drilldownLabels(filters: RunFilters) {
+  return [
+    filters.modelEscalated !== undefined ? `Model escalated: ${filters.modelEscalated ? "Yes" : "No"}` : null,
+    filters.contextEscalated !== undefined ? `Context escalated: ${filters.contextEscalated ? "Yes" : "No"}` : null,
+    filters.memoryReused !== undefined ? `Memory reused: ${filters.memoryReused ? "Yes" : "No"}` : null,
+    filters.zeroLlm !== undefined ? `Zero LLM: ${filters.zeroLlm ? "Yes" : "No"}` : null,
+    filters.schemaAvoided !== undefined ? `Schema avoided: ${filters.schemaAvoided ? "Yes" : "No"}` : null,
+    filters.resolutionSource ? `Resolution: ${formatLabel(filters.resolutionSource)}` : null,
+  ].filter((value): value is string => Boolean(value));
 }

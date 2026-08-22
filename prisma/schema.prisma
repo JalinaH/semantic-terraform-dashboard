@@ -324,6 +324,7 @@ model AgentRun {
 
   @@unique([repositoryId, githubRunId, githubRunAttempt])
   @@index([repositoryId, createdAt])
+  @@index([createdAt])
   @@index([githubInstallationId])
   @@index([status, createdAt])
   @@index([status, heartbeatAt])

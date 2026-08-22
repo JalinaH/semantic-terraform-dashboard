@@ -71,4 +71,15 @@ describe("usage aggregation", () => {
     expect(summary.contextEscalationReportedRuns).toBe(1);
     expect(summary.memoryReuseReportedRuns).toBe(1);
   });
+
+  it("groups repository and actual-model breakdowns without reading per-call JSON", () => {
+    const summary = calculateUsageSummary([
+      row({ id: "a", repositoryId: "repo-a", repositoryFullName: "acme/a", reportedModel: "provider/model-a", llmCallCount: 2, llmCalls: [{ reportedModel: "ignored/per-call" }] }),
+      row({ id: "b", repositoryId: "repo-a", repositoryFullName: "acme/a", reportedModel: "provider/model-a", llmCallCount: 1 }),
+      row({ id: "c", repositoryId: "repo-b", repositoryFullName: "acme/b", reportedModel: null, requestedModel: "router/request-b", llmCallCount: 1 }),
+    ], "30d");
+    expect(summary.repositoryBreakdown.map((item) => [item.repository, item.runs])).toEqual([["acme/a", 2], ["acme/b", 1]]);
+    expect(summary.modelBreakdown[0]).toMatchObject({ model: "provider/model-a", calls: 3, runs: 2, verifiedFixes: 2 });
+    expect(summary.modelBreakdown[1]).toMatchObject({ model: "router/request-b", calls: 1, runs: 1 });
+  });
 });

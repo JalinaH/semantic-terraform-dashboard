@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, BrainCircuit, Cloud, ExternalLink, GitBranch, GitPullRequestArrow, TriangleAlert } from "lucide-react";
 import { AwsStatusBadge } from "@/components/aws-status-badge";
+import { TokenTrendChart } from "@/components/analytics/usage-trend-charts";
 import { EmptyState } from "@/components/empty-state";
 import { RepositoryConfigurationForm } from "@/components/repository-configuration-form";
 import { RepositoryConfigStatusBadge } from "@/components/repository-config-status-badge";
@@ -12,7 +13,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { formatCompactTokens, formatPercent, formatUsd } from "@/lib/analytics/format";
-import { getAuthorizedRepositoryUsage } from "@/lib/analytics/usage";
+import { getUsageAnalytics } from "@/lib/analytics/trends";
 import { getRepositoryForUser } from "@/lib/data/repositories";
 import { listAgentRunsForUser } from "@/lib/data/runs";
 import { getGitHubInstallationManagementUrl } from "@/lib/github/urls";
@@ -29,7 +30,7 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
   if (!repository) notFound();
   const [recentRuns, usage] = await Promise.all([
     listAgentRunsForUser(user.id, { repositoryId: repository.id }, 5),
-    getAuthorizedRepositoryUsage(user.id, repository.id, "30d"),
+    getUsageAnalytics({ userId: user.id, period: "30d", repositoryId: repository.id }),
   ]);
 
   const config = repository.config ? toRepositoryConfigInput(repository.config) : REPOSITORY_CONFIG_DEFAULTS;
@@ -100,8 +101,8 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
       </section>
 
       <section aria-labelledby="repository-usage-heading">
-        <div className="mb-3 flex items-end justify-between gap-4"><div><h2 id="repository-usage-heading" className="text-base font-semibold">AI Usage</h2><p className="mt-1 text-xs text-muted-foreground">Last 30 days · provider-reported usage for this repository.</p></div><Link href={`/usage?period=30d`} className="text-xs font-medium text-muted-foreground hover:text-foreground">Open usage</Link></div>
-        {usage && usage.runCount ? <Card><CardContent className="grid gap-px bg-border p-0 sm:grid-cols-2 lg:grid-cols-4"><UsageItem label="Runs" value={usage.runCount.toLocaleString()} /><UsageItem label="Tokens" value={formatCompactTokens(usage.totalTokens)} /><UsageItem label="AI spend" value={formatUsd(usage.aiSpendUsd)} detail={`${usage.costCompleteRuns}/${usage.completedRunCount} complete`} /><UsageItem label="Verified fixes" value={usage.verifiedFixes.toLocaleString()} /><UsageItem label="Verification rate" value={formatPercent(usage.verificationRate)} /><UsageItem label="Schema avoided" value={formatPercent(usage.schemaAvoidanceRate)} /><UsageItem label="Model escalation" value={formatPercent(usage.modelEscalationRate)} /><UsageItem label="Memory reuse" value={formatPercent(usage.memoryReuseRate)} /></CardContent></Card> : <EmptyState icon={BrainCircuit} title="No usage data yet" description="TerraFix will show repository token, cost, and optimization metrics after the first diagnosis." />}
+        <div className="mb-3 flex items-end justify-between gap-4"><div><h2 id="repository-usage-heading" className="text-base font-semibold">AI Usage</h2><p className="mt-1 text-xs text-muted-foreground">Last 30 days · provider-reported usage for this repository.</p></div><Link href={`/usage?period=30d&repository=${repository.id}`} className="text-xs font-medium text-primary hover:underline">View detailed usage</Link></div>
+        {usage && usage.current.runCount ? <div className="space-y-4"><Card><CardContent className="grid gap-px bg-border p-0 sm:grid-cols-2 lg:grid-cols-4"><UsageItem label="Runs" value={usage.current.runCount.toLocaleString()} /><UsageItem label="Tokens" value={usage.current.tokenCompleteRuns ? formatCompactTokens(usage.current.totalTokens) : "Not reported"} /><UsageItem label="AI spend" value={usage.current.costCompleteRuns ? formatUsd(usage.current.aiSpendUsd) : "Not reported"} detail={`${usage.current.costCompleteRuns}/${usage.current.completedRunCount} complete`} /><UsageItem label="Verified fixes" value={usage.current.verifiedFixes.toLocaleString()} /><UsageItem label="Verification rate" value={formatPercent(usage.current.verificationRate)} /><UsageItem label="Schema avoided" value={formatPercent(usage.current.schemaAvoidanceRate)} /><UsageItem label="Model escalation" value={formatPercent(usage.current.modelEscalationRate)} /><UsageItem label="Memory reuse" value={formatPercent(usage.current.memoryReuseRate)} /></CardContent></Card><TokenTrendChart data={usage.daily} compact /></div> : <EmptyState icon={BrainCircuit} title="No usage data yet" description="TerraFix will show repository token, cost, and optimization metrics after the first diagnosis." />}
       </section>
 
       <section aria-labelledby="repository-identity-heading">
