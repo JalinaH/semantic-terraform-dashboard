@@ -13,7 +13,7 @@ Open **GitHub → Settings → Developer settings → GitHub Apps → New GitHub
 
 | GitHub setting | Local value |
 | --- | --- |
-| GitHub App name | `Semantic Terraform Agent Dev-<unique-suffix>` |
+| GitHub App name | `TerraFix Dev-<unique-suffix>` |
 | Homepage URL | `http://localhost:3000` |
 | User authorization callback URL | `http://localhost:3000/api/auth/callback/github` |
 | Expire user authorization tokens | Enabled (recommended) |

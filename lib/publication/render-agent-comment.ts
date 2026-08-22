@@ -19,7 +19,7 @@ export function renderAgentComment(input: AgentCommentInput): RenderedAgentComme
   redactedPatch.warnings.forEach((warning) => warnings.add(warning));
   const attempt = latestAttempt(input.attempts);
   const status = statusPresentation(input.verificationStatus, attempt?.failedStage ?? null);
-  const dashboardLine = input.dashboardUrl ? `[View full diagnosis](${input.dashboardUrl})` : "View the full diagnosis in the Semantic Terraform Agent dashboard.";
+  const dashboardLine = input.dashboardUrl ? `[View full diagnosis and TerraFix usage details](${input.dashboardUrl})` : "View the full diagnosis and TerraFix usage details in the dashboard.";
   const repairLines = repairSummary(input.verificationStatus, input.attempts);
   const patchSection = redactedPatch.content
     ? `\n<details>\n<summary>Suggested patch</summary>\n\n${fencedDiff(redactedPatch.content)}${patchResult.truncated ? "\n\n_… patch truncated. View the full diagnosis in the dashboard._" : ""}\n\n</details>\n`
@@ -28,7 +28,7 @@ export function renderAgentComment(input: AgentCommentInput): RenderedAgentComme
   const body = [
     AGENT_COMMENT_MARKER,
     `<!-- semantic-terraform-agent-run:${safeMarker(input.runId)} -->`,
-    "## Semantic Terraform Failure Agent",
+    "## TerraFix verified diagnosis",
     "",
     "### Root cause",
     safe(input.rootCause, 4_000),
@@ -111,7 +111,7 @@ function boundCompleteComment(body: string, input: AgentCommentInput, finalStatu
   if (body.length <= MAX_PR_COMMENT_CHARS) return body;
   const rootCause = escapeProse(redactPublicationSecrets(input.rootCause.slice(0, 2_000)).content);
   const resource = inlineCode(escapeProse((input.affectedResources[0] ?? "Not reported").slice(0, 300)));
-  return [AGENT_COMMENT_MARKER, `<!-- semantic-terraform-agent-run:${safeMarker(input.runId)} -->`, "## Semantic Terraform Failure Agent", "", "### Root cause", rootCause, "", "### Affected resource", resource, "", `**Final status:** ${finalStatus}`, "", "_Optional evidence and patch were omitted because the comment exceeded the publication limit._", "", "**Human review is still required because verification does not establish developer intent.**", "", dashboardLine].join("\n").slice(0, MAX_PR_COMMENT_CHARS);
+  return [AGENT_COMMENT_MARKER, `<!-- semantic-terraform-agent-run:${safeMarker(input.runId)} -->`, "## TerraFix verified diagnosis", "", "### Root cause", rootCause, "", "### Affected resource", resource, "", `**Final status:** ${finalStatus}`, "", "_Optional evidence and patch were omitted because the comment exceeded the publication limit._", "", "**Human review is still required because verification does not establish developer intent.**", "", dashboardLine].join("\n").slice(0, MAX_PR_COMMENT_CHARS);
 }
 
 function escapeProse(value: string) {

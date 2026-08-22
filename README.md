@@ -1,17 +1,17 @@
-# Semantic Terraform Agent Dashboard
+# TerraFix Dashboard
 
-The hosted dashboard and control plane for **Semantic Terraform Agent**. Phase 6 adds an idempotent, evidence-safe GitHub PR publication layer to the hosted diagnosis path.
+The hosted control plane and observability product for **TerraFix**. Phase 7 makes real AI usage, provider-reported cost, context optimization, model routing, and Verified Failure Memory behavior visible without adding billing or usage limits.
 
 The repositories remain intentionally separate:
 
 ```text
-semantic-terraform-agent       Python diagnosis, patch, verification, and bounded repair engine
-semantic-terraform-dashboard   Hosted identity, GitHub/AWS trust, queue, worker, results, and UI
+semantic-terraform-agent       Semantic Terraform Agent v1.0.0 inference and verification engine
+semantic-terraform-dashboard   TerraFix hosted control plane and observability UI
 ```
 
 The dashboard does not copy or reimplement the Python agent. The worker installs it from a pinned source commit and invokes its published CLI contract.
 
-## Phase 6 capabilities
+## Phase 7 capabilities
 
 - Auth.js GitHub user authorization and PostgreSQL sessions
 - Multiple GitHub App installations with soft repository access removal
@@ -30,8 +30,12 @@ The dashboard does not copy or reimplement the Python agent. The worker installs
 - one marked GitHub App comment per pull request, created or updated with a fresh installation token
 - newer-run ownership and stale-completion protection
 - bounded Markdown-safe patches, final secret redaction, canonical comment URL persistence, and manual republish
+- nullable normalized AgentRun telemetry for LLM calls, tokens, reported cost, latency, models, routing, context/schema reduction, escalation, and verified-memory reuse
+- exact per-run AI usage with expandable per-call detail and explicit zero-versus-unknown semantics
+- 7-day, 30-day, and all-time dashboard/usage summaries with repository and model breakdowns
+- transparent cost/token completeness, verification-rate, schema-avoidance, escalation, memory-reuse, and zero-LLM metrics
 
-Consumers do **not** add `GEMINI_API_KEY`, `AWS_ROLE_ARN`, or a Semantic Terraform Agent reusable workflow to their repositories for the hosted path. They still need an existing GitHub Actions Terraform CI workflow whose failure provides Actions logs.
+Consumers do **not** add a model key, `AWS_ROLE_ARN`, or a TerraFix reusable workflow to their repositories for the hosted path. They still need an existing GitHub Actions Terraform CI workflow whose failure provides Actions logs.
 
 Read [GitHub App setup](docs/github-app-setup.md), [AWS onboarding](docs/aws-onboarding.md), [hosted execution](docs/hosted-agent-execution.md), and [PR publication](docs/pr-publication.md).
 
@@ -55,6 +59,22 @@ Pinned semantic-terraform-agent CLI → validated safe result → PostgreSQL →
 ```
 
 The webhook returns after filtering and queue insertion. It never runs Terraform or the Python process inline. The worker claims each queued row atomically; Redis is not required in this phase.
+
+## AI Usage and Cost Observability
+
+TerraFix normalizes authoritative Semantic Terraform Agent v1.0.0 telemetry into nullable `AgentRun` columns while retaining a bounded `safeResultPayload` and small sanitized per-call records for forward compatibility. It never persists prompts, full repository source, full provider schemas, raw failure logs, Terraform state, credentials, or environment data as usage telemetry.
+
+- **Tokens** include reported input, cached input, output, reasoning (when supplied), and total counts. Detailed run pages show exact counts; aggregate cards may use compact notation.
+- **Cost** is reported by the configured model gateway. Explicit `0.0` is stored and shown as free/zero; missing provider cost stays `null` and is shown as **Not reported**.
+- **Model calls** are aggregated per run and can be expanded into bounded call-level model, tier, context, tokens, cost, cache, and latency metadata.
+- **Context optimization** reports Terraform source and provider-schema character reduction. Character reduction is never relabeled as token reduction.
+- **Progressive context** records minimal/schema progression, schema retrieval or avoidance, and the reason for context escalation.
+- **Model routing** records requested/reported models, upstream provider, TerraFix policy tier, and model escalation separately from context escalation.
+- **Verified Failure Memory** records misses/reuse, fresh verification, zero-LLM resolutions, and historical tokens/cost avoided only when authoritative historical telemetry exists.
+
+Cost and token totals show their reporting population. Average cost/run and cost/verified fix are withheld unless every completed diagnosable run in the selected period has complete reported cost. Missing values are never silently converted to zero. Historical normalized columns are intentionally left `null`; no mandatory backfill is performed.
+
+Verification rate is defined as verified-first-attempt plus verified-after-retry runs divided by completed diagnosable runs. The denominator includes completed verification failures, rejected patches, and verification-unavailable outcomes, and excludes queued/running/skipped/cancelled runs and worker/infrastructure crashes.
 
 ## Technology
 
@@ -165,11 +185,13 @@ git diff --check
 
 The normal test suite uses fake signed webhooks and mocked GitHub/AWS/agent boundaries. It requires no live GitHub App, AWS account, or Gemini call.
 
-## Deferred beyond Phase 6
+## Deferred beyond Phase 7
 
 - auto-commit, auto-merge, Terraform apply/destroy, or any source mutation
 - infrastructure retry policy or recurring job scheduler
-- billing, email/Slack notifications, charts, Marketplace, organization RBAC, MCP, and multi-cloud
+- Stripe/billing, subscriptions, hard usage limits or budgets, BYOK, email/Slack notifications, Marketplace, organization RBAC, MCP, and multi-cloud
+- rich analytics charts, custom date ranges, trend comparison, and visualization polish (Phase 8)
+- model policy selection, catalog synchronization, and plan-based model access (Phase 9)
 - more than one agent repair attempt
 
-The recommended Phase 7 starting point is operational hardening: stale-claim recovery, deployment health/readiness, bounded manual infrastructure retries, retention controls, and observability for webhook, worker, and publication queues—without expanding repository write access.
+The recommended Phase 8 starting point is a pair of restrained daily token/spend trends backed by the Phase 7 completeness-aware analytics service, followed by repository/model comparison drill-downs without changing the ingestion contract.

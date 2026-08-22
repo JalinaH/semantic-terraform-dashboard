@@ -8,6 +8,7 @@ import { RunPoller } from "@/components/run-poller";
 import { RunStatusBadge } from "@/components/run-status-badge";
 import { PublicationStatusBadge } from "@/components/publication-status-badge";
 import { RepublishButton } from "@/components/republish-button";
+import { RunObservability } from "@/components/run-observability";
 import { StatusBadge } from "@/components/status-badge";
 import { VerificationSteps } from "@/components/verification-steps";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +24,7 @@ import { cn, formatDate, formatRuntime, truncateSha } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Agent run",
+  title: "TerraFix Agent Run",
   description: "Hosted diagnosis and isolated Terraform verification evidence.",
 };
 
@@ -56,6 +57,8 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
       {active ? <StateCard title={run.status === "queued" ? "Waiting for a worker" : "Diagnosis in progress"} description={run.status === "queued" ? "The signed GitHub delivery passed filtering and is queued for a hosted worker." : `Current stage: ${formatLabel(run.workerStage)}. The complete hosted job is protected by a bounded execution deadline.`} /> : null}
       {run.status === "failed" ? <ErrorCard title="Hosted execution failed" code={run.errorCode} message={run.errorMessage} /> : null}
       {run.status === "skipped" ? <StateCard title="Execution skipped" description={skipMessage(run.skipReason)} /> : null}
+
+      <RunObservability run={run} />
 
       <section aria-labelledby="publication-heading">
         <SectionHeading id="publication-heading" icon={MessageSquareText} title="PR publication" description="A separate idempotent publication lifecycle; GitHub failures never change the diagnosis outcome." />
@@ -96,10 +99,10 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
         </section>
       ) : null}
 
-      {(Object.keys(run.timing).length || run.inputTokens !== null || run.outputTokens !== null) ? (
+      {Object.keys(run.timing).length ? (
         <section aria-labelledby="performance-heading">
-          <SectionHeading id="performance-heading" icon={Timer} title="Performance" description="Persisted bounded phase timing and token counts; no raw environment or credentials." />
-          <Card><CardContent className="grid gap-px overflow-hidden p-0 sm:grid-cols-2 lg:grid-cols-4">{Object.entries(run.timing).map(([label, value]) => <PerformanceMetric key={label} label={formatLabel(label)} value={formatRuntime(value)} />)}<PerformanceMetric label="Input tokens" value={run.inputTokens?.toLocaleString() ?? "—"} /><PerformanceMetric label="Output tokens" value={run.outputTokens?.toLocaleString() ?? "—"} /><PerformanceMetric label="Model" value={run.model} /></CardContent></Card>
+          <SectionHeading id="performance-heading" icon={Timer} title="Execution timing" description="Persisted bounded phase timing; no raw environment or credentials." />
+          <Card><CardContent className="grid gap-px overflow-hidden p-0 sm:grid-cols-2 lg:grid-cols-4">{Object.entries(run.timing).map(([label, value]) => <PerformanceMetric key={label} label={formatLabel(label)} value={formatRuntime(value)} />)}</CardContent></Card>
         </section>
       ) : null}
     </div>

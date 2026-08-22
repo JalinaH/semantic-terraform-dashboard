@@ -228,58 +228,99 @@ model AWSConnection {
 }
 
 model AgentRun {
-  id                   String                @id @default(cuid())
-  repositoryId         String
-  repository           Repository            @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  githubInstallationId String
-  githubInstallation   GitHubInstallation    @relation(fields: [githubInstallationId], references: [id], onDelete: Cascade)
-  githubEventType      String
-  githubDeliveryId     String                @unique
-  delivery             WebhookDelivery       @relation(fields: [githubDeliveryId], references: [deliveryId], onDelete: Cascade)
-  githubRunId          String?
-  githubRunAttempt     Int?
-  githubWorkflowName   String?
-  pullRequestNumber    Int?
-  commitSha            String
-  baseSha              String?
-  headSha              String?
-  branch               String?
-  comparisonFallback   String?
-  failedStage          String?
-  status               AgentRunStatus        @default(QUEUED)
-  skipReason           String?
-  verificationStatus   VerificationStatus    @default(PENDING)
-  contextMode          RepositoryContextMode
-  modelProvider        ModelProvider
-  model                String
-  maxRepairAttempts    Int
-  rootCause            String?
-  violatedConstraint   String?
-  suggestedPatch       String?
-  affectedResources    Json?
-  modelConfidence      Float?
-  evidenceScore        Float?
-  attempts             Json?
-  timing               Json?
-  tokenUsage           Json?
-  verificationDetails  Json?
-  safeResultPayload    Json?
-  eventMetadata        Json?
-  configSnapshot       Json
-  totalRuntimeMs       Int?
-  inputTokens          Int?
-  outputTokens         Int?
-  errorCode            String?
-  errorMessage         String?
-  workerStage          String                @default("queued")
-  heartbeatAt          DateTime?
-  workerId             String?
-  claimedAt            DateTime?
-  startedAt            DateTime?
-  completedAt          DateTime?
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  publication          AgentRunPublication?
+  id                        String                @id @default(cuid())
+  repositoryId              String
+  repository                Repository            @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  githubInstallationId      String
+  githubInstallation        GitHubInstallation    @relation(fields: [githubInstallationId], references: [id], onDelete: Cascade)
+  githubEventType           String
+  githubDeliveryId          String                @unique
+  delivery                  WebhookDelivery       @relation(fields: [githubDeliveryId], references: [deliveryId], onDelete: Cascade)
+  githubRunId               String?
+  githubRunAttempt          Int?
+  githubWorkflowName        String?
+  pullRequestNumber         Int?
+  commitSha                 String
+  baseSha                   String?
+  headSha                   String?
+  branch                    String?
+  comparisonFallback        String?
+  failedStage               String?
+  status                    AgentRunStatus        @default(QUEUED)
+  skipReason                String?
+  verificationStatus        VerificationStatus    @default(PENDING)
+  contextMode               RepositoryContextMode
+  modelProvider             ModelProvider
+  model                     String
+  maxRepairAttempts         Int
+  rootCause                 String?
+  violatedConstraint        String?
+  suggestedPatch            String?
+  affectedResources         Json?
+  modelConfidence           Float?
+  evidenceScore             Float?
+  attempts                  Json?
+  timing                    Json?
+  tokenUsage                Json?
+  llmCalls                  Json?
+  verificationDetails       Json?
+  safeResultPayload         Json?
+  eventMetadata             Json?
+  configSnapshot            Json
+  totalRuntimeMs            Int?
+  inputTokens               Int?
+  cachedInputTokens         Int?
+  outputTokens              Int?
+  reasoningTokens           Int?
+  totalTokens               Int?
+  llmCallCount              Int?
+  llmCostUsd                Decimal?              @db.Decimal(20, 10)
+  costComplete              Boolean?
+  tokenCountsComplete       Boolean?
+  llmLatencyMs              Int?
+  llmProvider               String?
+  requestedModel            String?
+  reportedModel             String?
+  upstreamProvider          String?
+  routingMode               String?
+  maxModelTier              String?
+  initialModel              String?
+  finalModel                String?
+  initialModelTier          String?
+  finalModelTier            String?
+  modelEscalated            Boolean?
+  initialContextLevel       String?
+  finalContextLevel         String?
+  contextEscalated          Boolean?
+  contextEscalationReason   String?
+  schemaRetrieved           Boolean?
+  schemaAvoided             Boolean?
+  sourceCharactersAvailable Int?
+  sourceCharactersSelected  Int?
+  sourceReductionRatio      Float?
+  schemaCharactersAvailable Int?
+  schemaCharactersSelected  Int?
+  schemaReductionRatio      Float?
+  failureMemoryStatus       String?
+  failureMemoryReused       Boolean?
+  freshVerificationPassed   Boolean?
+  resolutionSource          String?
+  candidateSource           String?
+  llmCallsAvoided           Int?
+  historicalTokensAvoided   Int?
+  historicalCostAvoidedUsd  Decimal?              @db.Decimal(20, 10)
+  agentVersion              String?
+  errorCode                 String?
+  errorMessage              String?
+  workerStage               String                @default("queued")
+  heartbeatAt               DateTime?
+  workerId                  String?
+  claimedAt                 DateTime?
+  startedAt                 DateTime?
+  completedAt               DateTime?
+  createdAt                 DateTime              @default(now())
+  updatedAt                 DateTime              @updatedAt
+  publication               AgentRunPublication?
 
   @@unique([repositoryId, githubRunId, githubRunAttempt])
   @@index([repositoryId, createdAt])
@@ -287,6 +328,9 @@ model AgentRun {
   @@index([status, createdAt])
   @@index([status, heartbeatAt])
   @@index([verificationStatus, createdAt])
+  @@index([modelProvider, createdAt])
+  @@index([llmProvider, createdAt])
+  @@index([reportedModel, createdAt])
   @@index([commitSha])
   @@index([repositoryId, pullRequestNumber])
 }

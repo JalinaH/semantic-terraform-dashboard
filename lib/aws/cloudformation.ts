@@ -27,14 +27,14 @@ export function generateCloudFormationTemplate(input: CloudFormationTemplateInpu
 
   return `AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
-  Creates the repository-scoped IAM role used by Semantic Terraform Agent for
+  Creates the repository-scoped IAM role used by TerraFix for
   temporary, read-oriented Terraform plan verification.
 Resources:
   VerificationRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: ${roleName}
-      Description: Repository-scoped role for Semantic Terraform Agent verification
+      Description: Repository-scoped role for TerraFix verification
       MaxSessionDuration: 3600
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
@@ -63,7 +63,7 @@ ${actions}
           Value: ${yamlString(repositoryTag)}
 Outputs:
   RoleArn:
-    Description: Paste this role ARN into the Semantic Terraform Agent dashboard.
+    Description: Paste this role ARN into the TerraFix dashboard.
     Value: !GetAtt VerificationRole.Arn
 `;
 }

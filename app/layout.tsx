@@ -4,11 +4,11 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Semantic Terraform Agent",
-    template: "%s · Semantic Terraform Agent",
+    default: "TerraFix",
+    template: "%s · TerraFix",
   },
   description:
-    "Evidence-backed diagnosis and isolated verification for semantic Terraform CI failures.",
+    "TerraFix provides evidence-backed Terraform diagnosis, isolated verification, and AI usage observability.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

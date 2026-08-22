@@ -1,4 +1,4 @@
-const PROTECTED_PREFIXES = ["/dashboard", "/repositories", "/runs", "/settings", "/github"];
+const PROTECTED_PREFIXES = ["/dashboard", "/repositories", "/runs", "/usage", "/settings", "/github"];
 
 export function isProtectedPath(pathname: string) {
   return PROTECTED_PREFIXES.some(

@@ -1,13 +1,14 @@
-import { LayoutDashboard, ListChecks, Settings, Waypoints } from "lucide-react";
+import { ChartNoAxesColumnIncreasing, LayoutDashboard, ListChecks, Settings, Waypoints } from "lucide-react";
 import type { VerificationStage, VerificationStatus } from "@/lib/types";
 
-export const APP_NAME = "Semantic Terraform Agent";
-export const APP_SHORT_NAME = "STFA";
+export const APP_NAME = "TerraFix";
+export const APP_SHORT_NAME = "TerraFix";
 
 export const NAV_ITEMS = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/repositories", label: "Repositories", icon: Waypoints },
   { href: "/runs", label: "Runs", icon: ListChecks },
+  { href: "/usage", label: "Usage", icon: ChartNoAxesColumnIncreasing },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
@@ -15,6 +16,7 @@ export const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Overview",
   "/repositories": "Repositories",
   "/runs": "Agent runs",
+  "/usage": "AI usage",
   "/settings": "Settings",
 };
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Cloud, ExternalLink, GitBranch, GitPullRequestArrow, TriangleAlert } from "lucide-react";
+import { ArrowLeft, BrainCircuit, Cloud, ExternalLink, GitBranch, GitPullRequestArrow, TriangleAlert } from "lucide-react";
 import { AwsStatusBadge } from "@/components/aws-status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { RepositoryConfigurationForm } from "@/components/repository-configuration-form";
@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
+import { formatCompactTokens, formatPercent, formatUsd } from "@/lib/analytics/format";
+import { getAuthorizedRepositoryUsage } from "@/lib/analytics/usage";
 import { getRepositoryForUser } from "@/lib/data/repositories";
 import { listAgentRunsForUser } from "@/lib/data/runs";
 import { getGitHubInstallationManagementUrl } from "@/lib/github/urls";
@@ -25,7 +27,10 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
   const [{ id }, user] = await Promise.all([params, requireAuthenticatedUser()]);
   const repository = await getRepositoryForUser(user.id, id);
   if (!repository) notFound();
-  const recentRuns = await listAgentRunsForUser(user.id, { repositoryId: repository.id }, 5);
+  const [recentRuns, usage] = await Promise.all([
+    listAgentRunsForUser(user.id, { repositoryId: repository.id }, 5),
+    getAuthorizedRepositoryUsage(user.id, repository.id, "30d"),
+  ]);
 
   const config = repository.config ? toRepositoryConfigInput(repository.config) : REPOSITORY_CONFIG_DEFAULTS;
   const status = getRepositoryConfigStatus(repository.config, repository.awsConnection, repository.accessible);
@@ -45,7 +50,7 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
               <RepositoryConfigStatusBadge status={status} />
             </div>
             <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em]">{repository.fullName}</h1>
-            <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted-foreground">Configure which Terraform workflow failures can dispatch the hosted Semantic Terraform Agent worker.</p>
+            <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted-foreground">Configure which Terraform workflow failures can dispatch the hosted TerraFix worker.</p>
           </div>
           <Link href={`https://github.com/${repository.fullName}`} target="_blank" rel="noreferrer" className={cn(buttonVariants({ variant: "outline" }), "w-fit")}>View on GitHub <ExternalLink aria-hidden="true" /></Link>
         </div>
@@ -65,7 +70,7 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
         <div role="alert" className="flex flex-col justify-between gap-4 rounded-xl border border-warning/25 bg-warning-muted p-4 sm:flex-row sm:items-center">
           <div className="flex items-start gap-3">
             <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning-foreground" />
-            <div><p className="text-sm font-medium">GitHub permission upgrade required</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Semantic Terraform Agent needs Pull requests: Write to publish evidence-backed diagnoses directly to pull requests.</p></div>
+            <div><p className="text-sm font-medium">GitHub permission upgrade required</p><p className="mt-1 text-xs leading-5 text-muted-foreground">TerraFix needs Pull requests: Write to publish evidence-backed diagnoses directly to pull requests.</p></div>
           </div>
           <Link href={manageUrl} target="_blank" rel="noreferrer" className={cn(buttonVariants({ size: "sm", variant: "outline" }), "w-fit bg-background")}>Review GitHub App permissions <ExternalLink aria-hidden="true" /></Link>
         </div>
@@ -94,6 +99,11 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
         </Card>
       </section>
 
+      <section aria-labelledby="repository-usage-heading">
+        <div className="mb-3 flex items-end justify-between gap-4"><div><h2 id="repository-usage-heading" className="text-base font-semibold">AI Usage</h2><p className="mt-1 text-xs text-muted-foreground">Last 30 days · provider-reported usage for this repository.</p></div><Link href={`/usage?period=30d`} className="text-xs font-medium text-muted-foreground hover:text-foreground">Open usage</Link></div>
+        {usage && usage.runCount ? <Card><CardContent className="grid gap-px bg-border p-0 sm:grid-cols-2 lg:grid-cols-4"><UsageItem label="Runs" value={usage.runCount.toLocaleString()} /><UsageItem label="Tokens" value={formatCompactTokens(usage.totalTokens)} /><UsageItem label="AI spend" value={formatUsd(usage.aiSpendUsd)} detail={`${usage.costCompleteRuns}/${usage.completedRunCount} complete`} /><UsageItem label="Verified fixes" value={usage.verifiedFixes.toLocaleString()} /><UsageItem label="Verification rate" value={formatPercent(usage.verificationRate)} /><UsageItem label="Schema avoided" value={formatPercent(usage.schemaAvoidanceRate)} /><UsageItem label="Model escalation" value={formatPercent(usage.modelEscalationRate)} /><UsageItem label="Memory reuse" value={formatPercent(usage.memoryReuseRate)} /></CardContent></Card> : <EmptyState icon={BrainCircuit} title="No usage data yet" description="TerraFix will show repository token, cost, and optimization metrics after the first diagnosis." />}
+      </section>
+
       <section aria-labelledby="repository-identity-heading">
         <Card>
           <CardHeader className="border-b"><CardTitle id="repository-identity-heading">Repository identity</CardTitle><CardDescription>Read-only metadata synchronized from the verified GitHub App installation.</CardDescription></CardHeader>
@@ -109,6 +119,7 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
       <section aria-labelledby="configuration-heading">
         <div className="mb-3"><h2 id="configuration-heading" className="text-base font-semibold">Repository configuration</h2><p className="mt-1 text-xs text-muted-foreground">Saved workflow names, path filters, stages, model, context, and bounded repair behavior control hosted dispatch.</p></div>
         <RepositoryConfigurationForm repositoryId={repository.id} initialConfig={config} initialStatus={status} awsConnected={awsConnected} disabled={!repository.accessible} />
+        <div className="mt-3 rounded-lg border bg-secondary/25 px-4 py-3 text-xs"><span className="font-medium">Usage policy</span><span className="ml-2 text-muted-foreground">Current model policy: Fixed · {config.model}. Model policy selection remains read-only in Phase 7.</span></div>
       </section>
 
       <section aria-labelledby="aws-heading">
@@ -152,3 +163,5 @@ function MiniDetail({ label, value }: { label: string; value: string }) {
 function maskAccount(value: string | null) {
   return value ? `${value.slice(0, 4)}••••${value.slice(-4)}` : "—";
 }
+
+function UsageItem({ label, value, detail }: { label: string; value: string; detail?: string }) { return <div className="min-w-0 bg-card p-4"><p className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{label}</p><p className="mt-1.5 font-mono text-lg font-semibold">{value}</p>{detail ? <p className="mt-1 text-[10px] text-muted-foreground">{detail}</p> : null}</div>; }

@@ -1,6 +1,7 @@
 import { parseAgentResult, sanitizeSuccessfulAgentResult } from "@/lib/agent-result";
 import { createWorkerDeadline, withPersistenceTimeout } from "@/lib/worker/deadline";
 import { WorkerExecutionError } from "@/lib/worker/errors";
+import { getWorkerConfiguration } from "@/lib/config";
 import type { ClaimedAgentRun, WorkerDependencies, WorkerStage } from "@/lib/worker/types";
 
 const DEFAULT_JOB_TIMEOUT_MS = 10 * 60 * 1_000;
@@ -47,7 +48,7 @@ export async function processClaimedAgentRun(
     await progress("ingesting_result");
     const parsed = parseAgentResult(rawResult);
     if (!parsed.success || parsed.data.status !== "ok") throw new WorkerExecutionError("agent_result_invalid");
-    const safeResult = sanitizeSuccessfulAgentResult(parsed.data);
+    const safeResult = sanitizeSuccessfulAgentResult(parsed.data, getWorkerConfiguration().agentVersion);
     await deadline.run(() => dependencies.store.markCompleted(run.id, safeResult));
     return { outcome: "completed" as const, verificationStatus: safeResult.verificationStatus };
   } catch (error) {

@@ -1,24 +1,28 @@
 import Link from "next/link";
-import { ArrowRight, BadgeCheck, CircleGauge, FolderGit2, GitPullRequestArrow, Github, ListChecks, TriangleAlert } from "lucide-react";
+import { ArrowRight, BadgeCheck, BrainCircuit, CircleDollarSign, CircleGauge, FolderGit2, GitPullRequestArrow, Github, ListChecks, Sparkles } from "lucide-react";
 import { beginGitHubInstallationAction } from "@/app/actions/github";
 import { ConnectedRepositoryCard } from "@/components/connected-repository-card";
 import { EmptyState } from "@/components/empty-state";
 import { MetricCard } from "@/components/metric-card";
 import { RunPoller } from "@/components/run-poller";
 import { RunsTable } from "@/components/runs-table";
+import { UsagePeriodSwitcher } from "@/components/usage-period-switcher";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
-import { getRunMetricsForUser, listAgentRunsForUser } from "@/lib/data/runs";
+import { listAgentRunsForUser } from "@/lib/data/runs";
+import { formatCompactTokens, formatPercent, formatUsd } from "@/lib/analytics/format";
+import { getUsageAnalyticsForUser, parseUsagePeriod } from "@/lib/analytics/usage";
 import { listInstallationsForUser } from "@/lib/github/installations";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
-  const user = await requireAuthenticatedUser();
-  const [runMetrics, recentRuns, userInstallations] = await Promise.all([
-    getRunMetricsForUser(user.id),
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const [user, params] = await Promise.all([requireAuthenticatedUser(), searchParams]);
+  const period = parseUsagePeriod(single(params.period));
+  const [usage, recentRuns, userInstallations] = await Promise.all([
+    getUsageAnalyticsForUser(user.id, period),
     listAgentRunsForUser(user.id, {}, 5),
     listInstallationsForUser(user.id),
   ]);
@@ -26,10 +30,16 @@ export default async function DashboardPage() {
     githubInstallation.repositories.map((repository) => ({ repository, accountLogin: githubInstallation.accountLogin })),
   );
   const metrics = [
-    { title: "Total runs", value: String(runMetrics.total), description: "Real persisted webhook-triggered records", icon: ListChecks },
-    { title: "Verified fixes", value: String(runMetrics.verified), description: `${runMetrics.verifiedAfterRetry} verified after bounded repair`, icon: BadgeCheck },
-    { title: "Verification rate", value: `${runMetrics.verificationRate}%`, description: "Verified fixes across completed diagnoses", icon: CircleGauge },
-    { title: "Failed runs", value: String(runMetrics.failed), description: "Worker or infrastructure failures", icon: TriangleAlert },
+    { title: "Agent runs", value: String(usage.runCount), description: "Real persisted webhook-triggered records", icon: ListChecks },
+    { title: "Verified fixes", value: String(usage.verifiedFixes), description: "Fresh isolated Terraform verification passed", icon: BadgeCheck },
+    { title: "Verification rate", value: formatPercent(usage.verificationRate), description: "Verified / completed diagnosable runs", icon: CircleGauge },
+    { title: "AI spend", value: formatUsd(usage.aiSpendUsd), description: `${usage.costCompleteRuns} of ${usage.completedRunCount} completed diagnoses reported complete cost`, icon: CircleDollarSign },
+  ];
+  const secondaryMetrics = [
+    { title: "Total tokens", value: formatCompactTokens(usage.totalTokens), description: `${usage.tokenCompleteRuns} of ${usage.completedRunCount} completed diagnoses`, icon: Sparkles },
+    { title: "Average tokens / run", value: usage.averageTokensPerRun === null ? "Not enough data" : formatCompactTokens(Math.round(usage.averageTokensPerRun)), description: "Shown only with complete selected token data", icon: BrainCircuit },
+    { title: "Average cost / run", value: usage.averageCostPerRunUsd === null ? "Not enough data" : formatUsd(usage.averageCostPerRunUsd), description: "Shown only with complete selected cost data", icon: CircleDollarSign },
+    { title: "Cost / verified fix", value: usage.costPerVerifiedFixUsd === null ? "Not enough complete cost data" : formatUsd(usage.costPerVerifiedFixUsd), description: "Complete cost divided by verified fixes", icon: BadgeCheck },
   ];
 
   return (
@@ -41,15 +51,17 @@ export default async function DashboardPage() {
           <h2 className="mt-2 text-2xl font-semibold tracking-[-0.025em]">Terraform failure intelligence</h2>
           <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted-foreground">Signed GitHub workflow failures are filtered, queued, executed by the hosted Python agent, and persisted as evidence-backed results.</p>
         </div>
-        {repositories.length ? (
+        <div className="flex flex-col items-start gap-2 sm:items-end"><UsagePeriodSwitcher period={period} path="/dashboard" />{repositories.length ? (
           <Link href="/repositories" className={cn(buttonVariants({ variant: "outline" }), "w-fit")}>Manage repositories <ArrowRight aria-hidden="true" /></Link>
         ) : (
           <form action={beginGitHubInstallationAction}>
             <input type="hidden" name="returnTo" value="/repositories" />
             <Button type="submit"><Github aria-hidden="true" />Install GitHub App</Button>
           </form>
-        )}
+        )}</div>
       </section>
+
+      {usage.runCount ? <section aria-labelledby="usage-secondary-heading"><h2 id="usage-secondary-heading" className="mb-3 text-sm font-semibold">Usage efficiency</h2><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{secondaryMetrics.map((metric) => <MetricCard key={metric.title} {...metric} />)}</div></section> : <EmptyState icon={BrainCircuit} title="No usage data yet" description="TerraFix will show token usage, model cost, and optimization metrics after your first diagnosis." />}
 
       <section aria-labelledby="summary-heading">
         <h2 id="summary-heading" className="sr-only">Workspace summary</h2>
@@ -85,7 +97,7 @@ export default async function DashboardPage() {
           <EmptyState
             icon={FolderGit2}
             title="No repositories connected"
-            description="Install the GitHub App on a personal account or organization, then select the repositories Semantic Terraform Agent may access."
+            description="Install the GitHub App on a personal account or organization, then select the repositories TerraFix may access."
             action={<form action={beginGitHubInstallationAction}><input type="hidden" name="returnTo" value="/repositories" /><Button type="submit" size="sm"><Github aria-hidden="true" />Install GitHub App</Button></form>}
           />
         )}
@@ -93,3 +105,5 @@ export default async function DashboardPage() {
     </div>
   );
 }
+
+function single(value: string | string[] | undefined) { return Array.isArray(value) ? value[0] : value; }

@@ -16,8 +16,8 @@ export function AppSidebar({ className, onNavigate }: { className?: string; onNa
           <Braces aria-hidden="true" className="size-4" />
         </span>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold tracking-tight">Semantic Terraform</p>
-          <p className="text-[11px] text-muted-foreground">GitHub Onboarding</p>
+          <p className="truncate text-sm font-semibold tracking-tight">TerraFix</p>
+          <p className="text-[11px] text-muted-foreground">AI observability</p>
         </div>
       </div>
 

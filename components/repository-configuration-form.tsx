@@ -91,7 +91,7 @@ export function RepositoryConfigurationForm({
           <ConfigCard title="Agent status" description="Control whether this repository can participate in hosted diagnosis runs.">
             <ToggleRow
               name="enabled"
-              label="Enable Semantic Terraform Agent"
+              label="Enable TerraFix"
               description="When ready, signed matching workflow failures may queue a hosted agent run."
               defaultChecked={initialConfig.enabled}
             />

@@ -11,7 +11,7 @@ Phase 4 creates and verifies the trust boundary. Phase 5 now consumes that verif
 ## Trust architecture
 
 ```text
-Semantic Terraform Agent control-plane/worker IAM identity
+TerraFix control-plane/worker IAM identity
         │
         │ sts:AssumeRole
         │ Condition: sts:ExternalId = repository-specific random value

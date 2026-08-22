@@ -1,6 +1,6 @@
 # Hosted agent execution
 
-Phase 5 turns a failed, configured GitHub Actions Terraform workflow into a durable hosted `AgentRun`. It does not require a repository-level Semantic Terraform Agent workflow or repository secrets for Gemini/AWS.
+TerraFix turns a failed, configured GitHub Actions Terraform workflow into a durable hosted `AgentRun`. It does not require a repository-level TerraFix workflow or repository model/AWS secrets.
 
 ```mermaid
 sequenceDiagram
@@ -95,7 +95,9 @@ semantic-terraform-agent diagnose
 
 The worker verifies that the installed Terraform CLI exactly matches the saved repository version before invocation. The default complete-job deadline is ten minutes and covers GitHub evidence collection, checkout, AWS role assumption, agent execution, and safe result ingestion. GitHub requests and child processes also have operation-level timeouts. Deadline expiry aborts child work and records `execution_timeout`; an orphaned claim discovered after the deadline plus grace period records `worker_stale`. Other bounded error codes include `github_log_unavailable`, `github_checkout_failed`, `repository_access_removed`, `aws_assume_role_failed`, `terraform_not_found`, `terraform_version_unavailable`, `agent_execution_failed`, `agent_result_invalid`, `model_unavailable`, and `worker_internal_error`.
 
-An agent result is schema-validated. Safe persistence includes diagnosis, patch, resource list, verification attempts/stages, timing, token counts, scores, and a bounded safe payload. It excludes raw logs, command stdout/stderr, repository source, Terraform state/provider cache, and all credentials. Recognizable credential forms are redacted defensively.
+An agent result is schema-validated. Semantic Terraform Agent v1.0.0 usage is normalized into nullable `AgentRun` fields for LLM calls, token categories, decimal provider cost, cost/token completeness, latency, requested/reported models, routing tiers, context/schema character reduction, progression, escalation, and Verified Failure Memory. Small sanitized call metadata and a bounded safe payload preserve forward compatibility. Raw logs, prompts, command output, full repository source, full provider schema, Terraform state/provider cache, environment data, and credentials are excluded.
+
+Older results remain valid. Missing v1 telemetry stays `null`; an explicit provider cost of `0.0` remains zero. The dashboard never turns absent telemetry into a free run.
 
 `AgentRun.status` describes orchestration (`queued`, `running`, `completed`, `failed`, `skipped`). `verificationStatus` separately describes patch verification. A valid but unverified diagnosis is `completed`, not a worker failure.
 

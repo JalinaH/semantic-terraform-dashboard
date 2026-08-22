@@ -19,7 +19,7 @@ export const WORKER_ERROR_MESSAGES: Record<WorkerErrorCode, string> = {
   aws_assume_role_failed: "The repository AWS role could not be assumed with its configured External ID.",
   terraform_not_found: "The worker does not have the configured Terraform runtime available.",
   terraform_version_unavailable: "The worker image does not provide the Terraform version saved for this repository.",
-  agent_execution_failed: "The Semantic Terraform Agent process did not complete successfully.",
+  agent_execution_failed: "The TerraFix agent process did not complete successfully.",
   agent_result_invalid: "The agent returned a result that did not match the safe hosted result contract.",
   model_unavailable: "The hosted model credential or model service is unavailable.",
   execution_timeout: "The hosted diagnosis exceeded the configured execution timeout.",

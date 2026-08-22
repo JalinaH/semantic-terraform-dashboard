@@ -55,7 +55,7 @@ export default async function RepositoriesPage({ searchParams }: RepositoriesPag
         <EmptyState
           icon={FolderGit2}
           title="No repositories connected"
-          description="Install the GitHub App to select repositories for Semantic Terraform Agent. You can install it on a personal account or an organization where you have permission."
+          description="Install the GitHub App to select repositories for TerraFix. You can install it on a personal account or an organization where you have permission."
           action={<form action={beginGitHubInstallationAction}><input type="hidden" name="returnTo" value="/repositories" /><Button type="submit"><Github aria-hidden="true" />Install GitHub App</Button></form>}
         />
       ) : (

@@ -9,27 +9,32 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
-import { listAgentRunsForUser, type RunFilters } from "@/lib/data/runs";
+import { listAgentRunsForUser, listRunModelsForUser, type RunFilters } from "@/lib/data/runs";
 import { listInstallationsForUser } from "@/lib/github/installations";
-import type { RunStatus } from "@/lib/runs/types";
+import type { RunStatus, RunVerificationStatus } from "@/lib/runs/types";
 
 export const dynamic = "force-dynamic";
 
 const runStatuses: RunStatus[] = ["queued", "running", "completed", "failed", "skipped", "cancelled"];
+const verificationStatuses: RunVerificationStatus[] = ["verified_first_attempt", "verified_after_retry", "verification_failed", "patch_rejected", "verification_unavailable", "verification_skipped", "pending"];
 
 export default async function RunsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireAuthenticatedUser();
   const params = await searchParams;
   const statusValue = single(params.status);
+  const verificationValue = single(params.verification);
   const filters: RunFilters = {
     repositoryId: single(params.repository) || undefined,
     status: runStatuses.includes(statusValue as RunStatus) ? statusValue as RunStatus : undefined,
     resource: single(params.resource) || undefined,
     date: single(params.date) || undefined,
+    verificationStatus: verificationStatuses.includes(verificationValue as RunVerificationStatus) ? verificationValue as RunVerificationStatus : undefined,
+    model: single(params.model) || undefined,
   };
-  const [installations, runs] = await Promise.all([
+  const [installations, runs, models] = await Promise.all([
     listInstallationsForUser(user.id),
     listAgentRunsForUser(user.id, filters),
+    listRunModelsForUser(user.id),
   ]);
   const repositories = installations.flatMap(({ githubInstallation }) => githubInstallation.repositories);
   const active = runs.some((run) => run.status === "queued" || run.status === "running");
@@ -42,12 +47,14 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
       <Card>
         <CardContent className="p-4">
           <div className="mb-3 flex items-center gap-2 text-xs font-medium"><Filter aria-hidden="true" className="size-3.5 text-muted-foreground" />Filters</div>
-          <form className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[1.3fr_1fr_1fr_1fr_auto] xl:items-end">
+          <form className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 xl:items-end">
             <FilterField label="Repository" htmlFor="filter-repository"><Select id="filter-repository" name="repository" defaultValue={filters.repositoryId ?? ""}><option value="">All repositories</option>{repositories.map((repository) => <option key={repository.id} value={repository.id}>{repository.fullName}</option>)}</Select></FilterField>
             <FilterField label="Run status" htmlFor="filter-status"><Select id="filter-status" name="status" defaultValue={filters.status ?? ""}><option value="">All statuses</option>{runStatuses.map((status) => <option key={status} value={status}>{formatLabel(status)}</option>)}</Select></FilterField>
+            <FilterField label="Verification" htmlFor="filter-verification"><Select id="filter-verification" name="verification" defaultValue={filters.verificationStatus ?? ""}><option value="">All verification outcomes</option>{verificationStatuses.map((status) => <option key={status} value={status}>{formatLabel(status)}</option>)}</Select></FilterField>
+            <FilterField label="Model" htmlFor="filter-model"><Select id="filter-model" name="model" defaultValue={filters.model ?? ""}><option value="">All models</option>{models.map((model) => <option key={model} value={model}>{model}</option>)}</Select></FilterField>
             <FilterField label="Resource" htmlFor="filter-resource"><div className="relative"><Search aria-hidden="true" className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" /><Input id="filter-resource" name="resource" defaultValue={filters.resource} placeholder="aws_…" className="pl-9 font-mono text-xs" /></div></FilterField>
             <FilterField label="Since date" htmlFor="filter-date"><div className="relative"><CalendarDays aria-hidden="true" className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" /><Input id="filter-date" name="date" defaultValue={filters.date} type="date" className="pl-9" /></div></FilterField>
-            <Button variant="outline" type="submit">Apply</Button>
+            <Button variant="outline" type="submit" className="xl:col-start-4">Apply</Button>
           </form>
         </CardContent>
       </Card>

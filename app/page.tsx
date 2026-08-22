@@ -21,10 +21,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
       <header className="relative z-10 mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
         <Link href="/" className="flex items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2">
           <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Braces aria-hidden="true" className="size-4" /></span>
-          <span className="text-sm font-semibold tracking-tight">Semantic Terraform Agent</span>
+          <span className="text-sm font-semibold tracking-tight">TerraFix</span>
         </Link>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="hidden bg-card/70 text-muted-foreground sm:inline-flex">Phase 6 PR publication</Badge>
+          <Badge variant="outline" className="hidden bg-card/70 text-muted-foreground sm:inline-flex">Phase 7 AI observability</Badge>
           <ThemeToggle />
           {session?.user ? <Link href="/dashboard" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "hidden sm:inline-flex")}>Dashboard</Link> : null}
         </div>
@@ -90,7 +90,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
       </main>
 
       <footer className="relative z-10 mx-auto flex max-w-7xl flex-col gap-2 border-t px-5 py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-8">
-        <span>Semantic Terraform Agent · Hosted control plane</span>
+        <span>TerraFix · Hosted control plane</span>
         <span>Engine and hosted control plane remain separate by design.</span>
       </footer>
     </div>

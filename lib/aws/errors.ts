@@ -4,7 +4,7 @@ export const AWS_ERROR_MESSAGES: Record<AwsVerificationErrorCode, string> = {
   role_not_found: "AWS could not find the IAM role. Confirm the account ID and role name.",
   access_denied: "AWS denied the AssumeRole request. Review the generated trust policy and External ID.",
   invalid_external_id: "The IAM trust policy does not contain the expected repository External ID.",
-  trust_policy_mismatch: "The role trust relationship does not allow the Semantic Terraform Agent service to assume it.",
+  trust_policy_mismatch: "The role trust relationship does not allow the TerraFix service to assume it.",
   invalid_role_arn: "The role ARN is not a valid AWS IAM role ARN.",
   credentials_unavailable: "The control plane has no usable AWS credentials. Configure its workload identity or local AWS credential chain.",
   network_error: "AWS STS could not be reached. Check network access and try again.",

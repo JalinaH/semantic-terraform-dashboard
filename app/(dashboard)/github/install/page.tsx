@@ -14,7 +14,7 @@ export default function GitHubInstallPage() {
       <div>
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Repository access</p>
         <h2 className="mt-2 text-2xl font-semibold tracking-tight">Install the GitHub App</h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">GitHub will ask which personal account or organization should install Semantic Terraform Agent, then let you grant all repositories or a selected set.</p>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">GitHub will ask which personal account or organization should install TerraFix, then let you grant all repositories or a selected set.</p>
       </div>
       <Card>
         <CardHeader className="border-b"><CardTitle>What this phase can access</CardTitle><CardDescription>The App receives only the repository metadata required to discover granted repositories.</CardDescription></CardHeader>

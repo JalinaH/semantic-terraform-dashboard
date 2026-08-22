@@ -40,7 +40,7 @@ export default async function SettingsPage() {
           <SettingsSection icon={Cloud} title="AWS" description="Repository-scoped AWS access for provider-authenticated Terraform verification.">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 text-xs"><span className="text-muted-foreground">Verified repository connections</span><span className="font-medium">{awsConnectedCount} of {repositoryCount}</span></div>
-              <div className="rounded-lg border bg-secondary/30 p-3 text-xs leading-5 text-muted-foreground"><p><span className="font-medium text-foreground">Temporary credentials only.</span> Semantic Terraform Agent assumes a repository-specific IAM role with an External ID. Permanent AWS access keys are never requested.</p></div>
+              <div className="rounded-lg border bg-secondary/30 p-3 text-xs leading-5 text-muted-foreground"><p><span className="font-medium text-foreground">Temporary credentials only.</span> TerraFix assumes a repository-specific IAM role with an External ID. Permanent AWS access keys are never requested.</p></div>
               <Link href="/repositories" className={cn(buttonVariants({ size: "sm", variant: "outline" }), "w-fit")}>Manage repository connections</Link>
             </div>
           </SettingsSection>

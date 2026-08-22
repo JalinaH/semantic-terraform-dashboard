@@ -3,7 +3,7 @@ import "server-only";
 import { AgentRunStatus, Prisma, VerificationStatus } from "@prisma/client";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import type { RunAttemptView, RunDetail, RunListItem, RunStatus, RunVerificationStatus } from "@/lib/runs/types";
+import type { LlmCallView, RunAttemptView, RunDetail, RunListItem, RunStatus, RunVerificationStatus } from "@/lib/runs/types";
 
 const attemptSchema = z.object({
   attempt: z.number().int(),
@@ -21,6 +21,8 @@ export interface RunFilters {
   status?: RunStatus;
   date?: string;
   resource?: string;
+  verificationStatus?: RunVerificationStatus;
+  model?: string;
 }
 
 export async function listAgentRunsForUser(userId: string, filters: RunFilters = {}, take = 100): Promise<RunListItem[]> {
@@ -32,6 +34,8 @@ export async function listAgentRunsForUser(userId: string, filters: RunFilters =
         ...(filters.repositoryId ? { id: filters.repositoryId } : {}),
       },
       ...(filters.status ? { status: databaseRunStatus(filters.status) } : {}),
+      ...(filters.verificationStatus ? { verificationStatus: databaseVerificationStatus(filters.verificationStatus) } : {}),
+      ...(filters.model ? { OR: [{ reportedModel: filters.model }, { requestedModel: filters.model }, { model: filters.model }] } : {}),
       ...(createdAt ? { createdAt: { gte: createdAt } } : {}),
     },
     include: { repository: { select: { fullName: true } }, publication: true },
@@ -66,6 +70,43 @@ export async function getAgentRunForUser(userId: string, id: string): Promise<Ru
     timing: numberRecord(row.timing),
     inputTokens: row.inputTokens,
     outputTokens: row.outputTokens,
+    cachedInputTokens: row.cachedInputTokens,
+    reasoningTokens: row.reasoningTokens,
+    llmCallCount: row.llmCallCount,
+    llmLatencyMs: row.llmLatencyMs,
+    llmProvider: row.llmProvider ?? row.modelProvider.toLowerCase(),
+    requestedModel: row.requestedModel,
+    reportedModel: row.reportedModel,
+    upstreamProvider: row.upstreamProvider,
+    routingMode: row.routingMode,
+    maxModelTier: row.maxModelTier,
+    initialModel: row.initialModel,
+    finalModel: row.finalModel,
+    initialModelTier: row.initialModelTier,
+    finalModelTier: row.finalModelTier,
+    modelEscalated: row.modelEscalated,
+    initialContextLevel: row.initialContextLevel,
+    finalContextLevel: row.finalContextLevel,
+    contextEscalated: row.contextEscalated,
+    contextEscalationReason: row.contextEscalationReason,
+    schemaRetrieved: row.schemaRetrieved,
+    schemaAvoided: row.schemaAvoided,
+    sourceCharactersAvailable: row.sourceCharactersAvailable,
+    sourceCharactersSelected: row.sourceCharactersSelected,
+    sourceReductionRatio: row.sourceReductionRatio,
+    schemaCharactersAvailable: row.schemaCharactersAvailable,
+    schemaCharactersSelected: row.schemaCharactersSelected,
+    schemaReductionRatio: row.schemaReductionRatio,
+    failureMemoryStatus: row.failureMemoryStatus,
+    failureMemoryReused: row.failureMemoryReused,
+    freshVerificationPassed: row.freshVerificationPassed,
+    resolutionSource: row.resolutionSource,
+    candidateSource: row.candidateSource,
+    llmCallsAvoided: row.llmCallsAvoided,
+    historicalTokensAvoided: row.historicalTokensAvoided,
+    historicalCostAvoidedUsd: row.historicalCostAvoidedUsd?.toFixed() ?? null,
+    agentVersion: row.agentVersion,
+    llmCalls: llmCalls(row.llmCalls),
     errorCode: row.errorCode,
     errorMessage: row.errorMessage,
     skipReason: row.skipReason,
@@ -112,6 +153,10 @@ function toListItem(row: Prisma.AgentRunGetPayload<{ include: { repository: { se
     totalRuntimeMs: row.totalRuntimeMs,
     createdAt: row.createdAt.toISOString(),
     publicationStatus: row.publication?.status.toLowerCase() as import("@/lib/publication/types").PublicationStatus | undefined ?? null,
+    displayModel: row.reportedModel ?? row.requestedModel ?? row.model ?? null,
+    totalTokens: row.totalTokens,
+    llmCostUsd: row.llmCostUsd?.toFixed() ?? null,
+    costComplete: row.costComplete,
   };
 }
 
@@ -129,8 +174,45 @@ function numberRecord(value: Prisma.JsonValue | null) {
   return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, number] => typeof entry[1] === "number"));
 }
 
+function llmCalls(value: Prisma.JsonValue | null): LlmCallView[] {
+  const schema = z.array(z.object({
+    callNumber: z.number().int().positive(),
+    type: z.string(),
+    contextLevel: z.string().nullable(),
+    provider: z.string(),
+    requestedModel: z.string(),
+    reportedModel: z.string().nullable(),
+    upstreamProvider: z.string().nullable(),
+    routingTier: z.string().nullable(),
+    routingReason: z.string().nullable(),
+    inputTokens: z.number().int().nonnegative().nullable(),
+    cachedInputTokens: z.number().int().nonnegative().nullable(),
+    outputTokens: z.number().int().nonnegative().nullable(),
+    reasoningTokens: z.number().int().nonnegative().nullable(),
+    totalTokens: z.number().int().nonnegative().nullable(),
+    costUsd: z.number().nonnegative().nullable(),
+    latencyMs: z.number().int().nonnegative(),
+    cacheHit: z.boolean().nullable(),
+  })).max(100).safeParse(value);
+  return schema.success ? schema.data : [];
+}
+
 function databaseRunStatus(value: RunStatus) {
   return AgentRunStatus[value.toUpperCase() as keyof typeof AgentRunStatus];
+}
+
+function databaseVerificationStatus(value: RunVerificationStatus) {
+  return VerificationStatus[value.toUpperCase() as keyof typeof VerificationStatus];
+}
+
+export async function listRunModelsForUser(userId: string) {
+  const rows = await db.agentRun.findMany({
+    where: { repository: { installation: { userInstallations: { some: { userId } } } } },
+    select: { reportedModel: true, requestedModel: true, model: true },
+    orderBy: { createdAt: "desc" },
+    take: 500,
+  });
+  return [...new Set(rows.flatMap((row) => [row.reportedModel, row.requestedModel, row.model]).filter((value): value is string => Boolean(value)))].sort();
 }
 
 function validDateStart(value: string | undefined) {
