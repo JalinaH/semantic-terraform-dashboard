@@ -17,6 +17,7 @@ FROM node:22-bookworm-slim AS runtime
 
 ARG TARGETARCH
 ARG TERRAFORM_VERSION=1.15.7
+ARG SEMANTIC_TERRAFORM_AGENT_VERSION=1.0.0
 ARG SEMANTIC_TERRAFORM_AGENT_SOURCE="git+https://github.com/JalinaH/semantic-terraform-agent.git@29c317bf85e0fbedccb646a20623382871e63978"
 
 RUN apt-get update \
@@ -30,11 +31,13 @@ RUN apt-get update \
   && unzip "/tmp/terraform_${TERRAFORM_VERSION}_linux_${terraform_arch}.zip" -d /usr/local/bin \
   && python3 -m venv /opt/semantic-terraform-agent \
   && /opt/semantic-terraform-agent/bin/pip install --no-cache-dir "$SEMANTIC_TERRAFORM_AGENT_SOURCE" \
-  && /opt/semantic-terraform-agent/bin/python -c "import importlib.metadata; assert importlib.metadata.version('semantic-terraform-agent') == '1.0.0'" \
+  && installed_agent_version=$(/opt/semantic-terraform-agent/bin/python -c "import importlib.metadata; print(importlib.metadata.version('semantic-terraform-agent'))") \
+  && test "$installed_agent_version" = "$SEMANTIC_TERRAFORM_AGENT_VERSION" \
   && terraform version -json \
   && rm -rf /var/lib/apt/lists/* "/tmp/terraform_${TERRAFORM_VERSION}_linux_${terraform_arch}.zip" /tmp/terraform_SHA256SUMS
 
 ENV NODE_ENV=production \
+  SEMANTIC_TERRAFORM_AGENT_VERSION=${SEMANTIC_TERRAFORM_AGENT_VERSION} \
   PATH="/opt/semantic-terraform-agent/bin:${PATH}"
 WORKDIR /app
 COPY --from=build /app/dist ./dist

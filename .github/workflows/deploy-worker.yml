@@ -1,7 +1,14 @@
 name: Deploy worker to ECS
 
 on:
+  repository_dispatch:
+    types: [semantic-terraform-agent-released]
   workflow_dispatch:
+    inputs:
+      agent_tag:
+        description: "Stable agent release tag; leave empty to use the latest release"
+        required: false
+        type: string
   push:
     branches: [main]
     paths:
@@ -52,6 +59,65 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Resolve and validate immutable agent release
+        id: agent
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISPATCH_TAG: ${{ github.event.client_payload.agent_tag }}
+          DISPATCH_VERSION: ${{ github.event.client_payload.agent_version }}
+          DISPATCH_COMMIT: ${{ github.event.client_payload.agent_commit }}
+          MANUAL_TAG: ${{ inputs.agent_tag }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "repository_dispatch" ]; then
+            AGENT_TAG="$DISPATCH_TAG"
+            AGENT_VERSION="$DISPATCH_VERSION"
+            EXPECTED_COMMIT="$DISPATCH_COMMIT"
+          elif [ -n "$MANUAL_TAG" ]; then
+            AGENT_TAG="$MANUAL_TAG"
+            AGENT_VERSION="${AGENT_TAG#v}"
+            EXPECTED_COMMIT=""
+          else
+            AGENT_TAG=$(gh api repos/JalinaH/semantic-terraform-agent/releases/latest --jq '.tag_name')
+            AGENT_VERSION="${AGENT_TAG#v}"
+            EXPECTED_COMMIT=""
+          fi
+
+          printf '%s' "$AGENT_TAG" | grep -Eq '^v1\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$' || {
+            echo "Only stable semantic-terraform-agent v1.x releases can deploy automatically."
+            exit 1
+          }
+          test "$AGENT_VERSION" = "${AGENT_TAG#v}" || {
+            echo "The dispatched agent version does not match its release tag."
+            exit 1
+          }
+
+          AGENT_COMMIT=$(gh api "repos/JalinaH/semantic-terraform-agent/commits/$AGENT_TAG" --jq '.sha')
+          printf '%s' "$AGENT_COMMIT" | grep -Eq '^[0-9a-f]{40}$' || {
+            echo "The agent release tag did not resolve to an immutable commit."
+            exit 1
+          }
+          if [ -n "$EXPECTED_COMMIT" ] && [ "$EXPECTED_COMMIT" != "$AGENT_COMMIT" ]; then
+            echo "The dispatched commit does not match the release tag."
+            exit 1
+          fi
+
+          PACKAGE_VERSION=$(curl --fail --silent --show-error --location \
+            "https://raw.githubusercontent.com/JalinaH/semantic-terraform-agent/$AGENT_COMMIT/pyproject.toml" \
+            | python -c 'import sys, tomllib; print(tomllib.loads(sys.stdin.read())["project"]["version"])')
+          test "$PACKAGE_VERSION" = "$AGENT_VERSION" || {
+            echo "The agent package version does not match the release tag."
+            exit 1
+          }
+
+          SHORT_AGENT_COMMIT=${AGENT_COMMIT:0:12}
+          SHORT_DASHBOARD_COMMIT=${GITHUB_SHA:0:12}
+          {
+            echo "tag=$AGENT_TAG"
+            echo "version=$AGENT_VERSION"
+            echo "commit=$AGENT_COMMIT"
+            echo "image_tag=agent-$AGENT_VERSION-$SHORT_AGENT_COMMIT-dashboard-$SHORT_DASHBOARD_COMMIT"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Configure temporary AWS credentials
         uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
@@ -80,14 +146,18 @@ jobs:
           file: worker/Dockerfile
           platforms: linux/arm64
           push: true
-          tags: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          tags: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.agent.outputs.image_tag }}
+          build-args: |
+            SEMANTIC_TERRAFORM_AGENT_VERSION=${{ steps.agent.outputs.version }}
+            SEMANTIC_TERRAFORM_AGENT_SOURCE=git+https://github.com/JalinaH/semantic-terraform-agent.git@${{ steps.agent.outputs.commit }}
           cache-from: type=gha,scope=terrafix-worker-arm64
           cache-to: type=gha,mode=max,scope=terrafix-worker-arm64
           provenance: false
 
       - name: Render a new task definition from the running service
         env:
-          IMAGE_URI: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          IMAGE_URI: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.agent.outputs.image_tag }}
+          AGENT_VERSION: ${{ steps.agent.outputs.version }}
         run: |
           CURRENT_TASK_DEFINITION=$(aws ecs describe-services \
             --cluster "$ECS_CLUSTER" \
@@ -118,8 +188,16 @@ jobs:
               exit 1
             }
 
-          jq --arg name "$ECS_CONTAINER_NAME" --arg image "$IMAGE_URI" '
-            .containerDefinitions |= map(if .name == $name then .image = $image else . end)
+          jq --arg name "$ECS_CONTAINER_NAME" --arg image "$IMAGE_URI" --arg agentVersion "$AGENT_VERSION" '
+            .containerDefinitions |= map(
+              if .name == $name then
+                .image = $image
+                | .environment = (
+                    ((.environment // []) | map(select(.name != "SEMANTIC_TERRAFORM_AGENT_VERSION")))
+                    + [{"name": "SEMANTIC_TERRAFORM_AGENT_VERSION", "value": $agentVersion}]
+                  )
+              else . end
+            )
             | del(
                 .taskDefinitionArn,
                 .revision,
@@ -153,12 +231,16 @@ jobs:
 
       - name: Deployment summary
         env:
-          IMAGE_URI: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          IMAGE_URI: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.agent.outputs.image_tag }}
+          AGENT_TAG: ${{ steps.agent.outputs.tag }}
+          AGENT_COMMIT: ${{ steps.agent.outputs.commit }}
         run: |
           {
             echo "## Worker deployed"
             echo
             echo "- Image: \`$IMAGE_URI\`"
+            echo "- Agent release: \`$AGENT_TAG\`"
+            echo "- Agent commit: \`$AGENT_COMMIT\`"
             echo "- Cluster: \`$ECS_CLUSTER\`"
             echo "- Service: \`$ECS_SERVICE\`"
             echo "- Architecture: \`linux/arm64\`"

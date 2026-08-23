@@ -42,7 +42,7 @@ const PRESENTATIONS: Record<string, WorkerErrorPresentation> = {
   },
   agent_result_invalid: {
     message: "The engine returned a result that could not be safely ingested.",
-    action: "Confirm the deployed engine is semantic-terraform-agent v1.0.0.",
+    action: "Confirm the deployed engine matches the version configured in its immutable worker image.",
   },
   agent_execution_failed: {
     message: "The Terraform diagnosis engine did not complete successfully.",

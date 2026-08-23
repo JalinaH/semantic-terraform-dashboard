@@ -179,7 +179,13 @@ To avoid building and uploading images from a developer connection, configure
 the OIDC-based GitHub workflow in
 [github-actions-worker-deployment.md](github-actions-worker-deployment.md).
 It builds ARM64 on a GitHub-hosted runner, pushes directly to ECR, and updates
-only the image in the running service's task definition.
+the image plus its matching agent-version variable in the running service's
+task definition.
+
+Stable `semantic-terraform-agent` `v1.x.y` releases dispatch this workflow
+automatically. The release tag, package version, and immutable agent commit must
+match before build; the task definition receives the same version. Major-version
+updates remain intentionally gated on a dashboard result-contract update.
 
 ## 7. AWS control-plane identity
 

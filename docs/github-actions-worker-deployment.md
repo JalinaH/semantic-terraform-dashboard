@@ -4,8 +4,9 @@ The production worker can be built on GitHub-hosted infrastructure and pushed
 directly to ECR, so a developer does not upload container layers from a local
 internet connection. `.github/workflows/deploy-worker.yml` uses GitHub OIDC to
 obtain short-lived AWS credentials, builds Linux/ARM64 with BuildKit's GitHub
-cache, pushes an immutable commit-SHA tag, copies the running service's task
-definition, changes only the worker image, and waits for ECS service stability.
+cache, pushes an immutable agent/dashboard commit tag, copies the running
+service's task definition, changes the worker image and its declared agent
+version, and waits for ECS service stability.
 
 No AWS access-key secret belongs in GitHub.
 
@@ -122,15 +123,49 @@ Variables**. Add:
 These values are resource identifiers, not credentials. The workflow needs no
 GitHub Actions secrets for AWS.
 
-## 4. Deploy
+## 4. Connect agent releases
 
-Push a commit to `main` that changes worker/runtime inputs, or open **Actions →
-Deploy worker to ECS → Run workflow**. The first cloud build downloads all base
-layers. Later builds reuse GitHub's BuildKit cache. ECR also deduplicates layers.
+`semantic-terraform-agent/.github/workflows/notify-dashboard-release.yml` sends
+a `semantic-terraform-agent-released` repository-dispatch event whenever a
+stable GitHub release is published. Create a fine-grained personal access token
+with access only to `JalinaH/semantic-terraform-dashboard` and **Contents: Read
+and write**, then store it in the agent repository's Actions secrets as:
+
+```text
+DASHBOARD_DISPATCH_TOKEN
+```
+
+The token is used only to create the cross-repository dispatch. It is never
+passed to Docker, AWS, ECS, the worker, or the dashboard runtime. A dedicated
+GitHub App installation token can replace it later if desired.
+
+The dashboard resolves the release tag independently and requires all three
+values to agree:
+
+- stable release tag such as `v1.1.0`;
+- package version in the released `pyproject.toml`;
+- immutable 40-character release commit SHA.
+
+Only `v1.x.y` releases deploy automatically. A future `v2.0.0` must first update
+and validate the dashboard ingestion contract.
+
+## 5. Deploy
+
+Push a dashboard commit to `main` that changes worker/runtime inputs, publish a
+stable release in the agent repository, or open **Actions → Deploy worker to
+ECS → Run workflow**. Dashboard builds use the latest stable agent release;
+release-triggered builds use and verify the dispatched release. The first cloud
+build downloads all base layers. Later builds reuse GitHub's BuildKit cache.
+ECR also deduplicates layers.
 
 The ECS task definition remains the source of truth for Secrets Manager
-references and runtime variables. The workflow never reads their values and
-changes only the selected container image.
+references and runtime variables. The workflow never reads secret values. It
+changes only the selected container image and
+`SEMANTIC_TERRAFORM_AGENT_VERSION`.
+
+The ECS service is intentionally provisioned once. Each deployment registers a
+new immutable task-definition revision and updates that existing service;
+creating another service for every release would duplicate workers and cost.
 
 For rollback, update the ECS service to a previous task-definition revision or
 rerun a known-good commit through `workflow_dispatch`.

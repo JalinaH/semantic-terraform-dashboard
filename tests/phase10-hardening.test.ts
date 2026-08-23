@@ -30,7 +30,7 @@ describe("Phase 10 runtime hardening", () => {
     process.env.AWS_CONTROL_PLANE_REGION = "us-east-1";
     process.env.AWS_ASSUME_ROLE_PRINCIPAL_ARN = "arn:aws:iam::123456789012:role/TerraFixControlPlane";
     delete process.env.OPENROUTER_API_KEY;
-    process.env.SEMANTIC_TERRAFORM_AGENT_VERSION = "1.0.1";
+    process.env.SEMANTIC_TERRAFORM_AGENT_VERSION = "latest";
     const status = getWorkerRuntimeConfigurationStatus();
     expect(status.missing).toEqual(["OPENROUTER_API_KEY"]);
     expect(status.invalid).toEqual(["SEMANTIC_TERRAFORM_AGENT_VERSION"]);

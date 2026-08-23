@@ -182,6 +182,7 @@ export function getGitHubWebhookSecret() {
 
 export const PINNED_AGENT_VERSION = "1.0.0";
 export const PINNED_AGENT_COMMIT = "29c317bf85e0fbedccb646a20623382871e63978";
+const supportedAgentVersionPattern = /^1\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
 
 export interface WorkerConfiguration {
   pollIntervalMs: number;
@@ -195,7 +196,7 @@ export function getWorkerConfiguration(): WorkerConfiguration {
     pollIntervalMs: boundedInteger(process.env.WORKER_POLL_INTERVAL_MS, 5_000, 500, 60_000),
     jobTimeoutSeconds: boundedInteger(process.env.WORKER_JOB_TIMEOUT_SECONDS, 600, 60, 1_800),
     agentCommand: process.env.SEMANTIC_TERRAFORM_AGENT_COMMAND?.trim() || "semantic-terraform-agent",
-    agentVersion: PINNED_AGENT_VERSION,
+    agentVersion: process.env.SEMANTIC_TERRAFORM_AGENT_VERSION?.trim() || PINNED_AGENT_VERSION,
   };
 }
 
@@ -257,7 +258,7 @@ export function getWorkerRuntimeConfigurationStatus(): RuntimeConfigurationStatu
   const invalid = [
     ...(present(process.env.AWS_CONTROL_PLANE_REGION) && !awsRegionSchema.safeParse(process.env.AWS_CONTROL_PLANE_REGION?.trim()).success ? ["AWS_CONTROL_PLANE_REGION"] : []),
     ...(present(process.env.AWS_ASSUME_ROLE_PRINCIPAL_ARN) && !iamPrincipalArnSchema.safeParse(process.env.AWS_ASSUME_ROLE_PRINCIPAL_ARN?.trim()).success ? ["AWS_ASSUME_ROLE_PRINCIPAL_ARN"] : []),
-    ...(configuredVersion !== PINNED_AGENT_VERSION ? ["SEMANTIC_TERRAFORM_AGENT_VERSION"] : []),
+    ...(!supportedAgentVersionPattern.test(configuredVersion) ? ["SEMANTIC_TERRAFORM_AGENT_VERSION"] : []),
   ];
   return { configured: missing.length === 0 && invalid.length === 0, missing, invalid };
 }
