@@ -86,6 +86,12 @@ describe("stale worker recovery window", () => {
 });
 
 describe("safe result ingestion", () => {
+  it("accepts progressive context selected by agent v1.0.0 auto mode", () => {
+    const result = validAgentResult();
+    result.context.selected_mode = "progressive";
+    expect(parseAgentResult(result).success).toBe(true);
+  });
+
   it("does not persist raw command output, logs, or recognizable secrets", () => {
     const accessKey = `AKIA${"A".repeat(16)}`;
     const result = validAgentResult({

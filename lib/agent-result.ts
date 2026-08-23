@@ -151,7 +151,7 @@ const successfulResultSchema = z.object({
   }).passthrough(),
   context: z.object({
     requested_mode: z.enum(["lightweight", "schema-aware", "auto"]),
-    selected_mode: z.enum(["lightweight", "schema-aware"]),
+    selected_mode: z.enum(["lightweight", "schema-aware", "progressive"]),
     selection_reason: z.string().max(5_000),
   }),
   diagnosis: z.object({
