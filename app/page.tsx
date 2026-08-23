@@ -1,8 +1,10 @@
 import Link from "next/link";
-import { ArrowRight, Braces, Check, CircleDashed, Github, TerminalSquare } from "lucide-react";
+import { ArrowRight, Check, CircleDashed, Github, TerminalSquare } from "lucide-react";
 import { auth } from "@/auth";
 import { signInWithGitHubAction } from "@/app/actions/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ServerActionButton } from "@/components/server-action-button";
+import { TerraFixLogo } from "@/components/terrafix-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { getHostedExecutionConfigurationStatus, getIntegrationConfigurationStatus } from "@/lib/config";
@@ -20,11 +22,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
       <div className="code-grid pointer-events-none absolute inset-0 opacity-35 [mask-image:linear-gradient(to_bottom,black,transparent_78%)]" />
       <header className="relative z-10 mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
         <Link href="/" className="flex items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Braces aria-hidden="true" className="size-4" /></span>
+          <TerraFixLogo size={32} priority />
           <span className="text-sm font-semibold tracking-tight">TerraFix</span>
         </Link>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="hidden bg-card/70 text-muted-foreground sm:inline-flex">Phase 9 model policy</Badge>
+          <Badge variant="outline" className="hidden bg-card/70 text-muted-foreground sm:inline-flex">Hosted MVP</Badge>
           <ThemeToggle />
           {session?.user ? <Link href="/dashboard" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "hidden sm:inline-flex")}>Dashboard</Link> : null}
         </div>
@@ -37,7 +39,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
             Turn Terraform failures into <span className="text-muted-foreground">verified evidence.</span>
           </h1>
           <p className="mt-6 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">
-            Automatically diagnose semantic Terraform CI failures, generate bounded candidate fixes, and verify them in an isolated environment for human review.
+            TerraFix observes failed GitHub Actions Terraform CI, generates bounded candidate suggestions, and verifies them in isolation for human review.
           </p>
           {authState === "required" ? <p className="mt-5 max-w-xl rounded-lg border border-warning/20 bg-warning-muted px-4 py-3 text-sm text-warning-foreground">Continue with GitHub to access the protected dashboard.</p> : null}
           {authState === "configuration" || !configuration.authentication ? <p className="mt-5 max-w-xl rounded-lg border bg-secondary/50 px-4 py-3 text-sm text-muted-foreground"><span className="font-medium text-foreground">GitHub sign-in is not configured.</span> Add the documented GitHub App environment values to enable authentication.</p> : null}
@@ -47,7 +49,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
             ) : (
               <form action={signInWithGitHubAction}>
                 <input type="hidden" name="returnTo" value="/dashboard" />
-                <Button type="submit" size="lg" className="w-full sm:w-fit" disabled={!configuration.authentication}><Github aria-hidden="true" />Continue with GitHub</Button>
+                {configuration.authentication ? <ServerActionButton size="lg" className="w-full sm:w-fit" label="Continue with GitHub" pendingLabel="Opening GitHub…" /> : <Button type="submit" size="lg" className="w-full sm:w-fit" disabled><Github aria-hidden="true" />Continue with GitHub</Button>}
               </form>
             )}
             <span className="flex h-10 items-center px-1 text-xs text-muted-foreground">GitHub App user authorization · no PAT required</span>
@@ -57,6 +59,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
             <Mode icon={Github} label="GitHub Actions" state="Reusable integration" />
             <Mode icon={CircleDashed} label="Hosted GitHub App" state="Webhook + isolated worker" pending={!configuration.githubApp || !hostedExecution.configured} />
           </div>
+          <p className="mt-6 max-w-xl text-xs leading-5 text-muted-foreground">TerraFix never runs Terraform apply, modifies repository source, or claims a suggestion is safe to merge. Verification is evidence; developer intent still requires human review.</p>
         </section>
 
         <section aria-label="Example diagnosis pipeline" className="relative">
@@ -90,7 +93,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
       </main>
 
       <footer className="relative z-10 mx-auto flex max-w-7xl flex-col gap-2 border-t px-5 py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-8">
-        <span>TerraFix · Hosted control plane</span>
+        <span className="inline-flex items-center gap-2"><TerraFixLogo size={20} />TerraFix · Hosted control plane</span>
         <span>Engine and hosted control plane remain separate by design.</span>
       </footer>
     </div>

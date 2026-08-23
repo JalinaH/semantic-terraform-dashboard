@@ -44,6 +44,7 @@ export const prismaAwsConnectionStore: AwsConnectionStore = {
         id: true,
         fullName: true,
         accessible: true,
+        installation: { select: { suspendedAt: true } },
         config: { select: { id: true } },
         awsConnection: true,
       },
@@ -51,7 +52,7 @@ export const prismaAwsConnectionStore: AwsConnectionStore = {
     return repository ? {
       repositoryId: repository.id,
       repositoryFullName: repository.fullName,
-      accessible: repository.accessible,
+      accessible: repository.accessible && repository.installation.suspendedAt === null,
       configured: Boolean(repository.config),
       connection: repository.awsConnection ? toAwsConnectionRecord(repository.awsConnection) : null,
     } : null;

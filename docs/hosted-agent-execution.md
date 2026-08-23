@@ -34,6 +34,7 @@ The repository must have:
 
 - an active GitHub installation and current repository grant
 - saved configuration with the agent enabled
+- a valid server-enforced model policy and eligible catalog model
 - the relevant pull-request or push trigger enabled
 - a connected AWS role
 
@@ -53,13 +54,13 @@ If no bounded Terraform validate/plan failure is found, the claimed run becomes 
 
 ## Queue and worker
 
-The queue is PostgreSQL-backed: `AgentRun.status=QUEUED`. A worker claims the oldest row with one atomic update over `SELECT ... FOR UPDATE SKIP LOCKED`, setting `RUNNING`, `workerId`, claim/start timestamps, and an initial heartbeat. A second worker cannot claim that row. Progress stages and heartbeats make active work diagnosable. Expired claims are changed to a bounded `worker_stale` failure; they are not executed again automatically. Phase 5 deliberately has no Redis and no automatic infrastructure retry loop.
+The queue is PostgreSQL-backed: `AgentRun.status=QUEUED`. A worker claims the oldest row with one atomic update over `SELECT ... FOR UPDATE SKIP LOCKED`, setting `RUNNING`, `workerId`, claim/start timestamps, and an initial heartbeat. A second worker cannot claim that row. Progress stages and heartbeats make active work diagnosable. Expired claims are changed to a bounded `worker_stale` failure; they are not executed again automatically. The MVP deliberately has no Redis and no automatic infrastructure retry loop.
 
 `worker/Dockerfile` pins:
 
 - Node 22
 - Terraform 1.15.7
-- `semantic-terraform-agent` at commit `12b9c7a1755921d2e3fea18f8b96eece8e61841f`
+- `semantic-terraform-agent` v1.0.0 at commit `29c317bf85e0fbedccb646a20623382871e63978`
 
 The Python agent remains the source of truth. The Node worker is orchestration glue only.
 
@@ -70,7 +71,7 @@ Each job gets a new temporary directory. The worker uses a token-free GitHub rem
 - PR comparison: API-resolved base SHA to head/failing SHA
 - push comparison: parent/before context to failing SHA, with a recorded local-parent fallback when necessary
 
-The verified repository role is assumed with its unique External ID for a 15-minute STS session. Caller account and assumed role are verified before credentials are passed to the child. The service-owned `GEMINI_API_KEY` and temporary AWS values are allowlisted into the child environment. Database and GitHub App secrets are not forwarded.
+The verified repository role is assumed with its unique External ID for a 15-minute STS session. Caller account and assumed role are verified before credentials are passed to the child. The service-owned `OPENROUTER_API_KEY` (plus optional legacy `GEMINI_API_KEY`) and temporary AWS values are allowlisted into the child environment. Database and GitHub App secrets are not forwarded.
 
 The worker never persists installation tokens, STS credentials, or the Gemini key, and never puts a token in a clone URL or logs.
 
@@ -85,8 +86,11 @@ semantic-terraform-agent diagnose
   --log-file <bounded failure evidence>
   --diff-file <explicit base-to-head diff>
   --failed-stage <validate|plan>
-  --provider gemini
-  --model <saved model>
+  --provider openrouter
+  --model-routing <auto|fixed>
+  --max-model-tier <saved policy maximum>
+  --model-registry <bounded snapshotted registry, auto only>
+  --model <saved allowed model, fixed only>
   --context-mode <saved mode>
   --verify-patch
   --max-repair-attempts <0|1>
@@ -104,12 +108,12 @@ Older results remain valid. Missing v1 telemetry stays `null`; an explicit provi
 ## Local end-to-end test
 
 1. Use a separate private test repository with an ordinary GitHub Actions workflow that runs Terraform `init`, `validate`, and/or `plan` and retains Actions logs.
-2. Register/update the development GitHub App using [github-app-setup.md](github-app-setup.md), including Actions/Contents/Checks read permissions, Pull requests write permission for Phase 6 publication, and subscribed events.
+2. Register/update the development GitHub App using [github-app-setup.md](github-app-setup.md), including Actions/Contents read permissions, Pull requests write permission, and the sole Workflow run event.
 3. Expose `http://localhost:3000/api/github/webhooks` through a trusted HTTPS tunnel. Put the public `/api/github/webhooks` URL and the same random `GITHUB_WEBHOOK_SECRET` in the App settings and `.env`.
 4. Sign in, install the App on only the test repository, and approve any permission update.
 5. Save repository configuration. Match the exact workflow name, enable the PR trigger, include `**/*.tf`/`**/*.tf.json`, and choose the expected failed stage.
 6. Complete AWS onboarding with a least-privilege test role and confirm the repository is **Ready**.
-7. Put the hosted service Gemini key in the worker environment. Do not add it to GitHub.
+7. Put the hosted service OpenRouter key in the worker environment. Do not add it to GitHub.
 8. Apply migrations and run the dashboard plus worker:
 
    ```bash
@@ -128,8 +132,8 @@ For a container worker, run the documented image with server/worker secrets inje
 ## Safety and current limitations
 
 - fork PRs are always skipped before AWS role assumption; `pull_request_target` is not a bypass
-- no git commit/push, PR comment, merge, Terraform apply, or destroy
+- no git commit/push, merge, Terraform apply, or destroy; the only write is one idempotent advisory PR comment
 - no automatic worker retry and no more than one agent repair attempt
 - job logs must still be available through GitHub Actions retention
 - a configured workflow failure is required; the dashboard does not replace the repository's Terraform CI
-- Phase 6 publication is documented separately in [pr-publication.md](pr-publication.md)
+- PR publication is documented separately in [pr-publication.md](pr-publication.md)

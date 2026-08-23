@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BrainCircuit, Cloud, ExternalLink, GitBranch, GitPullRequestArrow, TriangleAlert } from "lucide-react";
+import { ArrowLeft, BrainCircuit, CheckCircle2, Circle, Cloud, ExternalLink, GitBranch, GitPullRequestArrow, TriangleAlert } from "lucide-react";
 import { AwsStatusBadge } from "@/components/aws-status-badge";
 import { TokenTrendChart } from "@/components/analytics/usage-trend-charts";
 import { EmptyState } from "@/components/empty-state";
@@ -38,7 +38,8 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
 
   const config = repository.config ? toRepositoryConfigInput(repository.config) : REPOSITORY_CONFIG_DEFAULTS;
   const modelPolicyReady = isModelPolicyReady(repository.config ? toRepositoryConfigInput(repository.config) : null, catalog.models, catalog.access);
-  const status = getRepositoryConfigStatus(repository.config, repository.awsConnection, repository.accessible, modelPolicyReady);
+  const githubReady = repository.accessible && repository.installation.suspendedAt === null;
+  const status = getRepositoryConfigStatus(repository.config, repository.awsConnection, githubReady, modelPolicyReady);
   const awsConnected = repository.awsConnection?.status === "CONNECTED";
   const manageUrl = getGitHubInstallationManagementUrl(repository.installation.installationId, repository.installation.htmlUrl);
 
@@ -61,24 +62,24 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
         </div>
       </div>
 
-      {!repository.accessible ? (
+      {!githubReady ? (
         <div role="alert" className="flex flex-col justify-between gap-4 rounded-xl border border-warning/25 bg-warning-muted p-4 sm:flex-row sm:items-center">
           <div className="flex items-start gap-3">
             <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning-foreground" />
-            <div><p className="text-sm font-medium">GitHub access removed</p><p className="mt-1 text-xs leading-5 text-muted-foreground">The saved configuration is preserved, but it cannot be edited until this repository is granted to the GitHub App again.</p></div>
+            <div><p className="text-sm font-medium">GitHub access unavailable</p><p className="mt-1 text-xs leading-5 text-muted-foreground">The installation is suspended or this repository is no longer granted. Saved configuration is preserved until access is restored.</p></div>
           </div>
           <Link href={manageUrl} target="_blank" rel="noreferrer" className={cn(buttonVariants({ size: "sm", variant: "outline" }), "w-fit bg-background")}>Manage GitHub access <ExternalLink aria-hidden="true" /></Link>
         </div>
       ) : null}
 
-      {repository.accessible && status === "attention" ? (
+      {githubReady && status === "attention" ? (
         <div role="alert" className="flex items-start gap-3 rounded-xl border border-destructive/25 bg-destructive/5 p-4">
           <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-destructive" />
           <div><p className="text-sm font-medium">{config.modelRouting === "fixed" ? "Configured model unavailable" : "Model setup required"}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{config.modelRouting === "fixed" ? "The selected model is no longer enabled, available, compatible, or allowed. TerraFix will not silently switch it; choose another model or Auto Optimize." : "No eligible model is currently available within this repository’s maximum tier. Review the catalog and model policy before the next run."}</p></div>
         </div>
       ) : null}
 
-      {repository.accessible && repository.installation.pullRequestsPermission !== "write" ? (
+      {githubReady && repository.installation.pullRequestsPermission !== "write" ? (
         <div role="alert" className="flex flex-col justify-between gap-4 rounded-xl border border-warning/25 bg-warning-muted p-4 sm:flex-row sm:items-center">
           <div className="flex items-start gap-3">
             <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning-foreground" />
@@ -87,6 +88,21 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
           <Link href={manageUrl} target="_blank" rel="noreferrer" className={cn(buttonVariants({ size: "sm", variant: "outline" }), "w-fit bg-background")}>Review GitHub App permissions <ExternalLink aria-hidden="true" /></Link>
         </div>
       ) : null}
+
+      <section aria-labelledby="setup-heading">
+        <Card>
+          <CardHeader className="border-b"><CardTitle id="setup-heading">Setup</CardTitle><CardDescription>Complete each prerequisite before TerraFix can observe and diagnose matching Terraform CI failures.</CardDescription></CardHeader>
+          <CardContent className="grid gap-2 pt-5 sm:grid-cols-2 xl:grid-cols-5">
+            <SetupItem label="GitHub connected" complete={githubReady} href={manageUrl} external />
+            <SetupItem label="Terraform configured" complete={Boolean(repository.config)} href="#configuration-heading" />
+            <SetupItem label="AWS connected" complete={awsConnected} href={`/repositories/${repository.id}/aws`} />
+            <SetupItem label="AI model policy valid" complete={modelPolicyReady} href="#configuration-heading" />
+            <SetupItem label="TerraFix enabled" complete={Boolean(repository.config?.enabled)} href="#configuration-heading" />
+          </CardContent>
+        </Card>
+      </section>
+
+      {status === "ready" ? <div role="status" className="rounded-xl border border-success/25 bg-success-muted p-4"><p className="flex items-center gap-2 text-sm font-medium text-success-foreground"><CheckCircle2 aria-hidden="true" className="size-4" />TerraFix is ready.</p><p className="mt-1.5 text-xs leading-5 text-muted-foreground">Open or update a pull request containing Terraform changes. If your existing Terraform CI fails, TerraFix will diagnose it automatically. TerraFix does not replace that CI and never applies the suggestion.</p></div> : null}
 
       <section aria-labelledby="configuration-summary-heading">
         <Card>
@@ -97,7 +113,7 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
             </div>
           </CardHeader>
           <CardContent className="grid gap-px bg-border p-0 sm:grid-cols-2 xl:grid-cols-5">
-            <SummaryItem label="GitHub" value={repository.accessible ? "Connected" : "Access removed"} />
+            <SummaryItem label="GitHub" value={githubReady ? "Connected" : "Access unavailable"} />
             <SummaryItem label="Configuration" value={repository.config ? "Saved" : "Not saved"} />
             <SummaryItem label="AWS" value={awsConnected ? "Connected" : "Not connected"} />
             <SummaryItem label="Agent" value={config.enabled ? "Enabled" : "Disabled"} />
@@ -131,7 +147,7 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
 
       <section aria-labelledby="configuration-heading">
         <div className="mb-3"><h2 id="configuration-heading" className="text-base font-semibold">Repository configuration</h2><p className="mt-1 text-xs text-muted-foreground">Saved workflow names, path filters, stages, model, context, and bounded repair behavior control hosted dispatch.</p></div>
-        <RepositoryConfigurationForm repositoryId={repository.id} initialConfig={config} initialStatus={status} awsConnected={awsConnected} disabled={!repository.accessible} maximumAllowedTier={catalog.access.maximumTier} catalogLastSyncedAt={catalog.sync?.lastSuccessfulAt?.toISOString() ?? null} catalogPricingMayBeStale={catalog.pricingMayBeStale} modelCatalog={catalog.models.filter((model) => model.tier !== null && (model.supportsStructuredOutput || model.supportsJsonFallback)).map((model) => ({ modelId: model.modelId, displayName: model.displayName, upstreamProvider: model.upstreamProvider, tier: model.tier!, allowed: model.allowed, available: model.available && model.enabled, recommended: model.recommended, isFree: model.isFree, contextLength: model.contextLength, pricingPromptPerMillion: model.pricingPromptPerMillion, pricingOutputPerMillion: model.pricingOutputPerMillion }))} />
+        <RepositoryConfigurationForm repositoryId={repository.id} initialConfig={config} initialStatus={status} awsConnected={awsConnected} disabled={!githubReady} maximumAllowedTier={catalog.access.maximumTier} catalogLastSyncedAt={catalog.sync?.lastSuccessfulAt?.toISOString() ?? null} catalogPricingMayBeStale={catalog.pricingMayBeStale} modelCatalog={catalog.models.filter((model) => model.tier !== null && (model.supportsStructuredOutput || model.supportsJsonFallback)).map((model) => ({ modelId: model.modelId, displayName: model.displayName, upstreamProvider: model.upstreamProvider, tier: model.tier!, allowed: model.allowed, available: model.available && model.enabled, recommended: model.recommended, isFree: model.isFree, contextLength: model.contextLength, pricingPromptPerMillion: model.pricingPromptPerMillion, pricingOutputPerMillion: model.pricingOutputPerMillion }))} />
         <div className="mt-3 rounded-lg border bg-secondary/25 px-4 py-3 text-xs"><span className="font-medium">Usage policy</span><span className="ml-2 text-muted-foreground">Current model policy: {config.modelRouting === "auto" ? `Auto Optimize · maximum ${config.maxModelTier.toUpperCase()}` : `Fixed · ${config.fixedModelId ?? config.model}`}.</span></div>
       </section>
 
@@ -151,7 +167,7 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
 
       <section aria-labelledby="repository-runs-heading">
         <div className="mb-3"><h2 id="repository-runs-heading" className="text-base font-semibold">Recent runs</h2><p className="mt-1 text-xs text-muted-foreground">Signed workflow failures and their hosted execution outcomes.</p></div>
-        <Card><CardContent className="p-0">{recentRuns.length ? <RunsTable runs={recentRuns} /> : <EmptyState icon={GitPullRequestArrow} title="No runs recorded" description="A run appears after a configured Terraform workflow fails and passes the repository readiness gates." />}</CardContent></Card>
+        <Card><CardContent className="p-0">{recentRuns.length ? <RunsTable runs={recentRuns} /> : <EmptyState icon={GitPullRequestArrow} title={status === "ready" ? "Waiting for Terraform CI activity" : "No runs recorded"} description={status === "ready" ? "TerraFix is listening for a failed configured GitHub Actions workflow containing Terraform validate or plan evidence." : "Complete repository setup. A run appears after your existing Terraform CI fails and passes the readiness gates."} />}</CardContent></Card>
       </section>
     </div>
   );
@@ -178,3 +194,8 @@ function maskAccount(value: string | null) {
 }
 
 function UsageItem({ label, value, detail }: { label: string; value: string; detail?: string }) { return <div className="min-w-0 bg-card p-4"><p className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{label}</p><p className="mt-1.5 font-mono text-lg font-semibold">{value}</p>{detail ? <p className="mt-1 text-[10px] text-muted-foreground">{detail}</p> : null}</div>; }
+
+function SetupItem({ label, complete, href, external = false }: { label: string; complete: boolean; href: string; external?: boolean }) {
+  const Icon = complete ? CheckCircle2 : Circle;
+  return <Link href={href} target={external ? "_blank" : undefined} rel={external ? "noreferrer" : undefined} className="flex items-center gap-2.5 rounded-lg border px-3 py-3 text-xs transition-colors hover:bg-secondary/40"><Icon aria-hidden="true" className={cn("size-4 shrink-0", complete ? "text-success-foreground" : "text-muted-foreground")} /><span className={complete ? "font-medium" : "text-muted-foreground"}>{label}</span></Link>;
+}

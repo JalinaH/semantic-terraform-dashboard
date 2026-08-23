@@ -13,6 +13,9 @@ import {
 import { syncPersistedInstallation } from "@/lib/github/sync";
 import { assertInstallationIdentity, verifyUserInstallationAccess } from "@/lib/github/user-access";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return redirectWithError(request, "authentication_required", "/");

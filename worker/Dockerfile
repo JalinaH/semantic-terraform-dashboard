@@ -17,7 +17,7 @@ FROM node:22-bookworm-slim AS runtime
 
 ARG TARGETARCH
 ARG TERRAFORM_VERSION=1.15.7
-ARG SEMANTIC_TERRAFORM_AGENT_SOURCE="git+https://github.com/JalinaH/semantic-terraform-agent.git@12b9c7a1755921d2e3fea18f8b96eece8e61841f"
+ARG SEMANTIC_TERRAFORM_AGENT_SOURCE="git+https://github.com/JalinaH/semantic-terraform-agent.git@29c317bf85e0fbedccb646a20623382871e63978"
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates curl git python3 python3-pip python3-venv unzip \
@@ -30,6 +30,8 @@ RUN apt-get update \
   && unzip "/tmp/terraform_${TERRAFORM_VERSION}_linux_${terraform_arch}.zip" -d /usr/local/bin \
   && python3 -m venv /opt/semantic-terraform-agent \
   && /opt/semantic-terraform-agent/bin/pip install --no-cache-dir "$SEMANTIC_TERRAFORM_AGENT_SOURCE" \
+  && /opt/semantic-terraform-agent/bin/python -c "import importlib.metadata; assert importlib.metadata.version('semantic-terraform-agent') == '1.0.0'" \
+  && terraform version -json \
   && rm -rf /var/lib/apt/lists/* "/tmp/terraform_${TERRAFORM_VERSION}_linux_${terraform_arch}.zip" /tmp/terraform_SHA256SUMS
 
 ENV NODE_ENV=production \
@@ -40,4 +42,5 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
 
 USER node
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["node", "dist/worker/index.mjs", "--healthcheck"]
 CMD ["node", "dist/worker/index.mjs"]

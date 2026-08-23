@@ -31,6 +31,7 @@ export default async function AwsOnboardingPage({ params }: { params: Promise<{ 
   if (!repository) notFound();
 
   const connection = repository.awsConnection;
+  const githubReady = repository.accessible && repository.installation.suspendedAt === null;
   const awsConfiguration = getAwsControlPlaneConfigurationStatus();
   const currentStep = !connection ? 1 : !connection.roleArn ? 2 : connection.status === "CONNECTED" ? 4 : 3;
   const connected = connection?.status === "CONNECTED";
@@ -54,7 +55,7 @@ export default async function AwsOnboardingPage({ params }: { params: Promise<{ 
 
       <AwsStepper currentStep={currentStep} />
 
-      {!repository.accessible ? <BlockingNotice title="GitHub access removed">Restore this repository in the GitHub App installation before changing its AWS connection.</BlockingNotice> : null}
+      {!githubReady ? <BlockingNotice title="GitHub access unavailable">Restore the installation and repository grant before changing its AWS connection.</BlockingNotice> : null}
       {!repository.config ? <BlockingNotice title="Repository configuration required">Save the Terraform and agent configuration before starting AWS onboarding. <Link href={`/repositories/${repository.id}`} className="font-medium underline">Configure repository</Link></BlockingNotice> : null}
 
       {connected && connection ? (
@@ -72,7 +73,7 @@ export default async function AwsOnboardingPage({ params }: { params: Promise<{ 
       <section aria-labelledby="aws-region-heading">
         <Card>
           <CardHeader className="border-b"><div className="flex items-start gap-3"><StepIcon step={1} active={currentStep === 1} complete={Boolean(connection)} /><div><CardTitle id="aws-region-heading">Choose a verification region</CardTitle><CardDescription>Select the default region the hosted verification worker will use for this repository.</CardDescription></div></div></CardHeader>
-          <CardContent className="pt-5"><div className="max-w-xl"><AwsRegionForm repositoryId={repository.id} currentRegion={connection?.region ?? DEFAULT_AWS_REGION} started={Boolean(connection)} disabled={!repository.accessible || !repository.config} /></div></CardContent>
+          <CardContent className="pt-5"><div className="max-w-xl"><AwsRegionForm repositoryId={repository.id} currentRegion={connection?.region ?? DEFAULT_AWS_REGION} started={Boolean(connection)} disabled={!githubReady || !repository.config} /></div></CardContent>
         </Card>
       </section>
 
@@ -101,7 +102,7 @@ export default async function AwsOnboardingPage({ params }: { params: Promise<{ 
                 </div>
                 <div className="rounded-xl border p-4">
                   <div className="flex items-start gap-3"><span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-secondary/50"><KeyRound aria-hidden="true" className="size-4" /></span><div><h3 className="text-sm font-semibold">I already have a role</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">Use an existing IAM role whose trust relationship contains this principal and External ID.</p></div></div>
-                  <div className="mt-4"><AwsRoleForm repositoryId={repository.id} currentRoleArn={connection.roleArn ?? ""} disabled={!repository.accessible} /></div>
+                  <div className="mt-4"><AwsRoleForm repositoryId={repository.id} currentRoleArn={connection.roleArn ?? ""} disabled={!githubReady} /></div>
                 </div>
               </div>
 
@@ -127,7 +128,7 @@ export default async function AwsOnboardingPage({ params }: { params: Promise<{ 
             <CardContent className="space-y-4 pt-5">
               <div className="grid gap-3 sm:grid-cols-3"><Detail label="Region" value={connection.region} mono /><Detail label="Role ARN" value={connection.roleArn} mono /><Detail label="Status" value={formatStatus(connection.status)} /></div>
               {connection.verificationError ? <div role="alert" className="flex items-start gap-2.5 rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs leading-5 text-destructive"><TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" /><span>{connection.verificationError}</span></div> : null}
-              <AwsVerifyForm repositoryId={repository.id} connected={connected} disabled={!awsConfiguration.configured || !repository.accessible} />
+              <AwsVerifyForm repositoryId={repository.id} connected={connected} disabled={!awsConfiguration.configured || !githubReady} />
             </CardContent>
           </Card>
         </section>
@@ -137,7 +138,7 @@ export default async function AwsOnboardingPage({ params }: { params: Promise<{ 
         <section aria-labelledby="disconnect-heading">
           <Card>
             <CardHeader className="border-b"><CardTitle id="disconnect-heading">Disconnect AWS</CardTitle><CardDescription>Removes this dashboard connection. It does not make changes in the customer AWS account.</CardDescription></CardHeader>
-            <CardContent className="pt-5"><AwsDisconnectForm repositoryId={repository.id} disabled={!repository.accessible} /></CardContent>
+            <CardContent className="pt-5"><AwsDisconnectForm repositoryId={repository.id} disabled={!githubReady} /></CardContent>
           </Card>
         </section>
       ) : null}

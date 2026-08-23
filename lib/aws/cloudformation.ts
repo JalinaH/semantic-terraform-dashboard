@@ -11,7 +11,7 @@ export interface CloudFormationTemplateInput {
 
 export function getVerificationRoleName(repositoryId: string) {
   const suffix = createHash("sha256").update(repositoryId).digest("hex").slice(0, 10);
-  return `SemanticTerraformAgentVerificationRole-${suffix}`;
+  return `TerraFixVerificationRole-${suffix}`;
 }
 
 export function sanitizeCloudFormationTag(value: string) {
@@ -47,7 +47,7 @@ Resources:
               StringEquals:
                 sts:ExternalId: ${yamlString(input.externalId)}
       Policies:
-        - PolicyName: SemanticTerraformAgentStarterVerification
+        - PolicyName: TerraFixStarterVerification
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -58,7 +58,7 @@ ${actions}
                 Resource: "*"
       Tags:
         - Key: ManagedBy
-          Value: SemanticTerraformAgent
+          Value: TerraFix
         - Key: Repository
           Value: ${yamlString(repositoryTag)}
 Outputs:

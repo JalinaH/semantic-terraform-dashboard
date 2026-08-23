@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { CheckCircle2, ExternalLink, FolderGit2, Github, RefreshCw, TriangleAlert } from "lucide-react";
+import { CheckCircle2, ExternalLink, FolderGit2, TriangleAlert } from "lucide-react";
 import { beginGitHubInstallationAction, syncRepositoriesAction } from "@/app/actions/github";
 import { ConnectedRepositoryCard } from "@/components/connected-repository-card";
 import { EmptyState } from "@/components/empty-state";
 import { PageIntro } from "@/components/page-intro";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { ServerActionButton } from "@/components/server-action-button";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getGitHubErrorMessage } from "@/lib/github/errors";
 import { listInstallationsForUser } from "@/lib/github/installations";
@@ -46,7 +47,7 @@ export default async function RepositoriesPage({ searchParams }: RepositoriesPag
         action={
           <form action={beginGitHubInstallationAction}>
             <input type="hidden" name="returnTo" value="/repositories" />
-            <Button type="submit"><Github aria-hidden="true" />Install on another account</Button>
+            <ServerActionButton label="Install on another account" pendingLabel="Opening GitHub…" />
           </form>
         }
       />
@@ -60,7 +61,7 @@ export default async function RepositoriesPage({ searchParams }: RepositoriesPag
           icon={FolderGit2}
           title="No repositories connected"
           description="Install the GitHub App to select repositories for TerraFix. You can install it on a personal account or an organization where you have permission."
-          action={<form action={beginGitHubInstallationAction}><input type="hidden" name="returnTo" value="/repositories" /><Button type="submit"><Github aria-hidden="true" />Install GitHub App</Button></form>}
+          action={<form action={beginGitHubInstallationAction}><input type="hidden" name="returnTo" value="/repositories" /><ServerActionButton label="Install GitHub App" pendingLabel="Opening GitHub…" /></form>}
         />
       ) : (
         <div className="space-y-8">
@@ -84,7 +85,7 @@ export default async function RepositoriesPage({ searchParams }: RepositoriesPag
                   <div className="flex flex-wrap gap-2">
                     <form action={syncRepositoriesAction}>
                       <input type="hidden" name="installationDatabaseId" value={githubInstallation.id} />
-                      <Button type="submit" size="sm" variant="outline"><RefreshCw aria-hidden="true" />Sync repositories</Button>
+                      <ServerActionButton size="sm" variant="outline" label="Sync repositories" pendingLabel="Synchronizing…" />
                     </form>
                     <Link href={manageUrl} target="_blank" rel="noreferrer" className={cn(buttonVariants({ size: "sm", variant: "outline" }))}>Manage on GitHub <ExternalLink aria-hidden="true" /></Link>
                   </div>
@@ -92,7 +93,7 @@ export default async function RepositoriesPage({ searchParams }: RepositoriesPag
                 {githubInstallation.pullRequestsPermission !== "write" ? <Notice tone="error" title="GitHub permission upgrade required">Approve Pull requests: Write from the installation management page, then synchronize repositories to enable PR publication.</Notice> : null}
                 {githubInstallation.repositories.length ? (
                   <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-                    {githubInstallation.repositories.map((repository) => <ConnectedRepositoryCard key={repository.id} repository={repository} accountLogin={githubInstallation.accountLogin} modelPolicyValid={isModelPolicyReady(repository.config ? toRepositoryConfigInput(repository.config) : null, catalog.models, catalog.access)} />)}
+                    {githubInstallation.repositories.map((repository) => <ConnectedRepositoryCard key={repository.id} repository={repository} accountLogin={githubInstallation.accountLogin} installationActive={githubInstallation.suspendedAt === null} modelPolicyValid={isModelPolicyReady(repository.config ? toRepositoryConfigInput(repository.config) : null, catalog.models, catalog.access)} />)}
                   </div>
                 ) : (
                   <EmptyState icon={FolderGit2} title="No repositories granted" description="Manage this installation on GitHub to grant one or more repositories, then synchronize again." />

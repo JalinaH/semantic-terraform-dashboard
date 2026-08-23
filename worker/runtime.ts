@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
-import { getWorkerConfiguration } from "@/lib/config";
+import { assertWorkerRuntimeConfiguration, getWorkerConfiguration, getWorkerRuntimeConfigurationStatus } from "@/lib/config";
 import { claimNextAgentRun, prismaWorkerRunStore, recoverStaleAgentRuns } from "@/lib/data/agent-runs";
 import { claimNextPublication } from "@/lib/data/publications";
 import { publishClaimedAgentRun } from "@/lib/publication/publish-agent-run";
@@ -10,15 +10,18 @@ import { invokeSemanticTerraformAgent } from "@/worker/agent";
 import { assumeWorkerRepositoryRole } from "@/worker/aws";
 import { prepareGitHubWorkspace } from "@/worker/github";
 import { safeStartupDiagnostic } from "@/worker/diagnostics";
+import { verifyInstalledAgentVersion } from "@/worker/version";
 
 export async function runWorker(options: { once?: boolean } = {}) {
+  assertWorkerRuntimeConfiguration();
   const configuration = getWorkerConfiguration();
+  const installedAgentVersion = await verifyInstalledAgentVersion(configuration.agentVersion);
   const workerId = `${hostname().slice(0, 32)}-${randomUUID().slice(0, 8)}`;
   let stopping = false;
   const stop = () => { stopping = true; };
   process.once("SIGTERM", stop);
   process.once("SIGINT", stop);
-  safeLog({ event: "worker_started", workerId, pollIntervalMs: configuration.pollIntervalMs });
+  safeLog({ event: "worker_started", workerId, pollIntervalMs: configuration.pollIntervalMs, agentVersion: installedAgentVersion });
   let nextRecoveryAt = 0;
 
   do {
@@ -70,7 +73,7 @@ export async function runWorker(options: { once?: boolean } = {}) {
       continue;
     }
     const startedAt = Date.now();
-    safeLog({ event: "run_claimed", workerId, agentRunId: run.id, repositoryId: run.repositoryId });
+    safeLog({ event: "run_claimed", workerId, agentRunId: run.id, repositoryId: run.repositoryId, stage: "claimed" });
     const result = await processClaimedAgentRun(run, {
       store: prismaWorkerRunStore,
       github: { prepare: prepareGitHubWorkspace },
@@ -80,7 +83,16 @@ export async function runWorker(options: { once?: boolean } = {}) {
       timeoutMs: configuration.jobTimeoutSeconds * 1_000,
       onProgress: (stage) => safeLog({ event: "run_progress", workerId, agentRunId: run.id, stage }),
     });
-    safeLog({ event: "run_finished", workerId, agentRunId: run.id, repositoryId: run.repositoryId, outcome: result.outcome, durationMs: Date.now() - startedAt });
+    safeLog({
+      event: "run_finished",
+      workerId,
+      agentRunId: run.id,
+      repositoryId: run.repositoryId,
+      outcome: result.outcome,
+      verificationStatus: "verificationStatus" in result ? result.verificationStatus ?? "not_available" : "not_available",
+      errorCode: "errorCode" in result ? result.errorCode ?? "none" : "none",
+      durationMs: Date.now() - startedAt,
+    });
   } while (!stopping && !options.once);
 
   safeLog({ event: "worker_stopped", workerId });
@@ -88,8 +100,11 @@ export async function runWorker(options: { once?: boolean } = {}) {
 
 export function workerHealthcheck() {
   const configuration = getWorkerConfiguration();
+  const runtime = getWorkerRuntimeConfigurationStatus();
   return {
-    status: "ok",
+    status: runtime.configured ? "ok" : "degraded",
+    configuration: runtime.configured ? "configured" : "incomplete",
+    missingConfigurationCount: runtime.missing.length + runtime.invalid.length,
     agentVersion: configuration.agentVersion,
     timeoutSeconds: configuration.jobTimeoutSeconds,
   };

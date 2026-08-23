@@ -37,7 +37,7 @@ describe("CloudFormation generation", () => {
     expect(template).toContain(`AWS: "${principal}"`);
     expect(template).toContain(`sts:ExternalId: "${externalId}"`);
     expect(template).toContain("ManagedBy");
-    expect(template).toContain("SemanticTerraformAgent");
+    expect(template).toContain("TerraFix");
     expect(template).toContain("                Action:\n                  - ec2:Describe*");
     expect(template).not.toMatch(/AWS::(?:EC2|Lambda|S3|IAM::User|IAM::AccessKey|VPC)/);
     expect(template).not.toContain("AdministratorAccess");
@@ -46,7 +46,7 @@ describe("CloudFormation generation", () => {
   it("produces deterministic, valid IAM role names with a safe suffix", () => {
     const first = getVerificationRoleName("repo/with unsafe spaces");
     expect(first).toBe(getVerificationRoleName("repo/with unsafe spaces"));
-    expect(first).toMatch(/^SemanticTerraformAgentVerificationRole-[a-f0-9]{10}$/);
+    expect(first).toMatch(/^TerraFixVerificationRole-[a-f0-9]{10}$/);
     expect(first.length).toBeLessThanOrEqual(64);
   });
 });

@@ -180,7 +180,8 @@ export function getGitHubWebhookSecret() {
   return secret;
 }
 
-const PINNED_AGENT_SOURCE = "git+https://github.com/JalinaH/semantic-terraform-agent.git@12b9c7a1755921d2e3fea18f8b96eece8e61841f";
+export const PINNED_AGENT_VERSION = "1.0.0";
+export const PINNED_AGENT_COMMIT = "29c317bf85e0fbedccb646a20623382871e63978";
 
 export interface WorkerConfiguration {
   pollIntervalMs: number;
@@ -194,15 +195,86 @@ export function getWorkerConfiguration(): WorkerConfiguration {
     pollIntervalMs: boundedInteger(process.env.WORKER_POLL_INTERVAL_MS, 5_000, 500, 60_000),
     jobTimeoutSeconds: boundedInteger(process.env.WORKER_JOB_TIMEOUT_SECONDS, 600, 60, 1_800),
     agentCommand: process.env.SEMANTIC_TERRAFORM_AGENT_COMMAND?.trim() || "semantic-terraform-agent",
-    agentVersion: process.env.SEMANTIC_TERRAFORM_AGENT_VERSION?.trim() || PINNED_AGENT_SOURCE,
+    agentVersion: PINNED_AGENT_VERSION,
   };
 }
 
+export interface RuntimeConfigurationStatus {
+  configured: boolean;
+  missing: string[];
+  invalid: string[];
+}
+
+export class InvalidRuntimeConfigurationError extends Error {
+  readonly code = "worker_configuration_invalid";
+
+  constructor(readonly target: "dashboard" | "worker", readonly status: RuntimeConfigurationStatus) {
+    const details = [
+      ...status.missing.map((name) => `Missing ${name}`),
+      ...status.invalid.map((name) => `Invalid ${name}`),
+    ];
+    super(`${target === "dashboard" ? "Dashboard" : "Worker"} configuration error: ${details.join(", ")}.`);
+    this.name = "InvalidRuntimeConfigurationError";
+  }
+}
+
+export function getDashboardRuntimeConfigurationStatus(): RuntimeConfigurationStatus {
+  const required = [
+    "DATABASE_URL",
+    "AUTH_SECRET",
+    "AUTH_TRUST_HOST",
+    "GITHUB_APP_ID",
+    "GITHUB_APP_CLIENT_ID",
+    "GITHUB_APP_CLIENT_SECRET",
+    "GITHUB_APP_PRIVATE_KEY",
+    "GITHUB_APP_SLUG",
+    "GITHUB_WEBHOOK_SECRET",
+    "AWS_CONTROL_PLANE_REGION",
+    "AWS_ASSUME_ROLE_PRINCIPAL_ARN",
+    "NEXT_PUBLIC_APP_URL",
+  ] as const;
+  const missing = required.filter((name) => !present(process.env[name]));
+  const invalid = [
+    ...(present(process.env.AUTH_TRUST_HOST) && process.env.AUTH_TRUST_HOST !== "true" ? ["AUTH_TRUST_HOST"] : []),
+    ...(present(process.env.NEXT_PUBLIC_APP_URL) && !getApplicationOrigin() ? ["NEXT_PUBLIC_APP_URL"] : []),
+    ...(present(process.env.GITHUB_APP_SLUG) && !normalizeGitHubAppSlug(process.env.GITHUB_APP_SLUG) ? ["GITHUB_APP_SLUG"] : []),
+    ...getAwsControlPlaneConfigurationStatus().missing.filter((name) => !missing.includes(name as typeof required[number])),
+  ];
+  return { configured: missing.length === 0 && invalid.length === 0, missing, invalid };
+}
+
+export function getWorkerRuntimeConfigurationStatus(): RuntimeConfigurationStatus {
+  const required = [
+    "DATABASE_URL",
+    "GITHUB_APP_CLIENT_ID",
+    "GITHUB_APP_PRIVATE_KEY",
+    "AWS_CONTROL_PLANE_REGION",
+    "AWS_ASSUME_ROLE_PRINCIPAL_ARN",
+    "OPENROUTER_API_KEY",
+  ] as const;
+  const missing = required.filter((name) => !present(process.env[name]));
+  const configuredVersion = process.env.SEMANTIC_TERRAFORM_AGENT_VERSION?.trim() || PINNED_AGENT_VERSION;
+  const invalid = [
+    ...(present(process.env.AWS_CONTROL_PLANE_REGION) && !awsRegionSchema.safeParse(process.env.AWS_CONTROL_PLANE_REGION?.trim()).success ? ["AWS_CONTROL_PLANE_REGION"] : []),
+    ...(present(process.env.AWS_ASSUME_ROLE_PRINCIPAL_ARN) && !iamPrincipalArnSchema.safeParse(process.env.AWS_ASSUME_ROLE_PRINCIPAL_ARN?.trim()).success ? ["AWS_ASSUME_ROLE_PRINCIPAL_ARN"] : []),
+    ...(configuredVersion !== PINNED_AGENT_VERSION ? ["SEMANTIC_TERRAFORM_AGENT_VERSION"] : []),
+  ];
+  return { configured: missing.length === 0 && invalid.length === 0, missing, invalid };
+}
+
+export function assertDashboardRuntimeConfiguration() {
+  const status = getDashboardRuntimeConfigurationStatus();
+  if (!status.configured) throw new InvalidRuntimeConfigurationError("dashboard", status);
+}
+
+export function assertWorkerRuntimeConfiguration() {
+  const status = getWorkerRuntimeConfigurationStatus();
+  if (!status.configured) throw new InvalidRuntimeConfigurationError("worker", status);
+}
+
 export function getHostedExecutionConfigurationStatus() {
-  const hasModelGateway = present(process.env.OPENROUTER_API_KEY) || present(process.env.GEMINI_API_KEY);
   const missing = [
     ...(!present(process.env.GITHUB_WEBHOOK_SECRET) ? ["GITHUB_WEBHOOK_SECRET"] : []),
-    ...(!hasModelGateway ? ["OPENROUTER_API_KEY or GEMINI_API_KEY"] : []),
     ...getAwsControlPlaneConfigurationStatus().missing,
   ];
   return { configured: missing.length === 0, missing };

@@ -1,12 +1,12 @@
 # AWS onboarding and secure account connection
 
-Phase 4 connects one dashboard repository to one customer IAM role. It uses AWS STS temporary credentials and does not accept or persist permanent customer access keys.
+TerraFix connects one dashboard repository to one customer IAM role. It uses AWS STS temporary credentials and does not accept or persist permanent customer access keys.
 
 ## Why AWS access is needed
 
 The existing Python agent eventually needs to run `terraform init`, `terraform validate`, and `terraform plan -refresh=false` in an isolated worker. Providers can still call AWS APIs while planning, even with refresh disabled. The exact permissions therefore depend on the Terraform resources and providers in a repository.
 
-Phase 4 creates and verifies the trust boundary. Phase 5 now consumes that verified connection only inside the hosted worker, requests a fresh short-lived STS session for each run, and passes it to the existing Python engine without persisting credentials.
+AWS onboarding creates and verifies the trust boundary. The hosted worker consumes that verified connection, requests a fresh short-lived STS session for each run, and passes it to the existing Python engine without persisting credentials.
 
 ## Trust architecture
 
@@ -37,7 +37,7 @@ Set these server-only values in `.env` for local development or in the deploymen
 
 ```dotenv
 AWS_CONTROL_PLANE_REGION="us-east-1"
-AWS_ASSUME_ROLE_PRINCIPAL_ARN="arn:aws:iam::111122223333:role/SemanticTerraformAgentControlPlane"
+AWS_ASSUME_ROLE_PRINCIPAL_ARN="arn:aws:iam::<control-plane-account>:role/TerraFixControlPlane"
 ```
 
 `AWS_ASSUME_ROLE_PRINCIPAL_ARN` is the real IAM principal that AWS should allow to assume customer roles. Do not use a personal account ID hardcoded in source code. The generated trust policy inserts the configured ARN.
@@ -62,7 +62,7 @@ Do not place `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY` in `.env.example`, c
 7. Select **Verify connection**.
 8. On success, confirm the account, region, role, and verification time. The repository becomes **Ready**.
 
-The allowed Phase 4 regions are `us-east-1`, `us-east-2`, `us-west-1`, `us-west-2`, `eu-west-1`, `eu-central-1`, `ap-south-1`, `ap-southeast-1`, and `ap-southeast-2`.
+The allowed MVP regions are `us-east-1`, `us-east-2`, `us-west-1`, `us-west-2`, `eu-west-1`, `eu-central-1`, `ap-south-1`, `ap-southeast-1`, and `ap-southeast-2`.
 
 ## Option A: CloudFormation starter role
 
@@ -72,7 +72,7 @@ The onboarding page provides **Download CloudFormation template**. The YAML is g
 - a trust statement for only the configured control-plane principal;
 - `sts:AssumeRole` guarded by the repository External ID;
 - one inline, read-oriented starter verification policy;
-- `ManagedBy=SemanticTerraformAgent` and sanitized `Repository=owner/name` tags; and
+- `ManagedBy=TerraFix` and sanitized `Repository=owner/name` tags; and
 - the created role ARN as a stack output.
 
 It does not create users, access keys, EC2 instances, Lambda functions, S3 buckets, VPC resources, or any Terraform execution infrastructure.
@@ -87,7 +87,7 @@ It does not create users, access keys, EC2 instances, Lambda functions, S3 bucke
 6. Create the stack and wait for `CREATE_COMPLETE`.
 7. Copy `RoleArn` from the stack's **Outputs** tab into the dashboard.
 
-Phase 4 does not fabricate a CloudFormation Quick Create URL. Quick Create requires the template to be hosted at a reachable HTTPS URL. The code includes a strict future helper, but the UI stays with authenticated downloads until production template hosting is designed.
+TerraFix does not fabricate a CloudFormation Quick Create URL. Quick Create requires the template to be hosted at a reachable HTTPS URL. The UI stays with authenticated downloads until production template hosting is designed.
 
 ## Starter verification policy
 
@@ -109,7 +109,7 @@ The role must:
 2. require the exact External ID shown on the repository onboarding page; and
 3. contain the read/provider permissions needed to plan that repository.
 
-The dashboard accepts IAM role ARNs only. It rejects IAM users, IAM policies, STS assumed-role session ARNs, malformed accounts, wildcards, and role names that violate the conservative Phase 4 validator.
+The dashboard accepts IAM role ARNs only. It rejects IAM users, IAM policies, STS assumed-role session ARNs, malformed accounts, wildcards, and role names that violate the conservative validator.
 
 ## Verification behavior
 

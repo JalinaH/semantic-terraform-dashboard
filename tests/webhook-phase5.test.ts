@@ -35,6 +35,7 @@ describe("GitHub webhook security and dispatch", () => {
     const request = signedRequest(body, deliveryId);
     const first = await handleGitHubWebhookRequest(request, { secret, store, contextSource });
     expect(first.status).toBe(202);
+    expect(first.headers.get("cache-control")).toBe("no-store");
     expect(await first.json()).toEqual({ outcome: "queued", agentRunId: "run_1" });
     expect(store.created).toHaveLength(1);
     expect(store.created[0]).toMatchObject({ githubRunId: "7001", githubRunAttempt: 1, workflowName: "Terraform CI", status: "queued" });
@@ -57,6 +58,16 @@ describe("GitHub webhook security and dispatch", () => {
     const signedForOtherBody = signedRequest(body, deliveryId, "different body");
     expect((await handleGitHubWebhookRequest(signedForOtherBody, { secret, store, contextSource })).status).toBe(401);
     expect(store.created).toHaveLength(0);
+  });
+
+  it("rejects a declared oversized payload before signature or JSON handling", async () => {
+    const response = await handleGitHubWebhookRequest(new Request("http://localhost/api/github/webhooks", {
+      method: "POST",
+      body: "{}",
+      headers: { ...webhookHeaders(deliveryId), "content-length": String(2 * 1024 * 1024 + 1) },
+    }), { secret, store: new MemoryWebhookStore(), contextSource });
+    expect(response.status).toBe(413);
+    expect(response.headers.get("cache-control")).toBe("no-store");
   });
 });
 

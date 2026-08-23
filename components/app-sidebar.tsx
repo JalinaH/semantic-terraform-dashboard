@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Braces, Command, ExternalLink, Github } from "lucide-react";
+import { Command, ExternalLink, Github } from "lucide-react";
+import { TerraFixLogo } from "@/components/terrafix-logo";
 import { NAV_ITEMS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
@@ -12,12 +13,10 @@ export function AppSidebar({ className, onNavigate }: { className?: string; onNa
   return (
     <aside className={cn("flex h-full w-[248px] flex-col border-r bg-sidebar text-sidebar-foreground", className)}>
       <div className="flex h-16 items-center gap-3 border-b px-4">
-        <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-          <Braces aria-hidden="true" className="size-4" />
-        </span>
+        <TerraFixLogo size={32} priority className="shadow-sm" />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold tracking-tight">TerraFix</p>
-          <p className="text-[11px] text-muted-foreground">AI observability</p>
+          <p className="text-[11px] text-muted-foreground">Terraform CI diagnosis</p>
         </div>
       </div>
 
@@ -50,7 +49,7 @@ export function AppSidebar({ className, onNavigate }: { className?: string; onNa
             <Command aria-hidden="true" className="size-3.5" />
             Engine boundary
           </div>
-          <p className="mt-2 text-[11px] leading-4 text-muted-foreground">The Python diagnosis engine remains isolated in the agent repository.</p>
+          <p className="mt-2 text-[11px] leading-4 text-muted-foreground">Semantic Terraform Agent v1.0.0 runs only in the isolated worker.</p>
           <div className="mt-3 flex items-center gap-3 text-[11px] text-muted-foreground">
             <span className="inline-flex items-center gap-1"><Github aria-hidden="true" className="size-3" />CLI</span>
             <span className="inline-flex items-center gap-1"><ExternalLink aria-hidden="true" className="size-3" />Actions</span>

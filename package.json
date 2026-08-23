@@ -16,6 +16,7 @@
     "worker:build": "esbuild worker/index.ts --bundle --platform=node --format=esm --packages=external --alias:@=. --alias:server-only=./worker/server-only.ts --outfile=dist/worker/index.mjs",
     "models:sync": "esbuild scripts/sync-openrouter-models.ts --bundle --platform=node --format=esm --packages=external --alias:@=. --alias:server-only=./worker/server-only.ts --outfile=dist/scripts/sync-openrouter-models.mjs && node dist/scripts/sync-openrouter-models.mjs",
     "prisma:generate": "prisma generate",
+    "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:format": "prisma format",
     "prisma:validate": "prisma validate"
   },
@@ -23,7 +24,7 @@
     "@auth/prisma-adapter": "^2.11.3",
     "@aws-sdk/client-sts": "^3.1113.0",
     "@octokit/rest": "^22.0.1",
-    "@prisma/client": "6.19.0",
+    "@prisma/client": "6.19.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "jose": "^6.2.9",
@@ -45,10 +46,15 @@
     "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.1",
-    "prisma": "6.19.0",
+    "prisma": "6.19.3",
     "tailwindcss": "^4",
     "tsx": "^4.23.12",
     "typescript": "^5",
     "vitest": "^4.1.10"
+  },
+  "pnpm": {
+    "overrides": {
+      "deepmerge-ts": "8.0.2"
+    }
   }
 }

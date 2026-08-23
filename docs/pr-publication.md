@@ -1,6 +1,6 @@
 # Hosted PR result publication
 
-Phase 6 publishes completed pull-request diagnoses as one evidence-backed GitHub App comment. It does not mutate source, create branches, commit, merge, apply, or destroy infrastructure.
+TerraFix publishes completed pull-request diagnoses as one evidence-backed GitHub App comment. It does not mutate source, create branches, commit, merge, apply, or destroy infrastructure.
 
 ## Required GitHub permission
 

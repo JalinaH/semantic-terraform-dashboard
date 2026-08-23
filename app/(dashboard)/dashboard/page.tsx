@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, BadgeCheck, BrainCircuit, CircleDollarSign, CircleGauge, FolderGit2, GitPullRequestArrow, Github, ListChecks, Sparkles } from "lucide-react";
+import { ArrowRight, BadgeCheck, BrainCircuit, CircleDollarSign, CircleGauge, FolderGit2, GitPullRequestArrow, ListChecks, Sparkles } from "lucide-react";
 import { beginGitHubInstallationAction } from "@/app/actions/github";
 import { ConnectedRepositoryCard } from "@/components/connected-repository-card";
 import { TokenTrendChart } from "@/components/analytics/usage-trend-charts";
@@ -8,7 +8,8 @@ import { MetricCard } from "@/components/metric-card";
 import { RunPoller } from "@/components/run-poller";
 import { RunsTable } from "@/components/runs-table";
 import { UsagePeriodSwitcher } from "@/components/usage-period-switcher";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { ServerActionButton } from "@/components/server-action-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { listAgentRunsForUser } from "@/lib/data/runs";
@@ -34,7 +35,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   ]);
   const usage = analytics!.current;
   const repositories = userInstallations.flatMap(({ githubInstallation }) =>
-    githubInstallation.repositories.map((repository) => ({ repository, accountLogin: githubInstallation.accountLogin })),
+    githubInstallation.repositories.map((repository) => ({ repository, accountLogin: githubInstallation.accountLogin, installationActive: githubInstallation.suspendedAt === null })),
   );
   const metrics = [
     { title: "Agent runs", value: String(usage.runCount), description: "Real persisted webhook-triggered records", icon: ListChecks },
@@ -63,7 +64,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         ) : (
           <form action={beginGitHubInstallationAction}>
             <input type="hidden" name="returnTo" value="/repositories" />
-            <Button type="submit"><Github aria-hidden="true" />Install GitHub App</Button>
+            <ServerActionButton label="Install GitHub App" pendingLabel="Opening GitHub…" />
           </form>
         )}</div>
       </section>
@@ -100,14 +101,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </div>
         {repositories.length ? (
           <div className="grid gap-4 xl:grid-cols-3">
-            {repositories.slice(0, 3).map(({ repository, accountLogin }) => <ConnectedRepositoryCard key={repository.id} repository={repository} accountLogin={accountLogin} modelPolicyValid={isModelPolicyReady(repository.config ? toRepositoryConfigInput(repository.config) : null, catalog.models, catalog.access)} />)}
+            {repositories.slice(0, 3).map(({ repository, accountLogin, installationActive }) => <ConnectedRepositoryCard key={repository.id} repository={repository} accountLogin={accountLogin} installationActive={installationActive} modelPolicyValid={isModelPolicyReady(repository.config ? toRepositoryConfigInput(repository.config) : null, catalog.models, catalog.access)} />)}
           </div>
         ) : (
           <EmptyState
             icon={FolderGit2}
             title="No repositories connected"
             description="Install the GitHub App on a personal account or organization, then select the repositories TerraFix may access."
-            action={<form action={beginGitHubInstallationAction}><input type="hidden" name="returnTo" value="/repositories" /><Button type="submit" size="sm"><Github aria-hidden="true" />Install GitHub App</Button></form>}
+            action={<form action={beginGitHubInstallationAction}><input type="hidden" name="returnTo" value="/repositories" /><ServerActionButton size="sm" label="Install GitHub App" pendingLabel="Opening GitHub…" /></form>}
           />
         )}
       </section>

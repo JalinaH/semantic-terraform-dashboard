@@ -41,7 +41,7 @@ export function AwsRoleForm({ repositoryId, currentRoleArn, disabled = false }: 
     <form action={action} className="space-y-3">
       <div className="space-y-2">
         <Label htmlFor="aws-role-arn">IAM role ARN</Label>
-        <Input id="aws-role-arn" name="roleArn" defaultValue={currentRoleArn} disabled={disabled || pending} placeholder="arn:aws:iam::123456789012:role/SemanticTerraformAgentVerificationRole" className="font-mono text-xs" aria-describedby="aws-role-help aws-role-error" />
+        <Input id="aws-role-arn" name="roleArn" defaultValue={currentRoleArn} disabled={disabled || pending} placeholder="arn:aws:iam::123456789012:role/TerraFixVerificationRole" className="font-mono text-xs" aria-describedby="aws-role-help aws-role-error" />
         <p id="aws-role-help" className="text-[11px] leading-4 text-muted-foreground">Only IAM role ARNs are accepted. User, policy, and STS assumed-role ARNs are rejected.</p>
         <FieldErrors id="aws-role-error" errors={state.fieldErrors?.roleArn} />
       </div>

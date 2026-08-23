@@ -42,12 +42,14 @@ interface ConnectedRepositoryCardProps {
   };
   accountLogin: string;
   modelPolicyValid: boolean;
+  installationActive: boolean;
 }
 
-export function ConnectedRepositoryCard({ repository, accountLogin, modelPolicyValid }: ConnectedRepositoryCardProps) {
-  const configStatus = getRepositoryConfigStatus(repository.config, repository.awsConnection, repository.accessible, modelPolicyValid);
-  const setupLabel = getRepositorySetupLabel(repository.accessible, repository.config, repository.awsConnection, modelPolicyValid);
-  const action = getCardAction(repository.id, repository.accessible, configStatus);
+export function ConnectedRepositoryCard({ repository, accountLogin, modelPolicyValid, installationActive }: ConnectedRepositoryCardProps) {
+  const githubReady = repository.accessible && installationActive;
+  const configStatus = getRepositoryConfigStatus(repository.config, repository.awsConnection, githubReady, modelPolicyValid);
+  const setupLabel = getRepositorySetupLabel(githubReady, repository.config, repository.awsConnection, modelPolicyValid);
+  const action = getCardAction(repository.id, githubReady, configStatus);
 
   return (
     <Card className="group min-w-0 transition-colors hover:border-foreground/20">
@@ -63,7 +65,7 @@ export function ConnectedRepositoryCard({ repository, accountLogin, modelPolicyV
           <p className="mt-1 text-xs text-muted-foreground">Granted through {accountLogin}</p>
         </div>
         <div className="flex flex-wrap justify-end gap-1.5">
-          {!repository.accessible ? <Badge variant="outline" className="border-warning/20 bg-warning-muted text-warning-foreground">Access removed</Badge> : null}
+          {!githubReady ? <Badge variant="outline" className="border-warning/20 bg-warning-muted text-warning-foreground">Access unavailable</Badge> : null}
           {repository.private ? <Badge variant="outline"><Lock aria-hidden="true" className="size-3" />Private</Badge> : <Badge variant="outline">Public</Badge>}
         </div>
       </CardHeader>
@@ -91,7 +93,7 @@ export function ConnectedRepositoryCard({ repository, accountLogin, modelPolicyV
           <span className={cn("font-medium", setupLabel === "Ready" && "text-success-foreground", setupLabel === "AWS setup required" && "text-warning-foreground", setupLabel === "GitHub access removed" && "text-destructive")}>{setupLabel}</span>
         </div>
         {repository.config ? <p className="text-[11px] text-muted-foreground">Context: {formatContext(repository.config.contextMode)}</p> : null}
-        {!repository.accessible ? <p className="flex items-center gap-1.5 text-xs text-warning-foreground"><TriangleAlert aria-hidden="true" className="size-3.5" />Configuration is preserved but read-only.</p> : null}
+        {!githubReady ? <p className="flex items-center gap-1.5 text-xs text-warning-foreground"><TriangleAlert aria-hidden="true" className="size-3.5" />The grant or installation is unavailable; configuration is preserved read-only.</p> : null}
         {repository.archived ? <p className="text-xs text-warning-foreground">This repository is archived on GitHub.</p> : null}
         <Link href={action.href} className={cn(buttonVariants({ size: "sm", variant: action.primary ? "default" : "outline" }), "w-full")}>{action.label}</Link>
       </CardContent>

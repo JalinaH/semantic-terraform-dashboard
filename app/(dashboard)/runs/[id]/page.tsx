@@ -19,6 +19,7 @@ import { getAgentRunForUser } from "@/lib/data/runs";
 import { STAGE_LABELS } from "@/lib/constants";
 import type { RunAttemptView, RunDetail } from "@/lib/runs/types";
 import type { VerificationStep, VerificationStage } from "@/lib/types";
+import { getWorkerErrorPresentation } from "@/lib/worker/user-errors";
 import { cn, formatDate, formatRuntime, truncateSha } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -55,7 +56,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
       </header>
 
       {active ? <StateCard title={run.status === "queued" ? "Waiting for a worker" : "Diagnosis in progress"} description={run.status === "queued" ? "The signed GitHub delivery passed filtering and is queued for a hosted worker." : `Current stage: ${formatLabel(run.workerStage)}. The complete hosted job is protected by a bounded execution deadline.`} /> : null}
-      {run.status === "failed" ? <ErrorCard title="Hosted execution failed" code={run.errorCode} message={run.errorMessage} /> : null}
+      {run.status === "failed" ? <ErrorCard title="Hosted execution failed" code={run.errorCode} /> : null}
       {run.status === "skipped" ? <StateCard title="Execution skipped" description={skipMessage(run.skipReason)} /> : null}
 
       <RunObservability run={run} />
@@ -125,7 +126,7 @@ function EvidenceItem({ label, value, mono = false }: { label: string; value: st
 function Score({ label, value }: { label: string; value: number | null }) { const percentage = value === null ? null : Math.round(value * 100); return <div><div className="flex items-center justify-between text-xs"><span className="text-muted-foreground">{label}</span><span className="font-mono font-medium">{percentage === null ? "—" : `${percentage}%`}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-secondary"><div className="h-full rounded-full bg-foreground/70" style={{ width: `${percentage ?? 0}%` }} /></div></div>; }
 function PerformanceMetric({ label, value }: { label: string; value: string }) { return <div className="border-b border-r p-4 last:border-r-0"><p className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{label}</p><p className="mt-1.5 truncate font-mono text-xs font-medium">{value}</p></div>; }
 function StateCard({ title, description }: { title: string; description: string }) { return <Card><CardContent className="flex items-start gap-3 py-5"><Clock3 aria-hidden="true" className="mt-0.5 size-4 text-muted-foreground" /><div><h2 className="text-sm font-semibold">{title}</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p></div></CardContent></Card>; }
-function ErrorCard({ title, code, message }: { title: string; code: string | null; message: string | null }) { return <Card className="border-danger/25"><CardContent className="flex items-start gap-3 py-5"><TriangleAlert aria-hidden="true" className="mt-0.5 size-4 text-danger-foreground" /><div><h2 className="text-sm font-semibold">{title}</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">{message ?? "The worker reported a safe internal execution error."}</p>{code ? <code className="mt-2 block text-[11px] text-danger-foreground">{code}</code> : null}</div></CardContent></Card>; }
+function ErrorCard({ title, code }: { title: string; code: string | null }) { const presentation = getWorkerErrorPresentation(code); return <Card className="border-danger/25"><CardContent className="flex items-start gap-3 py-5"><TriangleAlert aria-hidden="true" className="mt-0.5 size-4 text-danger-foreground" /><div><h2 className="text-sm font-semibold">{title}</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">{presentation.message}</p><p className="mt-1 text-xs leading-5 text-muted-foreground"><span className="font-medium text-foreground">Next step:</span> {presentation.action}</p>{code ? <code className="mt-2 block text-[11px] text-danger-foreground">{code}</code> : null}</div></CardContent></Card>; }
 function formatLabel(value: string) { return value.replace(/_ms$/, "").split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" "); }
 function skipMessage(reason: string | null) { return ({ not_terraform_change: "No configured Terraform file changed.", workflow_not_configured: "The failed workflow did not match the configured Terraform workflow names.", repository_not_ready: "GitHub, repository configuration, agent state, or AWS readiness changed before execution.", trigger_disabled: "The matching event or failed stage is disabled in repository settings.", fork_pr_untrusted: "Untrusted fork pull requests are never executed with customer AWS credentials.", not_terraform_failure: "No bounded Terraform validate or plan failure was found in the job log." } as Record<string, string>)[reason ?? ""] ?? "The event did not pass the hosted execution safety gates."; }
 function publicationDescription(publication: RunDetail["publication"], hasPullRequest: boolean) {

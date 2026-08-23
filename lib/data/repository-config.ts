@@ -39,10 +39,10 @@ function toRecord(config: RepositoryConfig): RepositoryConfigRecord {
 export const prismaRepositoryConfigurationStore: RepositoryConfigurationStore = {
   async findAccess(userId, repositoryId) {
     const [repository, user] = await Promise.all([
-      db.repository.findFirst({ where: { id: repositoryId, installation: { userInstallations: { some: { userId } } } }, select: { id: true, accessible: true, config: { select: { modelProvider: true, model: true, fixedModelId: true, modelPolicyVersion: true } } } }),
+      db.repository.findFirst({ where: { id: repositoryId, installation: { userInstallations: { some: { userId } } } }, select: { id: true, accessible: true, installation: { select: { suspendedAt: true } }, config: { select: { modelProvider: true, model: true, fixedModelId: true, modelPolicyVersion: true } } } }),
       db.user.findUnique({ where: { id: userId }, select: { accessLevel: true } }),
     ]);
-    return repository ? { repositoryId: repository.id, accessible: repository.accessible, accessLevel: user?.accessLevel ?? "FREE", currentConfig: repository.config ? { modelProvider: repository.config.modelProvider.toLowerCase() as "gemini" | "openrouter", model: repository.config.model, fixedModelId: repository.config.fixedModelId, modelPolicyVersion: repository.config.modelPolicyVersion } : null } : null;
+    return repository ? { repositoryId: repository.id, accessible: repository.accessible && repository.installation.suspendedAt === null, accessLevel: user?.accessLevel ?? "FREE", currentConfig: repository.config ? { modelProvider: repository.config.modelProvider.toLowerCase() as "gemini" | "openrouter", model: repository.config.model, fixedModelId: repository.config.fixedModelId, modelPolicyVersion: repository.config.modelPolicyVersion } : null } : null;
   },
 
   async findModel(modelId) {

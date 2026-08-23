@@ -9,6 +9,11 @@ export const metadata: Metadata = {
   },
   description:
     "TerraFix provides evidence-backed Terraform diagnosis, isolated verification, and AI usage observability.",
+  icons: {
+    icon: [{ url: "/icon.png", type: "image/png" }],
+    shortcut: "/icon.png",
+    apple: "/icon.png",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

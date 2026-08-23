@@ -5,6 +5,9 @@ import { getAwsControlPlaneConfiguration, MissingAwsConfigurationError } from "@
 import { prismaAwsConnectionStore } from "@/lib/data/aws-connections";
 import { repositoryIdSchema } from "@/lib/validation/aws-connection";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -20,7 +23,7 @@ export async function GET(
     return new Response(generated.template, {
       headers: {
         "Content-Type": "application/x-yaml; charset=utf-8",
-        "Content-Disposition": `attachment; filename="semantic-terraform-agent-${safeFilename(generated.repositoryFullName)}.yaml"`,
+        "Content-Disposition": `attachment; filename="terrafix-${safeFilename(generated.repositoryFullName)}.yaml"`,
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",
       },

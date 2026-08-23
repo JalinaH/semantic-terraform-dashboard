@@ -1,20 +1,22 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, CircleUserRound, Cloud, ExternalLink, Github, RefreshCw, ShieldCheck, SlidersHorizontal, type LucideIcon } from "lucide-react";
+import { Bell, Braces, CircleUserRound, Cloud, ExternalLink, Github, ShieldCheck, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { beginGitHubInstallationAction, syncRepositoriesAction } from "@/app/actions/github";
 import { PageIntro } from "@/components/page-intro";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { ServerActionButton } from "@/components/server-action-button";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { listInstallationsForUser } from "@/lib/github/installations";
 import { getGitHubInstallationManagementUrl } from "@/lib/github/urls";
 import { cn } from "@/lib/utils";
 import { REPOSITORY_CONFIG_DEFAULTS } from "@/lib/repository-config/constants";
 import { getCatalogViewForUser } from "@/lib/model-policy/catalog";
+import { AGENT_VERSION, getSafeBuildVersion, TERRAFIX_VERSION } from "@/lib/version";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +26,7 @@ export default async function SettingsPage() {
   const repositoryCount = userInstallations.reduce((count, item) => count + item.githubInstallation.repositories.length, 0);
   const awsConnectedCount = userInstallations.reduce((count, item) => count + item.githubInstallation.repositories.filter((repository) => repository.awsConnection?.status === "CONNECTED").length, 0);
   const avatarUrl = user.avatarUrl ?? user.image;
+  const buildVersion = getSafeBuildVersion();
 
   return (
     <div className="space-y-8">
@@ -63,12 +66,12 @@ export default async function SettingsPage() {
                     <span className="text-xs text-muted-foreground">{githubInstallation.repositories.length} repositories</span>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <form action={syncRepositoriesAction}><input type="hidden" name="installationDatabaseId" value={githubInstallation.id} /><Button type="submit" size="sm" variant="outline"><RefreshCw aria-hidden="true" />Sync</Button></form>
+                    <form action={syncRepositoriesAction}><input type="hidden" name="installationDatabaseId" value={githubInstallation.id} /><ServerActionButton size="sm" variant="outline" label="Sync" pendingLabel="Synchronizing…" /></form>
                     <Link href={getGitHubInstallationManagementUrl(githubInstallation.installationId, githubInstallation.htmlUrl)} target="_blank" rel="noreferrer" className={cn(buttonVariants({ size: "sm", variant: "outline" }))}>Manage <ExternalLink aria-hidden="true" /></Link>
                   </div>
                 </div>
               ))}
-              <form action={beginGitHubInstallationAction}><input type="hidden" name="returnTo" value="/settings" /><Button type="submit" variant="outline"><Github aria-hidden="true" />Install on another account</Button></form>
+              <form action={beginGitHubInstallationAction}><input type="hidden" name="returnTo" value="/settings" /><ServerActionButton variant="outline" label="Install on another account" pendingLabel="Opening GitHub…" /></form>
             </div>
           </SettingsSection>
 
@@ -83,6 +86,9 @@ export default async function SettingsPage() {
           </SettingsSection>
           <SettingsSection icon={Bell} title="Notifications" description="Run outcomes and repository health alerts." comingLater>
             <div className="flex items-center gap-3"><Switch label="Run notifications" disabled /><Label className="text-muted-foreground">Run notifications</Label></div>
+          </SettingsSection>
+          <SettingsSection icon={Braces} title="About" description="Version metadata for deployment and demo troubleshooting.">
+            <dl className="grid gap-2 text-xs sm:grid-cols-2"><div className="rounded-lg border p-3"><dt className="text-muted-foreground">Product</dt><dd className="mt-1 font-medium">TerraFix · {TERRAFIX_VERSION}</dd></div><div className="rounded-lg border p-3"><dt className="text-muted-foreground">Inference engine</dt><dd className="mt-1 font-mono font-medium">Semantic Terraform Agent v{AGENT_VERSION}</dd></div>{buildVersion ? <div className="rounded-lg border p-3 sm:col-span-2"><dt className="text-muted-foreground">Build</dt><dd className="mt-1 font-mono font-medium">{buildVersion}</dd></div> : null}</dl>
           </SettingsSection>
         </CardContent>
       </Card>

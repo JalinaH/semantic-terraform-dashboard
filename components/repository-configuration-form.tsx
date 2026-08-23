@@ -147,7 +147,7 @@ export function RepositoryConfigurationForm({
             </div>
           </ConfigCard>
 
-          <ConfigCard title="Hosted automation" description="Choose which failed Terraform workflows can queue hosted diagnosis.">
+          <ConfigCard title="Hosted automation" description="TerraFix listens for failed GitHub Actions workflows that represent Terraform validation or planning.">
             <div className="space-y-3">
               <ToggleRow name="triggerOnPullRequest" label="Pull-request workflow failures" description="Queue only after a configured GitHub Actions workflow fails on a trusted pull request." defaultChecked={initialConfig.triggerOnPullRequest} />
               <ToggleRow name="triggerOnPush" label="Push workflow failures" description="Queue only after a configured workflow fails on a direct branch push." defaultChecked={initialConfig.triggerOnPush} />

@@ -13,7 +13,8 @@ failure never changes the completed agent-run outcome.
 
 It never pushes, commits, applies Terraform, or persists GitHub/AWS/model
 credentials. The Python engine remains in `semantic-terraform-agent` and is
-installed from the exact commit configured in `worker/Dockerfile`.
+installed from commit `29c317bf85e0fbedccb646a20623382871e63978`,
+the immutable commit behind agent version `1.0.0`.
 
 Each queued run contains an immutable model-policy snapshot. Fixed policy adds
 `--model-routing fixed` and the validated model ID. Auto Optimize writes the
@@ -41,9 +42,21 @@ pnpm worker:health
 ## Container
 
 ```bash
-docker build -f worker/Dockerfile -t semantic-terraform-worker:0.6.0 .
+docker build -f worker/Dockerfile -t terrafix-worker:1.0.0 .
 ```
 
-The container pins Node 22, Terraform 1.15.7, and the Python agent source
-commit. Production should provide database, GitHub App, model, and workload AWS
+The container pins Node 22, Terraform 1.15.7, and Semantic Terraform Agent
+v1.0.0. The image build inspects Python package metadata, and normal worker
+startup repeats that version check before polling. Agent v1.0.0 does not expose
+a `--version` flag, so package metadata is the authoritative equivalent.
+
+The MVP image intentionally provides one Terraform version. A repository whose
+saved version differs from 1.15.7 fails safely with
+`terraform_version_unavailable`; deploy a compatible image before enabling it.
+Production must provide database, GitHub App, OpenRouter, and workload AWS
 configuration through the deployment secret store.
+
+The Docker health check runs the process-only worker health command. It reports
+configuration completeness without calling PostgreSQL, GitHub, AWS, or
+OpenRouter. Normal startup performs the strict configuration and agent-version
+checks.
