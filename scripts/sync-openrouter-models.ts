@@ -5,7 +5,7 @@ async function main() {
   console.log(JSON.stringify(result, null, 2));
 }
 
-main().catch((error) => {
+await main().catch((error) => {
   console.error(error instanceof Error ? error.message : "OpenRouter catalog synchronization failed.");
   process.exitCode = 1;
 });

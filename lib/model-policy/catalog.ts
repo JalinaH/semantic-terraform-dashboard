@@ -21,17 +21,11 @@ export async function syncOpenRouterCatalog(options: { apiKey?: string; fetcher?
     const normalized = await fetchOpenRouterCatalog({ apiKey: options.apiKey ?? process.env.OPENROUTER_API_KEY, fetcher: options.fetcher });
     if (!normalized.models.length) throw new OpenRouterCatalogError("invalid_response", "OpenRouter returned no valid models.");
     const models = normalized.models.map((model) => applyTerraFixModelPolicy(model, now));
-    const ids = models.map((model) => model.modelId);
     await db.$transaction(async (transaction) => {
-      for (const model of models) {
-        await transaction.modelCatalogEntry.upsert({
-          where: { provider_modelId: { provider: model.provider, modelId: model.modelId } },
-          create: catalogData(model), update: catalogData(model),
-        });
-      }
-      await transaction.modelCatalogEntry.updateMany({ where: { provider: "openrouter", modelId: { notIn: ids } }, data: { available: false, lastSyncedAt: now } });
+      await transaction.modelCatalogEntry.deleteMany({ where: { provider: "openrouter" } });
+      await transaction.modelCatalogEntry.createMany({ data: models.map(catalogData) });
       await transaction.modelCatalogSync.upsert({ where: { provider: "openrouter" }, create: { provider: "openrouter", lastAttemptAt: now, lastSuccessfulAt: now, modelsReceived: normalized.received, modelsNormalized: models.length, modelsEnabled: models.filter((model) => model.enabled).length }, update: { lastAttemptAt: now, lastSuccessfulAt: now, lastErrorCode: null, lastErrorMessage: null, modelsReceived: normalized.received, modelsNormalized: models.length, modelsEnabled: models.filter((model) => model.enabled).length } });
-    });
+    }, { maxWait: 10_000, timeout: 60_000 });
     return { received: normalized.received, normalized: models.length, rejected: normalized.rejected, enabled: models.filter((model) => model.enabled).length, free: models.filter((model) => model.enabled && model.isFree === true).length, lastSuccessfulAt: now };
   } catch (error) {
     const safe = error instanceof OpenRouterCatalogError ? error : new OpenRouterCatalogError("unavailable", "OpenRouter catalog synchronization failed.");
