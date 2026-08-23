@@ -1,8 +1,8 @@
 # TerraFix security boundaries
 
-TerraFix diagnoses failed Terraform CI and publishes advisory evidence. It does
-not establish developer intent and does not modify customer source or
-infrastructure.
+TerraFix diagnoses failed Terraform CI and publishes evidence. It does not
+establish developer intent or modify infrastructure. Source can change only
+through the separately approved verified-patch boundary below.
 
 ## GitHub
 
@@ -12,9 +12,9 @@ infrastructure.
   is linked to the dashboard account.
 - App JWTs mint short-lived installation tokens on the server/worker. Tokens
   are not persisted or returned to the browser.
-- Repository permissions are Metadata read, Actions read, Contents read, and
+- Repository permissions are Metadata read, Actions read, Contents write, and
   Pull requests write. No administration, workflows, deployments, secrets,
-  members, or Contents write permission is requested.
+  members, or branch-protection bypass permission is requested.
 - Only `workflow_run` is subscribed. Only completed failures can pass dispatch
   gates; successful or unrelated workflows are ignored.
 - Every webhook is bounded to 2 MiB, verified over its raw bytes with
@@ -59,8 +59,14 @@ infrastructure.
   patch checks, `terraform fmt`, `init`, `validate`, and `plan` behavior.
 - There is no product execution path for `terraform apply`, `destroy`,
   `import`, or `taint`.
-- TerraFix has no Contents write permission and contains no commit/push/merge
-  operation. It can create or update one marked PR issue comment only.
+- Diagnosis contains no commit/push operation. Apply requires explicit user
+  confirmation, recomputes the exact patch hash, rechecks current PR head and
+  same-repository ownership, checks out that SHA, revalidates existing
+  Terraform-only file scope, reruns safe verification, and uses a temporary
+  installation token for one non-force bot commit to the exact PR head branch.
+- Apply never calls an LLM, never force-pushes or merges, and never runs
+  Terraform apply/destroy/import/taint. A pre-push failure is discarded with the
+  temporary workspace, leaving the source branch untouched.
 - Older completed runs cannot overwrite a newer PR diagnosis. Publication
   ownership is checked before mutation, and marked comments are updated only
   when authored by this App bot.

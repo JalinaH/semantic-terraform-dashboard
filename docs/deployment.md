@@ -85,7 +85,7 @@ permission changes before PR publication becomes ready.
    controlled CI job or operator shell.
 4. Run `pnpm prisma migrate status` and retain its safe status output.
 5. Sign in and verify the Settings version section shows TerraFix and Agent
-   v1.0.0.
+   v1.1.0.
 
 ## 5. Bootstrap the model catalog
 
@@ -117,7 +117,7 @@ immutable tag instead of `latest`; the current deployment uses X86_64:
 docker buildx build \
   --platform linux/amd64 \
   --file worker/Dockerfile \
-  --tag <account>.dkr.ecr.<region>.amazonaws.com/semantic-terraform-worker:1.0.0-amd64 \
+  --tag <account>.dkr.ecr.<region>.amazonaws.com/semantic-terraform-worker:1.1.0-amd64 \
   --push \
   .
 ```
@@ -147,14 +147,14 @@ Worker variables:
 | `AWS_ASSUME_ROLE_PRINCIPAL_ARN` | yes | validates the shared control-plane identity configuration |
 | `OPENROUTER_API_KEY` | yes | hosted inference; never supplied by repositories |
 | `GEMINI_API_KEY` | no | legacy Gemini-configured runs only; omit for OpenRouter-only deployments |
-| `SEMANTIC_TERRAFORM_AGENT_VERSION` | no | defaults to and must equal `1.0.0` |
+| `SEMANTIC_TERRAFORM_AGENT_VERSION` | no | defaults to and must equal `1.1.0` |
 | `SEMANTIC_TERRAFORM_AGENT_COMMAND` | no | local executable override |
 | `WORKER_POLL_INTERVAL_MS` | no | 500–60000 ms; default 5000 |
 | `WORKER_JOB_TIMEOUT_SECONDS` | no | 60–1800 seconds; default 600 |
 
 Normal startup validates configuration and Python package metadata before
 polling. The image installs agent commit
-`29c317bf85e0fbedccb646a20623382871e63978` (version `1.0.0`). Agent v1.0.0 lacks a
+`b67ddc0cf8579c5566a2335a71b586ed167d1480` (version `1.1.0`). Agent v1.1.0 lacks a
 CLI `--version` flag, so `importlib.metadata` is the authoritative check at
 image build and worker startup.
 
@@ -204,7 +204,7 @@ credential chain.
 4. AWS CloudFormation download works only for an authorized repository.
 5. STS verification changes the repository to connected.
 6. Model catalog has a current successful sync and an eligible FREE model.
-7. Worker starts with `agentVersion: 1.0.0` and claims only queued rows.
+7. Worker starts with `agentVersion: 1.1.0` and atomically claims diagnosis or patch-application jobs.
 8. Run [e2e-validation.md](e2e-validation.md) against the dedicated demo repo.
 
 ## Recovery notes

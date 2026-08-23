@@ -60,7 +60,7 @@ The queue is PostgreSQL-backed: `AgentRun.status=QUEUED`. A worker claims the ol
 
 - Node 22
 - Terraform 1.15.7
-- `semantic-terraform-agent` v1.0.0 at commit `29c317bf85e0fbedccb646a20623382871e63978`
+- `semantic-terraform-agent` v1.1.0 at commit `b67ddc0cf8579c5566a2335a71b586ed167d1480`
 
 The Python agent remains the source of truth. The Node worker is orchestration glue only.
 
@@ -99,7 +99,7 @@ semantic-terraform-agent diagnose
 
 The worker verifies that the installed Terraform CLI exactly matches the saved repository version before invocation. The default complete-job deadline is ten minutes and covers GitHub evidence collection, checkout, AWS role assumption, agent execution, and safe result ingestion. GitHub requests and child processes also have operation-level timeouts. Deadline expiry aborts child work and records `execution_timeout`; an orphaned claim discovered after the deadline plus grace period records `worker_stale`. Other bounded error codes include `github_log_unavailable`, `github_checkout_failed`, `repository_access_removed`, `aws_assume_role_failed`, `terraform_not_found`, `terraform_version_unavailable`, `agent_execution_failed`, `agent_result_invalid`, `model_unavailable`, and `worker_internal_error`.
 
-An agent result is schema-validated. Semantic Terraform Agent v1.0.0 usage is normalized into nullable `AgentRun` fields for LLM calls, token categories, decimal provider cost, cost/token completeness, latency, requested/reported models, routing tiers, context/schema character reduction, progression, escalation, and Verified Failure Memory. Small sanitized call metadata and a bounded safe payload preserve forward compatibility. Raw logs, prompts, command output, full repository source, full provider schema, Terraform state/provider cache, environment data, and credentials are excluded.
+An agent result is schema-validated. Semantic Terraform Agent v1.1.0 usage and verified-patch provenance are normalized into nullable `AgentRun` fields for LLM calls, token categories, decimal provider cost, routing/context/schema optimization, Verified Failure Memory, exact patch SHA, verified source SHA, affected files, and mutation eligibility. The canonical patch is preserved byte-for-byte in a private worker field while the UI/PR rendering uses its redacted display copy. Raw logs, prompts, command output, full repository source, full provider schema, Terraform state/provider cache, environment data, and credentials are excluded.
 
 Older results remain valid. Missing v1 telemetry stays `null`; an explicit provider cost of `0.0` remains zero. The dashboard never turns absent telemetry into a free run.
 
@@ -108,7 +108,7 @@ Older results remain valid. Missing v1 telemetry stays `null`; an explicit provi
 ## Local end-to-end test
 
 1. Use a separate private test repository with an ordinary GitHub Actions workflow that runs Terraform `init`, `validate`, and/or `plan` and retains Actions logs.
-2. Register/update the development GitHub App using [github-app-setup.md](github-app-setup.md), including Actions/Contents read permissions, Pull requests write permission, and the sole Workflow run event.
+2. Register/update the development GitHub App using [github-app-setup.md](github-app-setup.md), including Actions read, Contents write, Pull requests write, Metadata read, and the sole Workflow run event.
 3. Expose `http://localhost:3000/api/github/webhooks` through a trusted HTTPS tunnel. Put the public `/api/github/webhooks` URL and the same random `GITHUB_WEBHOOK_SECRET` in the App settings and `.env`.
 4. Sign in, install the App on only the test repository, and approve any permission update.
 5. Save repository configuration. Match the exact workflow name, enable the PR trigger, include `**/*.tf`/`**/*.tf.json`, and choose the expected failed stage.

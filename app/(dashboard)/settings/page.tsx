@@ -62,13 +62,14 @@ export default async function SettingsPage() {
               {userInstallations.map(({ githubInstallation }) => (
                 <div key={githubInstallation.id} className="rounded-lg border p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-medium">{githubInstallation.accountLogin}</span><Badge variant="outline">{githubInstallation.accountType === "ORGANIZATION" ? "Organization" : "Personal"}</Badge><Badge variant="outline" className={githubInstallation.pullRequestsPermission === "write" ? "border-success/25 bg-success-muted text-success-foreground" : "border-warning/25 bg-warning-muted text-warning-foreground"}>{githubInstallation.pullRequestsPermission === "write" ? "PR publication ready" : "Permission upgrade required"}</Badge></div>
+                    <div className="flex flex-wrap items-center gap-2"><span className="text-sm font-medium">{githubInstallation.accountLogin}</span><Badge variant="outline">{githubInstallation.accountType === "ORGANIZATION" ? "Organization" : "Personal"}</Badge><Badge variant="outline" className={githubInstallation.pullRequestsPermission === "write" && githubInstallation.contentsPermission === "write" ? "border-success/25 bg-success-muted text-success-foreground" : "border-warning/25 bg-warning-muted text-warning-foreground"}>{githubInstallation.pullRequestsPermission === "write" && githubInstallation.contentsPermission === "write" ? "Apply to PR ready" : "Permission upgrade required"}</Badge></div>
                     <span className="text-xs text-muted-foreground">{githubInstallation.repositories.length} repositories</span>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <form action={syncRepositoriesAction}><input type="hidden" name="installationDatabaseId" value={githubInstallation.id} /><ServerActionButton size="sm" variant="outline" label="Sync" pendingLabel="Synchronizing…" /></form>
                     <Link href={getGitHubInstallationManagementUrl(githubInstallation.installationId, githubInstallation.htmlUrl)} target="_blank" rel="noreferrer" className={cn(buttonVariants({ size: "sm", variant: "outline" }))}>Manage <ExternalLink aria-hidden="true" /></Link>
                   </div>
+                  {githubInstallation.contentsPermission !== "write" ? <p className="mt-3 text-xs leading-5 text-warning-foreground">Approve Contents: Write in GitHub, then synchronize. TerraFix uses it only after explicit approval to commit an already verified patch to a same-repository PR branch.</p> : null}
                 </div>
               ))}
               <form action={beginGitHubInstallationAction}><input type="hidden" name="returnTo" value="/settings" /><ServerActionButton variant="outline" label="Install on another account" pendingLabel="Opening GitHub…" /></form>

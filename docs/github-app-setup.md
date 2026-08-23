@@ -32,18 +32,19 @@ localhost; use a trusted HTTPS tunnel only for `/api/github/webhooks`.
 | --- | --- | --- |
 | Installation/repository discovery | Metadata | Read (mandatory) |
 | Workflow runs, jobs, and retained logs | Actions | Read |
-| Exact revision clone and commit metadata | Contents | Read |
+| Exact revision clone; confirmed verified-patch commit | Contents | Write |
 | PR metadata and changed files | Pull requests | Read (included by write) |
 | Create/update one diagnosis comment | Pull requests | Write |
 
 Leave every other repository, organization, and account permission at **No
-access**. In particular, TerraFix does not need Contents write, Workflows write,
-Administration, Deployments, Environments, Secrets, Members, or Checks access.
+access**. TerraFix does not need Workflows write, Administration, Deployments,
+Environments, Secrets, Members, Checks, or branch-protection bypass access.
 The code does not call the Checks API.
 
-Existing installations must approve a new Pull requests: Write request. Until
-then, diagnosis can complete but publication fails separately. Approve the
-change on GitHub, then select **Sync repositories** in TerraFix.
+Existing installations must approve Pull requests: Write and the Phase 11
+Contents: Write upgrade. Until then, diagnosis can complete, but Apply to PR is
+blocked with `github_contents_write_required`. Approve the change on GitHub,
+then select **Sync repositories** in TerraFix.
 
 ## Events
 
@@ -109,5 +110,7 @@ reprocessed once.
   installation or request organization approval.
 - **Webhook 401:** the webhook secrets differ or a proxy altered raw bytes.
 - **Run log unavailable:** confirm Actions read and workflow log retention.
-- **Checkout failed:** confirm Contents read and the repository grant.
+- **Checkout failed:** confirm the Contents grant and repository access.
 - **Publication permission missing:** approve Pull requests write and sync.
+- **Apply permission missing:** approve Contents write and sync. This permission
+  is used only after explicit approval of an already verified patch.

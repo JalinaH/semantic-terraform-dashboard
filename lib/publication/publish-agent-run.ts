@@ -82,6 +82,11 @@ export async function publishClaimedAgentRun(
       evidenceScore: run.evidenceScore,
       attempts: parsedAttempts.success ? parsedAttempts.data as PublicationAttempt[] : [],
       dashboardUrl: origin ? `${origin}/runs/${encodeURIComponent(run.id)}` : null,
+      application: run.patchApplications?.[0]?.commitSha ? {
+        commitSha: run.patchApplications[0].commitSha,
+        commitUrl: run.patchApplications[0].commitUrl,
+        requestedBy: run.patchApplications[0].requestedByDisplay,
+      } : null,
     });
     if (rendered.body.length > MAX_PR_COMMENT_CHARS) throw new PublicationError("comment_too_large");
     const comment = await dependencies.github.publish({

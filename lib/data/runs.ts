@@ -79,7 +79,7 @@ export async function listAgentRunsForUser(userId: string, filters: RunFilters =
 export async function getAgentRunForUser(userId: string, id: string): Promise<RunDetail | null> {
   const row = await db.agentRun.findFirst({
     where: { id, repository: { installation: { userInstallations: { some: { userId } } } } },
-    include: { repository: { select: { fullName: true } }, publication: true },
+    include: { repository: { select: { fullName: true } }, publication: true, patchApplications: { orderBy: { createdAt: "desc" } } },
   });
   if (!row) return null;
   const listItem = toListItem(row);
@@ -161,6 +161,32 @@ export async function getAgentRunForUser(userId: string, id: string): Promise<Ru
       skipReason: row.publication.skipReason,
       attemptCount: row.publication.attemptCount,
     } : null,
+    patchSha256: row.patchSha256,
+    verifiedAgainstCommitSha: row.verifiedAgainstCommitSha,
+    patchAffectedFiles: stringArray(row.patchAffectedFiles),
+    patchTerraformFilesOnly: row.patchTerraformFilesOnly,
+    patchExistingFilesOnly: row.patchExistingFilesOnly,
+    mutationEligible: row.mutationEligible,
+    mutationEligibilityReason: row.mutationEligibilityReason,
+    patchApplications: row.patchApplications.map((application) => ({
+      id: application.id,
+      status: application.status.toLowerCase() as import("@/lib/runs/types").PatchApplicationView["status"],
+      stage: application.stage,
+      requestedBy: application.requestedByDisplay,
+      requestedAt: application.requestedAt.toISOString(),
+      completedAt: application.completedAt?.toISOString() ?? null,
+      patchSha256: application.patchSha256,
+      verifiedAgainstCommitSha: application.verifiedAgainstCommitSha,
+      expectedHeadSha: application.expectedHeadSha,
+      headBranch: application.headBranch,
+      affectedFiles: stringArray(application.affectedFiles),
+      commitSha: application.commitSha,
+      commitUrl: application.commitUrl,
+      pullRequestUrl: application.pullRequestUrl,
+      errorCode: application.errorCode,
+      errorMessage: application.errorMessage,
+      freshVerification: freshVerification(application.freshVerification),
+    })),
   };
 }
 
@@ -259,4 +285,10 @@ function validDateStart(value: string | undefined) {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
   const date = new Date(`${value}T00:00:00.000Z`);
   return Number.isNaN(date.valueOf()) ? undefined : date;
+}
+
+function freshVerification(value: unknown) {
+  const schema = z.record(z.string(), z.object({ status: z.string(), durationMs: z.number().int().nonnegative().nullable() }));
+  const parsed = schema.safeParse(value);
+  return parsed.success ? parsed.data : {};
 }

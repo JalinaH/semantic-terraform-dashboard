@@ -32,6 +32,11 @@ export interface AgentCommentInput {
   evidenceScore: number | null;
   attempts: PublicationAttempt[];
   dashboardUrl: string | null;
+  application?: {
+    commitSha: string;
+    commitUrl: string | null;
+    requestedBy: string | null;
+  } | null;
 }
 
 export interface RenderedAgentComment {

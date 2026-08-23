@@ -25,6 +25,8 @@ function run(overrides: Partial<RunDetail> = {}): RunDetail {
     freshVerificationPassed: null, resolutionSource: "llm", candidateSource: "llm", llmCallsAvoided: 0, historicalTokensAvoided: null,
     historicalCostAvoidedUsd: null, agentVersion: "1.0.0", verificationFailedStage: null, verificationReason: null, llmCalls: [{ callNumber: 1, type: "diagnosis", contextLevel: "minimal", provider: "openrouter", requestedModel: "openrouter/free", reportedModel: "provider/model", upstreamProvider: "Provider", routingTier: "free", routingReason: "initial", inputTokens: 1842, cachedInputTokens: 1100, outputTokens: 218, reasoningTokens: 20, totalTokens: 2060, costUsd: 0, latencyMs: 1820, cacheHit: true }],
     errorCode: null, errorMessage: null, skipReason: null, startedAt: null, completedAt: null, publication: null,
+    patchSha256: null, verifiedAgainstCommitSha: null, patchAffectedFiles: [], patchTerraformFilesOnly: null,
+    patchExistingFilesOnly: null, mutationEligible: null, mutationEligibilityReason: null, patchApplications: [],
     ...overrides,
   };
 }

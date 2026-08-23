@@ -1,6 +1,6 @@
 # Hosted PR result publication
 
-TerraFix publishes completed pull-request diagnoses as one evidence-backed GitHub App comment. It does not mutate source, create branches, commit, merge, apply, or destroy infrastructure.
+TerraFix publishes completed pull-request diagnoses as one evidence-backed GitHub App comment. Publication itself never mutates source. A separate explicitly approved PatchApplication may create one verified commit on the same-repository PR branch; TerraFix never merges, runs Terraform apply, or destroys infrastructure.
 
 ## Required GitHub permission
 

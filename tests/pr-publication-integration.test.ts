@@ -5,7 +5,7 @@ import { publishClaimedAgentRun, type PublicationStore } from "@/lib/publication
 describe("completed run to persisted PR comment integration", () => {
   it("uses a fresh mocked installation token, creates the comment, and persists publication state", async () => {
     const create = vi.fn(async () => ({ id: "44", nodeId: "node-44", url: "https://github.com/acme/infra/pull/7#issuecomment-44" }));
-    const access = vi.fn(async () => ({ token: "ephemeral-installation-token", pullRequestsPermission: "write" as const }));
+    const access = vi.fn(async () => ({ token: "ephemeral-installation-token", pullRequestsPermission: "write" as const, contentsPermission: "write" as const }));
     const publisher = createGitHubPrCommentPublisher({
       getAccess: access,
       getBotLogin: () => "semantic-terraform-agent-dev[bot]",

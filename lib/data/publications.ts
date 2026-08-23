@@ -94,6 +94,7 @@ export async function getPublicationTarget(publicationId: string) {
         include: {
           repository: true,
           githubInstallation: true,
+          patchApplications: { where: { status: "APPLIED" }, orderBy: { completedAt: "desc" }, take: 1 },
         },
       },
     },

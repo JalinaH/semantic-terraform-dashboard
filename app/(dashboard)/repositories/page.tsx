@@ -91,6 +91,7 @@ export default async function RepositoriesPage({ searchParams }: RepositoriesPag
                   </div>
                 </div>
                 {githubInstallation.pullRequestsPermission !== "write" ? <Notice tone="error" title="GitHub permission upgrade required">Approve Pull requests: Write from the installation management page, then synchronize repositories to enable PR publication.</Notice> : null}
+                {githubInstallation.contentsPermission !== "write" ? <Notice tone="error" title="Apply-to-PR permission upgrade required">Approve Contents: Write from the installation management page, then synchronize repositories. Diagnosis remains available; source mutation stays disabled.</Notice> : null}
                 {githubInstallation.repositories.length ? (
                   <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
                     {githubInstallation.repositories.map((repository) => <ConnectedRepositoryCard key={repository.id} repository={repository} accountLogin={githubInstallation.accountLogin} installationActive={githubInstallation.suspendedAt === null} modelPolicyValid={isModelPolicyReady(repository.config ? toRepositoryConfigInput(repository.config) : null, catalog.models, catalog.access)} />)}

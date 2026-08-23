@@ -4,7 +4,7 @@
 
 1. Open the Vercel health endpoint and confirm `status: ok`.
 2. Confirm the worker container is healthy and its latest startup log reports
-   Agent v1.0.0.
+   Agent v1.1.0.
 3. Run `pnpm prisma migrate status` against production and confirm no pending
    migrations.
 4. Sign in, verify the GitHub App installation is active, and synchronize the
@@ -28,13 +28,15 @@
 3. Show the signed `workflow_run` delivery reach TerraFix.
 4. Open Runs and show the queued row transition to running.
 5. Show the final root cause, candidate diff, and Terraform verification stages.
-6. State explicitly that the candidate is advisory and human review remains
-   required.
-7. Open the one idempotent TerraFix PR comment.
-8. Open AI Usage for tokens, provider-reported cost, actual model, context/schema
+6. Review the suggested diff and state that verification does not establish
+   developer intent.
+7. Click **Apply to PR**, review the repository/branch/head/files, and confirm.
+8. Show fresh verification, the TerraFix bot commit, and normal CI rerunning.
+9. Open the updated idempotent TerraFix PR comment.
+10. Open AI Usage for tokens, provider-reported cost, actual model, context/schema
    behavior, routing, and memory status.
-9. Open Usage analytics and explain completeness when legacy rows lack telemetry.
-10. If a warm-memory reproduction is available, show fresh verification with
+11. Open Usage analytics and explain completeness when legacy rows lack telemetry.
+12. If a warm-memory reproduction is available, show fresh verification with
     zero LLM calls; do not claim a memory hit unless the run reports one.
 
 ## Timing capture
@@ -68,7 +70,7 @@ Do not infer missing stage timings or convert them to zero.
 ## After the presentation
 
 1. Confirm the PR has one TerraFix bot comment, not duplicate comments.
-2. Confirm no branch, commit, merge, or infrastructure mutation was created by
-   TerraFix.
+2. Confirm exactly one approved TerraFix commit exists, no merge occurred, and
+   no infrastructure mutation was performed.
 3. Close/reset only the dedicated demo PR/branch.
 4. Record the safe result metadata in [e2e-validation.md](e2e-validation.md).

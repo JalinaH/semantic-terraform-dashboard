@@ -120,6 +120,34 @@ export interface RunDetail extends RunListItem {
   startedAt: string | null;
   completedAt: string | null;
   publication: import("@/lib/publication/types").PublicationView | null;
+  patchSha256: string | null;
+  verifiedAgainstCommitSha: string | null;
+  patchAffectedFiles: string[];
+  patchTerraformFilesOnly: boolean | null;
+  patchExistingFilesOnly: boolean | null;
+  mutationEligible: boolean | null;
+  mutationEligibilityReason: string | null;
+  patchApplications: PatchApplicationView[];
+}
+
+export interface PatchApplicationView {
+  id: string;
+  status: "pending" | "applying" | "applied" | "stale" | "rejected" | "failed";
+  stage: string;
+  requestedBy: string | null;
+  requestedAt: string;
+  completedAt: string | null;
+  patchSha256: string;
+  verifiedAgainstCommitSha: string;
+  expectedHeadSha: string;
+  headBranch: string;
+  affectedFiles: string[];
+  commitSha: string | null;
+  commitUrl: string | null;
+  pullRequestUrl: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  freshVerification: Record<string, { status: string; durationMs: number | null }>;
 }
 
 export interface LlmCallView {

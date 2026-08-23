@@ -51,6 +51,7 @@ export async function invokeSemanticTerraformAgent(input: {
   }
   if (result.exitCode !== 0) {
     const safeError = getResultError(parsed);
+    if (/source revision.*(?:does not match|could not be verified)/i.test(safeError)) throw new WorkerExecutionError("source_revision_mismatch");
     if (/GEMINI_API_KEY|OPENROUTER_API_KEY|model|quota|rate limit/i.test(safeError)) throw new WorkerExecutionError("model_unavailable");
     if (/terraform.*(?:not found|unavailable)|no such file.*terraform/i.test(safeError)) throw new WorkerExecutionError("terraform_not_found");
     throw new WorkerExecutionError("agent_execution_failed");
@@ -77,6 +78,7 @@ export function buildAgentArguments(input: {
     "--max-repair-attempts", String(input.run.config.maxRepairAttempts),
     "--output", outputPath,
   ];
+  if (input.run.pullRequestNumber !== null) args.push("--source-revision", input.run.commitSha);
   if (input.run.config.modelRouting === "auto") {
     if (!registryPath) throw new WorkerExecutionError("model_unavailable");
     args.push("--model-registry", registryPath);

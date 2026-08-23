@@ -154,6 +154,55 @@ const cacheSchema = z.object({
   schema_slice: cacheComponentSchema.optional(),
 }).passthrough();
 
+const gitShaSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/);
+const sha256Schema = z.string().regex(/^[0-9a-f]{64}$/);
+const verifiedPatchSchema = z.object({
+  patch_sha256: sha256Schema.nullable(),
+  affected_files: z.array(z.string().min(1).max(1_000)).max(100),
+  repository_relative_paths_only: z.boolean(),
+  terraform_files_only: z.boolean(),
+  existing_files_only: z.boolean(),
+  verification_status: verificationStatusSchema,
+  verification_passed: z.boolean(),
+  verification_attempt: z.number().int().min(1).max(2),
+  verified_against_commit_sha: gitShaSchema.nullable(),
+  source_fingerprint_sha256: sha256Schema.nullable(),
+  candidate_source: z.enum(["llm", "verified_failure_memory"]),
+}).passthrough();
+
+const sourceProvenanceSchema = z.object({
+  repository_scope: z.string().max(500),
+  terraform_dir: z.string().max(2_000),
+  git_commit_sha: gitShaSchema.nullable(),
+  git_tree_sha: gitShaSchema.nullable(),
+  caller_source_revision: gitShaSchema.nullable(),
+  verified_against_commit_sha: gitShaSchema.nullable(),
+  working_tree_mode: z.enum(["git_clean", "git_dirty", "non_git"]),
+  source_fingerprint_sha256: sha256Schema.nullable(),
+}).passthrough();
+
+const verificationProvenanceSchema = z.object({
+  attempt_number: z.number().int().min(1).max(2),
+  final_status: verificationStatusSchema,
+  verified_in_isolated_workspace: z.boolean(),
+  patch_check_passed: z.boolean(),
+  patch_apply_passed: z.boolean(),
+  fmt_passed: z.boolean(),
+  init_passed: z.boolean(),
+  validate_passed: z.boolean(),
+  plan_required: z.boolean(),
+  plan_passed: z.boolean(),
+  terraform_version: z.string().max(100).nullable(),
+  provider_versions: z.record(z.string().max(500), z.string().max(100)),
+}).passthrough();
+
+const mutationEligibilitySchema = z.object({
+  eligible: z.boolean(),
+  reason_code: z.string().min(1).max(100),
+  reasons: z.array(z.string().min(1).max(100)).max(30),
+  requires_fresh_head_check: z.boolean(),
+}).passthrough();
+
 const successfulResultSchema = z.object({
   status: z.literal("ok"),
   repository: z.object({
@@ -209,6 +258,10 @@ const successfulResultSchema = z.object({
   cache: cacheSchema.nullable().optional(),
   resolution_source: z.string().max(100).nullable().optional(),
   candidate_source: z.string().max(100).nullable().optional(),
+  verified_patch: verifiedPatchSchema.nullable().optional(),
+  source_provenance: sourceProvenanceSchema.nullable().optional(),
+  verification_provenance: verificationProvenanceSchema.nullable().optional(),
+  mutation_eligibility: mutationEligibilitySchema.nullable().optional(),
   agent_version: z.string().max(100).nullable().optional(),
   warnings: z.array(z.string()).max(100).default([]),
 }).passthrough();
@@ -276,6 +329,10 @@ export function sanitizeSuccessfulAgentResult(result: SuccessfulAgentResult, pac
   const contextProgression = result.context_progression;
   const modelProgression = result.model_progression;
   const memory = result.cache?.failure_memory;
+  const verifiedPatch = result.verified_patch;
+  const sourceProvenance = result.source_provenance;
+  const verificationProvenance = result.verification_provenance;
+  const mutationEligibility = result.mutation_eligibility;
   const finalAttempt = result.diagnosis.attempts.at(-1);
   const telemetry = {
     agentVersion: normalizeAgentVersion(result.agent_version) ?? normalizeAgentVersion(packageVersion),
@@ -320,6 +377,17 @@ export function sanitizeSuccessfulAgentResult(result: SuccessfulAgentResult, pac
     llmCallsAvoided: memory?.llm_calls_avoided ?? null,
     historicalTokensAvoided: memory?.historical_total_tokens_avoided ?? null,
     historicalCostAvoidedUsd: memory?.historical_cost_avoided_usd ?? null,
+    patchSha256: verifiedPatch?.patch_sha256 ?? null,
+    verifiedAgainstCommitSha: verifiedPatch?.verified_against_commit_sha ?? sourceProvenance?.verified_against_commit_sha ?? null,
+    patchAffectedFiles: verifiedPatch?.affected_files ?? null,
+    patchTerraformFilesOnly: verifiedPatch?.terraform_files_only ?? null,
+    patchExistingFilesOnly: verifiedPatch?.existing_files_only ?? null,
+    patchRepositoryRelative: verifiedPatch?.repository_relative_paths_only ?? null,
+    patchSourceFingerprint: verifiedPatch?.source_fingerprint_sha256 ?? null,
+    patchCandidateSource: verifiedPatch?.candidate_source ?? null,
+    mutationEligible: mutationEligibility?.eligible ?? null,
+    mutationEligibilityReason: mutationEligibility?.reason_code ?? null,
+    mutationEligibilityDetails: mutationEligibility?.reasons ?? null,
   };
   const safeContextTelemetry = contextTelemetry ? {
     gitDiffIncluded: contextTelemetry.git_diff_included,
@@ -415,6 +483,48 @@ export function sanitizeSuccessfulAgentResult(result: SuccessfulAgentResult, pac
     } : null,
     resolutionSource: telemetry.resolutionSource,
     candidateSource: telemetry.candidateSource,
+    verifiedPatch: verifiedPatch ? {
+      patchSha256: telemetry.patchSha256,
+      affectedFiles: telemetry.patchAffectedFiles,
+      repositoryRelativePathsOnly: telemetry.patchRepositoryRelative,
+      terraformFilesOnly: telemetry.patchTerraformFilesOnly,
+      existingFilesOnly: telemetry.patchExistingFilesOnly,
+      verificationStatus: verifiedPatch.verification_status,
+      verificationPassed: verifiedPatch.verification_passed,
+      verificationAttempt: verifiedPatch.verification_attempt,
+      verifiedAgainstCommitSha: telemetry.verifiedAgainstCommitSha,
+      sourceFingerprintSha256: telemetry.patchSourceFingerprint,
+      candidateSource: telemetry.patchCandidateSource,
+    } : null,
+    sourceProvenance: sourceProvenance ? {
+      terraformDir: sourceProvenance.terraform_dir,
+      gitCommitSha: sourceProvenance.git_commit_sha,
+      gitTreeSha: sourceProvenance.git_tree_sha,
+      callerSourceRevision: sourceProvenance.caller_source_revision,
+      verifiedAgainstCommitSha: sourceProvenance.verified_against_commit_sha,
+      workingTreeMode: sourceProvenance.working_tree_mode,
+      sourceFingerprintSha256: sourceProvenance.source_fingerprint_sha256,
+    } : null,
+    verificationProvenance: verificationProvenance ? {
+      attemptNumber: verificationProvenance.attempt_number,
+      finalStatus: verificationProvenance.final_status,
+      verifiedInIsolatedWorkspace: verificationProvenance.verified_in_isolated_workspace,
+      patchCheckPassed: verificationProvenance.patch_check_passed,
+      patchApplyPassed: verificationProvenance.patch_apply_passed,
+      fmtPassed: verificationProvenance.fmt_passed,
+      initPassed: verificationProvenance.init_passed,
+      validatePassed: verificationProvenance.validate_passed,
+      planRequired: verificationProvenance.plan_required,
+      planPassed: verificationProvenance.plan_passed,
+      terraformVersion: verificationProvenance.terraform_version,
+      providerVersions: verificationProvenance.provider_versions,
+    } : null,
+    mutationEligibility: mutationEligibility ? {
+      eligible: mutationEligibility.eligible,
+      reasonCode: mutationEligibility.reason_code,
+      reasons: mutationEligibility.reasons,
+      requiresFreshHeadCheck: mutationEligibility.requires_fresh_head_check,
+    } : null,
     agentVersion: telemetry.agentVersion,
     warnings: result.warnings.slice(0, 30).map((warning) => redactSensitiveText(warning.slice(0, 500))),
   };
@@ -422,6 +532,7 @@ export function sanitizeSuccessfulAgentResult(result: SuccessfulAgentResult, pac
     rootCause,
     violatedConstraint,
     suggestedPatch,
+    verifiedPatch: verifiedPatch ? result.diagnosis.final_patch : null,
     affectedResources: finalCandidate.affected_resources,
     verificationStatus: result.diagnosis.verification_status,
     modelConfidence: result.diagnosis.model_confidence,

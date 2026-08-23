@@ -17,9 +17,9 @@ export default function GitHubInstallPage() {
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">GitHub will ask which personal account or organization should install TerraFix, then let you grant all repositories or a selected set.</p>
       </div>
       <Card>
-        <CardHeader className="border-b"><CardTitle>What this phase can access</CardTitle><CardDescription>The App receives only the repository metadata required to discover granted repositories.</CardDescription></CardHeader>
+        <CardHeader className="border-b"><CardTitle>What TerraFix can access</CardTitle><CardDescription>The App reads CI and repository context, publishes diagnoses, and can write one verified source commit only after explicit approval.</CardDescription></CardHeader>
         <CardContent className="space-y-4 pt-5">
-          {["Your signed-in GitHub identity", "Installation account and repository selection", "Repository name, visibility, archive state, and default branch"].map((item) => <div key={item} className="flex items-center gap-3 text-sm"><CheckCircle2 aria-hidden="true" className="size-4 text-success-foreground" />{item}</div>)}
+          {["Actions: Read for failed Terraform CI evidence", "Pull requests: Write for one idempotent diagnosis comment", "Contents: Write for an explicitly approved verified patch commit", "Metadata: Read for installation and repository access"].map((item) => <div key={item} className="flex items-center gap-3 text-sm"><CheckCircle2 aria-hidden="true" className="size-4 text-success-foreground" />{item}</div>)}
           <div className="flex items-start gap-3 rounded-lg border bg-secondary/35 p-3 text-xs leading-5 text-muted-foreground"><LockKeyhole aria-hidden="true" className="mt-0.5 size-4 shrink-0" /><p>Installation tokens are generated only on the server and expire. No personal access token, private key, or OAuth token is sent to the browser.</p></div>
           {configuration.githubApp ? (
             <form action={beginGitHubInstallationAction}><input type="hidden" name="returnTo" value="/repositories" /><Button type="submit" size="lg"><Github aria-hidden="true" />Continue to GitHub</Button></form>

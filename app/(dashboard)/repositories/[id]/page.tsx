@@ -89,6 +89,13 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
         </div>
       ) : null}
 
+      {githubReady && repository.installation.contentsPermission !== "write" ? (
+        <div role="alert" className="flex flex-col justify-between gap-4 rounded-xl border border-warning/25 bg-warning-muted p-4 sm:flex-row sm:items-center">
+          <div className="flex items-start gap-3"><TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning-foreground" /><div><p className="text-sm font-medium">Apply-to-PR permission upgrade required</p><p className="mt-1 text-xs leading-5 text-muted-foreground">Approve Contents: Write to let TerraFix commit an already verified patch only after explicit dashboard confirmation.</p></div></div>
+          <Link href={manageUrl} target="_blank" rel="noreferrer" className={cn(buttonVariants({ size: "sm", variant: "outline" }), "w-fit bg-background")}>Review GitHub App permissions <ExternalLink aria-hidden="true" /></Link>
+        </div>
+      ) : null}
+
       <section aria-labelledby="setup-heading">
         <Card>
           <CardHeader className="border-b"><CardTitle id="setup-heading">Setup</CardTitle><CardDescription>Complete each prerequisite before TerraFix can observe and diagnose matching Terraform CI failures.</CardDescription></CardHeader>
@@ -102,7 +109,7 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
         </Card>
       </section>
 
-      {status === "ready" ? <div role="status" className="rounded-xl border border-success/25 bg-success-muted p-4"><p className="flex items-center gap-2 text-sm font-medium text-success-foreground"><CheckCircle2 aria-hidden="true" className="size-4" />TerraFix is ready.</p><p className="mt-1.5 text-xs leading-5 text-muted-foreground">Open or update a pull request containing Terraform changes. If your existing Terraform CI fails, TerraFix will diagnose it automatically. TerraFix does not replace that CI and never applies the suggestion.</p></div> : null}
+      {status === "ready" ? <div role="status" className="rounded-xl border border-success/25 bg-success-muted p-4"><p className="flex items-center gap-2 text-sm font-medium text-success-foreground"><CheckCircle2 aria-hidden="true" className="size-4" />TerraFix is ready.</p><p className="mt-1.5 text-xs leading-5 text-muted-foreground">Open or update a pull request containing Terraform changes. TerraFix diagnoses CI failures read-only; an eligible verified source patch can be committed only after explicit approval. TerraFix never runs Terraform apply or merges the PR.</p></div> : null}
 
       <section aria-labelledby="configuration-summary-heading">
         <Card>

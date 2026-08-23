@@ -29,7 +29,7 @@ describe("GitHub PR comment idempotency", () => {
   it("fails safely when Pull requests: Write is missing", async () => {
     const api = fakeApi([]);
     const publisher = createGitHubPrCommentPublisher({
-      getAccess: vi.fn(async () => ({ token: "fresh-token", pullRequestsPermission: "read" as const })),
+      getAccess: vi.fn(async () => ({ token: "fresh-token", pullRequestsPermission: "read" as const, contentsPermission: "read" as const })),
       getBotLogin: () => "semantic-terraform-agent-dev[bot]",
       createApi: () => api,
     });
@@ -40,7 +40,7 @@ describe("GitHub PR comment idempotency", () => {
 
 function publisherWith(api: ReturnType<typeof fakeApi>) {
   return createGitHubPrCommentPublisher({
-    getAccess: vi.fn(async () => ({ token: "fresh-token", pullRequestsPermission: "write" as const })),
+    getAccess: vi.fn(async () => ({ token: "fresh-token", pullRequestsPermission: "write" as const, contentsPermission: "write" as const })),
     getBotLogin: () => "semantic-terraform-agent-dev[bot]",
     createApi: () => api,
   });

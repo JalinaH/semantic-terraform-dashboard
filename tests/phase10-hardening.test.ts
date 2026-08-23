@@ -38,7 +38,7 @@ describe("Phase 10 runtime hardening", () => {
 
   it("verifies installed Python package metadata against the pinned version", async () => {
     const runner = async () => ({ exitCode: 0, stdout: `${PINNED_AGENT_VERSION}\n`, stderr: "", timedOut: false });
-    await expect(verifyInstalledAgentVersion(PINNED_AGENT_VERSION, runner)).resolves.toBe("1.0.0");
+    await expect(verifyInstalledAgentVersion(PINNED_AGENT_VERSION, runner)).resolves.toBe("1.1.0");
     await expect(verifyInstalledAgentVersion(PINNED_AGENT_VERSION, async () => ({ exitCode: 0, stdout: "1.0.1\n", stderr: "", timedOut: false }))).rejects.toMatchObject({ code: "agent_version_mismatch" });
   });
 
@@ -46,7 +46,7 @@ describe("Phase 10 runtime hardening", () => {
     const response = await healthcheck();
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toContain("no-store");
-    await expect(response.json()).resolves.toMatchObject({ status: "ok", service: "TerraFix", agentVersion: "1.0.0" });
+    await expect(response.json()).resolves.toMatchObject({ status: "ok", service: "TerraFix", agentVersion: "1.1.0" });
   });
 
   it("maps operational codes to actionable, non-sensitive guidance", () => {

@@ -59,7 +59,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
             <Mode icon={Github} label="GitHub Actions" state="Reusable integration" />
             <Mode icon={CircleDashed} label="Hosted GitHub App" state="Webhook + isolated worker" pending={!configuration.githubApp || !hostedExecution.configured} />
           </div>
-          <p className="mt-6 max-w-xl text-xs leading-5 text-muted-foreground">TerraFix never runs Terraform apply, modifies repository source, or claims a suggestion is safe to merge. Verification is evidence; developer intent still requires human review.</p>
+          <p className="mt-6 max-w-xl text-xs leading-5 text-muted-foreground">TerraFix never runs Terraform apply, auto-commits, force-pushes, merges, or claims a suggestion is safe to merge. An eligible verified source patch requires explicit approval and fresh verification; developer intent still requires human review.</p>
         </section>
 
         <section aria-label="Example diagnosis pipeline" className="relative">

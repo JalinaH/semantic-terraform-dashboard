@@ -16,6 +16,10 @@ const PRESENTATIONS: Record<string, WorkerErrorPresentation> = {
     message: "TerraFix could not check out the exact failing revision.",
     action: "Review repository access and rerun the GitHub Actions workflow.",
   },
+  source_revision_mismatch: {
+    message: "The checked-out source no longer matched the pull request revision before inference.",
+    action: "Run Terraform CI again on the current pull request head. TerraFix will not diagnose stale source.",
+  },
   aws_assume_role_failed: {
     message: "TerraFix could not assume the configured AWS role.",
     action: "Re-verify the AWS connection, trust policy, External ID, and required read permissions.",

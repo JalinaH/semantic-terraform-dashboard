@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import { assertWorkerRuntimeConfiguration, getWorkerConfiguration, getWorkerRuntimeConfigurationStatus } from "@/lib/config";
 import { claimNextAgentRun, prismaWorkerRunStore, recoverStaleAgentRuns } from "@/lib/data/agent-runs";
+import { claimNextPatchApplication, prismaPatchApplicationStore, recoverStalePatchApplications } from "@/lib/data/patch-applications";
 import { claimNextPublication } from "@/lib/data/publications";
 import { publishClaimedAgentRun } from "@/lib/publication/publish-agent-run";
 import { processClaimedAgentRun } from "@/lib/worker/process";
@@ -9,6 +10,8 @@ import { claimNextWorkerJob, staleRunCutoff } from "@/lib/worker/queue";
 import { invokeSemanticTerraformAgent } from "@/worker/agent";
 import { assumeWorkerRepositoryRole } from "@/worker/aws";
 import { prepareGitHubWorkspace } from "@/worker/github";
+import { fetchPullRequestHead } from "@/lib/github/pull-requests";
+import { processClaimedPatchApplication } from "@/worker/patch-application";
 import { safeStartupDiagnostic } from "@/worker/diagnostics";
 import { verifyInstalledAgentVersion } from "@/worker/version";
 
@@ -30,7 +33,23 @@ export async function runWorker(options: { once?: boolean } = {}) {
       if (Date.now() >= nextRecoveryAt) {
         const recovered = await recoverStaleAgentRuns(staleRunCutoff(configuration.jobTimeoutSeconds * 1_000));
         if (recovered > 0) safeLog({ event: "stale_runs_recovered", workerId, count: recovered });
+        const recoveredApplications = await recoverStalePatchApplications(staleRunCutoff(15 * 60_000));
+        if (recoveredApplications > 0) safeLog({ event: "stale_patch_applications_recovered", workerId, count: recoveredApplications });
         nextRecoveryAt = Date.now() + 60_000;
+      }
+      const application = await claimNextPatchApplication(workerId);
+      if (application) {
+        const startedAt = Date.now();
+        safeLog({ event: "patch_application_claimed", workerId, patchApplicationId: application.id, agentRunId: application.agentRunId, repositoryId: application.repositoryId });
+        const result = await processClaimedPatchApplication(application, {
+          store: prismaPatchApplicationStore,
+          github: { inspect: (job) => fetchPullRequestHead({ installationId: job.installationId, owner: job.repositoryOwner, repository: job.repositoryName, pullRequestNumber: job.pullRequestNumber }) },
+          aws: { assume: assumeWorkerRepositoryRole },
+        }, {
+          onProgress: (stage) => safeLog({ event: "patch_application_progress", workerId, patchApplicationId: application.id, stage }),
+        });
+        safeLog({ event: "patch_application_finished", workerId, patchApplicationId: application.id, outcome: result.outcome, durationMs: Date.now() - startedAt });
+        continue;
       }
       run = await claimNextWorkerJob({ claim: claimNextAgentRun }, workerId);
     } catch (error) {

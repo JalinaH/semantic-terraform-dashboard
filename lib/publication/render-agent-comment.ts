@@ -21,6 +21,14 @@ export function renderAgentComment(input: AgentCommentInput): RenderedAgentComme
   const status = statusPresentation(input.verificationStatus, attempt?.failedStage ?? null);
   const dashboardLine = input.dashboardUrl ? `[View full diagnosis and TerraFix usage details](${input.dashboardUrl})` : "View the full diagnosis and TerraFix usage details in the dashboard.";
   const repairLines = repairSummary(input.verificationStatus, input.attempts);
+  const applicationLines = input.application ? [
+    "",
+    "### Application",
+    "✅ **Verified fix applied by TerraFix**",
+    `**Commit:** ${input.application.commitUrl ? `[${inlineCode(input.application.commitSha.slice(0, 12))}](${input.application.commitUrl})` : inlineCode(input.application.commitSha.slice(0, 12))}`,
+    `**Requested by:** ${input.application.requestedBy ? safe(input.application.requestedBy, 120) : "TerraFix dashboard user"}`,
+    "Normal CI is running again. TerraFix does not claim CI success until GitHub reports it.",
+  ] : [];
   const patchSection = redactedPatch.content
     ? `\n<details>\n<summary>Suggested patch</summary>\n\n${fencedDiff(redactedPatch.content)}${patchResult.truncated ? "\n\n_… patch truncated. View the full diagnosis in the dashboard._" : ""}\n\n</details>\n`
     : "";
@@ -54,6 +62,7 @@ export function renderAgentComment(input: AgentCommentInput): RenderedAgentComme
     patchSection,
     status.verified ? "Terraform verification passed." : "The candidate recommendation was not fully verified.",
     "**Human review is still required because verification does not establish developer intent.**",
+    ...applicationLines,
     "",
     dashboardLine,
   ].join("\n");

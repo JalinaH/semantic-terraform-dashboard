@@ -28,6 +28,7 @@ describe("Python agent process boundary", () => {
       "--verify-patch",
       "--max-repair-attempts", "1",
       "--output", "/tmp/result.json",
+      "--source-revision", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "--model", "gemini-3.6-flash",
     ]);
   });

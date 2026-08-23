@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, BrainCircuit, CheckCircle2, Clock3, ExternalLink, FileCode2, GitCommitHorizontal, GitPullRequest, MessageSquareText, ShieldCheck, Sparkles, Timer, TriangleAlert } from "lucide-react";
 import { republishPrCommentAction } from "@/app/actions/publication";
 import { DiffViewer } from "@/components/diff-viewer";
+import { ApplyVerifiedPatch } from "@/components/apply-verified-patch";
 import { RunPoller } from "@/components/run-poller";
 import { RunStatusBadge } from "@/components/run-status-badge";
 import { PublicationStatusBadge } from "@/components/publication-status-badge";
@@ -33,7 +34,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const run = await getAgentRunForUser(user.id, id);
   if (!run) notFound();
-  const active = run.status === "queued" || run.status === "running";
+  const active = run.status === "queued" || run.status === "running" || run.patchApplications.some((application) => application.status === "pending" || application.status === "applying");
 
   return (
     <div className="space-y-7">
@@ -85,12 +86,12 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
           <SectionHeading id="diagnosis-heading" icon={BrainCircuit} title="Diagnosis" description="Safe structured evidence ingested from the Python agent result." />
           <div className="grid gap-4 xl:grid-cols-[1.5fr_0.7fr]">
             <Card><CardContent className="grid gap-5 pt-5"><EvidenceItem label="Root cause" value={run.rootCause} /><EvidenceItem label="Violated constraint" value={run.violatedConstraint ?? "Not reported"} mono /><div><p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Affected resources</p><div className="mt-2 flex flex-wrap gap-2">{run.affectedResources.length ? run.affectedResources.map((resource) => <Badge key={resource} variant="outline" className="font-mono">{resource}</Badge>) : <span className="text-xs text-muted-foreground">None reported</span>}</div></div></CardContent></Card>
-            <Card><CardHeader><CardTitle>Evidence quality</CardTitle><CardDescription>Model and evidence scores reported by the agent.</CardDescription></CardHeader><CardContent className="space-y-5"><Score label="Model confidence" value={run.modelConfidence} /><Score label="Evidence score" value={run.evidenceScore} /><div className="rounded-lg border bg-success-muted p-3 text-xs leading-5 text-success-foreground"><ShieldCheck aria-hidden="true" className="mr-1.5 inline size-3.5" />Advisory evidence only. The worker never pushes, applies, or merges.</div></CardContent></Card>
+            <Card><CardHeader><CardTitle>Evidence quality</CardTitle><CardDescription>Model and evidence scores reported by the agent.</CardDescription></CardHeader><CardContent className="space-y-5"><Score label="Model confidence" value={run.modelConfidence} /><Score label="Evidence score" value={run.evidenceScore} /><div className="rounded-lg border bg-success-muted p-3 text-xs leading-5 text-success-foreground"><ShieldCheck aria-hidden="true" className="mr-1.5 inline size-3.5" />Diagnosis is read-only. TerraFix can push a verified patch only after a separate explicit approval, and never applies or merges infrastructure.</div></CardContent></Card>
           </div>
         </section>
       ) : null}
 
-      {run.suggestedPatch ? <section aria-labelledby="patch-heading"><SectionHeading id="patch-heading" icon={FileCode2} title="Suggested patch" description={suggestedPatchDescription(run.verificationStatus)} /><DiffViewer diff={run.suggestedPatch} /></section> : null}
+      {run.suggestedPatch ? <section aria-labelledby="patch-heading" className="space-y-4"><SectionHeading id="patch-heading" icon={FileCode2} title="Suggested patch" description={suggestedPatchDescription(run.verificationStatus)} /><DiffViewer diff={run.suggestedPatch} /><ApplyVerifiedPatch run={run} /></section> : null}
 
       {run.attempts.length ? (
         <section aria-labelledby="attempts-heading">

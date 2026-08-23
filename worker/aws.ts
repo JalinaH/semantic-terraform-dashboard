@@ -1,10 +1,15 @@
 import { AssumeRoleCommand, GetCallerIdentityCommand, STSClient } from "@aws-sdk/client-sts";
 import { getAwsControlPlaneConfiguration } from "@/lib/config";
 import { WorkerExecutionError } from "@/lib/worker/errors";
-import type { ClaimedAgentRun, TemporaryAwsCredentials } from "@/lib/worker/types";
+import type { TemporaryAwsCredentials } from "@/lib/worker/types";
 import { parseIamRoleArn } from "@/lib/validation/aws-connection";
 
-export async function assumeWorkerRepositoryRole(run: ClaimedAgentRun, signal?: AbortSignal): Promise<TemporaryAwsCredentials> {
+interface AwsRoleRun {
+  id: string;
+  aws: { roleArn: string; externalId: string; region: string; connected: boolean } | null;
+}
+
+export async function assumeWorkerRepositoryRole(run: AwsRoleRun, signal?: AbortSignal): Promise<TemporaryAwsCredentials> {
   if (!run.aws) throw new WorkerExecutionError("repository_access_removed");
   const expected = parseIamRoleArn(run.aws.roleArn);
   const controlPlane = new STSClient({ region: getAwsControlPlaneConfiguration().region });

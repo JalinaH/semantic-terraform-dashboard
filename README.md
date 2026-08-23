@@ -12,27 +12,29 @@ The implementation remains intentionally split:
 
 ```text
 semantic-terraform-dashboard   TerraFix hosted control plane + observability
-semantic-terraform-agent       inference + Terraform verification engine v1.0.0
+semantic-terraform-agent       inference + Terraform verification engine v1.1.0
 ```
 
 The dashboard does not implement Terraform reasoning. The worker installs the
-engine from the immutable commit behind `v1.0.0` and invokes its CLI contract.
+engine from the immutable commit behind `v1.1.0` and invokes its CLI contract.
 
 ## What the hosted integration does
 
 ```text
 Developer PR → existing Terraform CI failure → signed GitHub App webhook
-→ durable AgentRun → external worker → agent v1.0.0 → isolated verification
-→ persisted safe result → one PR comment + run detail + usage analytics
+→ durable AgentRun → external worker → agent v1.1.0 → isolated verification
+→ persisted verified artifact → human review → optional Apply to PR job
+→ fresh verification → one non-force bot commit → normal CI
 ```
 
 The consumer repository needs its own normal Terraform CI capable of running
 `init`, `validate`, or `plan`. It does not need a TerraFix workflow,
 `OPENROUTER_API_KEY`, `GEMINI_API_KEY`, or an AWS role secret in GitHub.
 
-TerraFix never applies infrastructure, commits code, pushes branches, merges a
-PR, or claims a suggestion is safe to merge. Verification is evidence; human
-review is always required.
+TerraFix never applies infrastructure, auto-commits, force-pushes, or merges a
+PR. For a v1.1 mutation-eligible same-repository patch, an authorized user may
+explicitly approve one source commit after a fresh head check and fresh safe
+Terraform verification. Verification is evidence; human review is required.
 
 ## Capabilities
 
@@ -48,7 +50,9 @@ review is always required.
   graceful worker shutdown
 - exact revision checkout, bounded Actions evidence, temporary STS credentials,
   and disposable workspaces
-- pinned Semantic Terraform Agent v1.0.0 with startup version verification
+- pinned Semantic Terraform Agent v1.1.0 with startup version verification
+- exact verified-patch provenance, explicit Apply to PR approval, durable audit,
+  stale-head rejection, and deterministic zero-LLM application
 - safe structured result ingestion and idempotent PR comment publication
 - per-run usage, call details, model/context/schema routing, and memory state
 - completeness-aware UTC analytics for tokens, Decimal provider cost,
@@ -63,9 +67,10 @@ coordination mechanism. See [architecture](docs/architecture.md),
 [AWS onboarding](docs/aws-onboarding.md), and
 [hosted execution](docs/hosted-agent-execution.md).
 
-The GitHub App requests only Metadata read, Actions read, Contents read, and
-Pull requests write, and subscribes only to `workflow_run`. TerraFix has no
-Contents write permission. Customer AWS credentials are temporary STS sessions;
+The GitHub App requests only Metadata read, Actions read, Contents write, and
+Pull requests write, and subscribes only to `workflow_run`. Contents write is
+used only after explicit approval on a verified same-repository PR patch.
+Customer AWS credentials are temporary STS sessions;
 permanent keys are not requested or stored. The hosted OpenRouter key belongs to
 the worker and is never exposed to repositories or browsers.
 
@@ -94,7 +99,26 @@ the worker and is never exposed to repositories or browsers.
 - Prisma 6 / PostgreSQL (Neon supported), Auth.js 5, Octokit, AWS SDK STS
 - Recharts for restrained responsive analytics
 - Vitest, ESLint, esbuild, pnpm
-- Node 22 worker image, Python 3, Git, Terraform 1.15.7, agent v1.0.0
+- Node 22 worker image, Python 3, Git, Terraform 1.15.7, agent v1.1.0
+
+## Human-approved Apply to PR
+
+Agent v1.1 results may include a SHA-256-bound verified patch, exact verified
+commit, affected files, source/verification provenance, and conservative
+mutation eligibility. TerraFix independently rechecks every boundary. The
+server action authenticates the requester, scopes the run through an accessible
+installation, refreshes installation permission and PR metadata, rejects forks,
+closed/merged PRs, stale heads, superseded runs, legacy artifacts, and hash
+mismatches, then creates a durable `PatchApplication` row.
+
+The persistent worker checks out the exact verified SHA into a disposable
+workspace, applies the exact UTF-8 patch, requires the changed-file set to match
+the declared existing `.tf`/`.tf.json` files, assumes fresh STS credentials,
+and reruns `fmt -check`, `init -backend=false`, `validate`, and a no-refresh,
+no-lock plan. Only then does it create one `TerraFix Bot` commit and push
+non-force to the exact PR head branch. Apply jobs do not initialize or call a
+model. `terraform apply`, merge, force push, forks, file creation/deletion/
+rename, and branch-protection bypass have no implementation path.
 
 ## Local development
 
@@ -122,8 +146,8 @@ pnpm worker
 Or build the production container:
 
 ```bash
-docker build -f worker/Dockerfile -t terrafix-worker:1.0.0 .
-docker run --rm --env-file .env terrafix-worker:1.0.0
+docker build -f worker/Dockerfile -t terrafix-worker:1.1.0 .
+docker run --rm --env-file .env terrafix-worker:1.1.0
 ```
 
 ## Environment boundaries
@@ -195,7 +219,7 @@ pnpm prisma:validate
 pnpm build
 pnpm worker:build
 pnpm worker:health
-docker build -f worker/Dockerfile -t terrafix-worker:1.0.0 .
+docker build -f worker/Dockerfile -t terrafix-worker:1.1.0 .
 git diff --check
 ```
 
@@ -212,9 +236,8 @@ not claim a live authenticated E2E.
 - Catalog refresh is manually operated for the prototype.
 - Verified Failure Memory persistence depends on durable worker/agent cache
   configuration; an ephemeral replacement may lose warm memory.
-- No source mutation, auto-apply, auto-merge, billing, budgets, BYOK, RBAC,
+- No automatic source mutation, auto-merge, billing, budgets, BYOK, RBAC,
   notifications, MCP, or multi-cloud.
 
-Future work is intentionally deferred: human-approved Apply to PR, paid model
-access/billing, budgets, semantic-cache/LLMLingua experiments, multi-cloud, and
-MCP.
+Future work is intentionally deferred: paid model access/billing, budgets,
+semantic-cache/LLMLingua experiments, multi-cloud, and MCP.

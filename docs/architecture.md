@@ -1,7 +1,7 @@
 # TerraFix architecture
 
 TerraFix is the hosted control plane and observability product.
-`semantic-terraform-agent` v1.0.0 is the separate inference and Terraform
+`semantic-terraform-agent` v1.1.0 is the separate inference and Terraform
 verification engine. The Next.js dashboard never performs Terraform reasoning
 and never runs a persistent worker inside Vercel.
 
@@ -21,7 +21,7 @@ TerraFix control plane (Vercel)
 TerraFix worker (AWS ECS Fargate)
         ├── bounded Actions evidence + exact disposable checkout
         ├── STS AssumeRole with repository External ID
-        └── Semantic Terraform Agent v1.0.0
+        └── Semantic Terraform Agent v1.1.0
               ├── Verified Failure Memory
               ├── deterministic minimal context
               ├── server-bounded model routing
@@ -29,10 +29,15 @@ TerraFix worker (AWS ECS Fargate)
               ├── provider-schema slicing
               └── isolated Terraform verification
                                       ↓ safe structured result
-PostgreSQL normalized telemetry + bounded compatibility payload
+PostgreSQL normalized telemetry + verified-patch provenance
         ├── idempotent PR comment
         ├── run detail
-        └── usage analytics
+        ├── usage analytics
+        └── explicit human approval
+                    ↓ durable PatchApplication claim
+        fresh exact-SHA checkout → exact patch/hash/file checks
+                    ↓ fresh Terraform verification, 0 LLM calls
+        one bot commit → non-force PR-head push → normal CI
 ```
 
 ## Runtime boundaries
@@ -65,11 +70,12 @@ PR/direct push. Fork PRs are rejected before privileged work.
 
 ## GitHub and publication
 
-The App requests Metadata read, Actions read, Contents read, and Pull requests
+The App requests Metadata read, Actions read, Contents write, and Pull requests
 write. The only subscribed event is `workflow_run`. Installation tokens are
 temporary. The worker uses them to read workflow jobs/logs, PR/commit metadata,
 and the exact revision. The publication worker creates or updates one marked bot
-issue comment; it has no Contents write capability.
+issue comment. Contents write is exercised only by a confirmed PatchApplication
+against a same-repository PR branch.
 
 Publication has a separate durable lifecycle. GitHub failure cannot change a
 completed diagnosis. A newer completed run owns the PR comment, preventing an
@@ -105,9 +111,12 @@ diagnosable denominator. Repository/model filters remain authorization-scoped.
 Raw prompts, full repository source, provider schemas, Terraform state, raw
 failure logs, environment dumps, and credentials are not analytics inputs.
 
-## Safety invariant
+## Apply trust boundary
 
-TerraFix is advisory. It has no implementation path for git commit/push/merge
-or Terraform apply/destroy/import/taint. A passing isolated verification is
-evidence that configured checks passed, not proof of developer intent or
-production safety. Human review is always required.
+Diagnosis is read-only. Source mutation requires a v1.1 verified artifact,
+explicit authenticated approval bound to patch/head SHA, current installation
+Contents Write, a same-repository open PR, exact head freshness, independent
+file-scope checks, and fresh deterministic verification. The asynchronous
+worker creates one non-force bot commit; it never merges. There is no execution
+path for Terraform apply/destroy/import/taint. Verification remains evidence,
+not proof of developer intent or production safety.

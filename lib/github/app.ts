@@ -17,6 +17,7 @@ export interface GitHubInstallationMetadata {
   htmlUrl: string | null;
   suspendedAt: Date | null;
   pullRequestsPermission: string | null;
+  contentsPermission: string | null;
 }
 
 export interface GitHubRepositorySnapshot {
@@ -91,6 +92,7 @@ export async function fetchInstallationMetadata(
       htmlUrl: response.data.html_url ?? null,
       suspendedAt: response.data.suspended_at ? new Date(response.data.suspended_at) : null,
       pullRequestsPermission: response.data.permissions?.pull_requests ?? null,
+      contentsPermission: response.data.permissions?.contents ?? null,
     };
   } catch (error) {
     if (error instanceof GitHubIntegrationError) throw error;
@@ -127,6 +129,7 @@ export async function createInstallationAccess(
     return {
       token: response.data.token,
       pullRequestsPermission: response.data.permissions?.pull_requests ?? null,
+      contentsPermission: response.data.permissions?.contents ?? null,
     };
   } catch (error) {
     throw mapGitHubApiError(error, "github_unavailable");
