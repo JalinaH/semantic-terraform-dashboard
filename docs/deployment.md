@@ -175,6 +175,12 @@ new immutable image tag, register a new task-definition revision, update the
 service to that revision, and force a deployment. Confirm `worker_started` in
 CloudWatch before retiring the previous task.
 
+To avoid building and uploading images from a developer connection, configure
+the OIDC-based GitHub workflow in
+[github-actions-worker-deployment.md](github-actions-worker-deployment.md).
+It builds ARM64 on a GitHub-hosted runner, pushes directly to ECR, and updates
+only the image in the running service's task definition.
+
 ## 7. AWS control-plane identity
 
 Both dashboard verification and worker execution call STS. The customer role
