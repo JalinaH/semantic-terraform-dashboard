@@ -8,7 +8,7 @@ RUN corepack enable && corepack prepare pnpm@10.15.1 --activate
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY prisma ./prisma
-COPY tsconfig.json next-env.d.ts ./
+COPY tsconfig.json ./
 COPY lib ./lib
 COPY worker ./worker
 RUN pnpm prisma:generate && pnpm worker:build && pnpm prune --prod
