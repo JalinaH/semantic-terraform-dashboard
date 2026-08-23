@@ -50,11 +50,7 @@ export async function invokeSemanticTerraformAgent(input: {
     throw new WorkerExecutionError("agent_result_invalid", { cause: error });
   }
   if (result.exitCode !== 0) {
-    const safeError = getResultError(parsed);
-    if (/source revision.*(?:does not match|could not be verified)/i.test(safeError)) throw new WorkerExecutionError("source_revision_mismatch");
-    if (/GEMINI_API_KEY|OPENROUTER_API_KEY|model|quota|rate limit/i.test(safeError)) throw new WorkerExecutionError("model_unavailable");
-    if (/terraform.*(?:not found|unavailable)|no such file.*terraform/i.test(safeError)) throw new WorkerExecutionError("terraform_not_found");
-    throw new WorkerExecutionError("agent_execution_failed");
+    throw new WorkerExecutionError(classifyAgentFailure(parsed));
   }
   return parsed;
 }
@@ -138,6 +134,49 @@ export function validateTerraformRuntimeVersion(expectedVersion: string, install
 function getResultError(value: unknown) {
   if (!value || typeof value !== "object" || !("error" in value)) return "";
   return typeof Reflect.get(value, "error") === "string" ? String(Reflect.get(value, "error")) : "";
+}
+
+const PROVIDER_FAILURE_CODES = {
+  authentication_failed: "model_authentication_failed",
+  model_not_found: "model_not_found",
+  model_unavailable: "model_unavailable",
+  network_error: "model_network_error",
+  provider_unavailable: "model_unavailable",
+  quota_exceeded: "model_quota_exceeded",
+  rate_limited: "model_rate_limited",
+  response_invalid: "model_response_invalid",
+  structured_output_unsupported: "model_capability_unsupported",
+  timeout: "model_timeout",
+} as const;
+
+const ROUTING_FAILURE_CODES = new Set([
+  "explicit_model_disabled",
+  "explicit_model_not_registered",
+  "invalid_model_registry",
+  "model_capability_unsupported",
+  "model_tier_violation",
+  "no_eligible_model",
+]);
+
+export function classifyAgentFailure(value: unknown) {
+  const providerCode = getStringField(value, "error_code");
+  if (providerCode && providerCode in PROVIDER_FAILURE_CODES) {
+    return PROVIDER_FAILURE_CODES[providerCode as keyof typeof PROVIDER_FAILURE_CODES];
+  }
+  const routingCode = getStringField(value, "routing_error_code");
+  if (routingCode && ROUTING_FAILURE_CODES.has(routingCode)) return "model_policy_invalid";
+
+  const safeError = getResultError(value);
+  if (/source revision.*(?:does not match|could not be verified)/i.test(safeError)) return "source_revision_mismatch";
+  if (/terraform.*(?:not found|unavailable)|no such file.*terraform/i.test(safeError)) return "terraform_not_found";
+  if (safeError) return "agent_input_invalid";
+  return "agent_execution_failed";
+}
+
+function getStringField(value: unknown, field: string) {
+  if (!value || typeof value !== "object" || !(field in value)) return undefined;
+  const fieldValue = Reflect.get(value, field);
+  return typeof fieldValue === "string" ? fieldValue : undefined;
 }
 
 function getErrorCode(value: unknown) {

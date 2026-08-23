@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { buildAgentArguments, createAgentEnvironment, validateTerraformRuntimeVersion } from "@/worker/agent";
+import { buildAgentArguments, classifyAgentFailure, createAgentEnvironment, validateTerraformRuntimeVersion } from "@/worker/agent";
 import { claimedRun } from "@/tests/phase5-fixtures";
 
 const originalEnvironment = { ...process.env };
@@ -60,5 +60,17 @@ describe("Python agent process boundary", () => {
   it("rejects a repository Terraform version absent from the pinned worker image", () => {
     expect(() => validateTerraformRuntimeVersion("1.15.7", "1.15.7")).not.toThrow();
     expect(() => validateTerraformRuntimeVersion("1.16.0", "1.15.7")).toThrow(expect.objectContaining({ code: "terraform_version_unavailable" }));
+  });
+
+  it.each([
+    [{ status: "error", error_code: "authentication_failed", error: "redacted" }, "model_authentication_failed"],
+    [{ status: "error", error_code: "rate_limited", error: "redacted" }, "model_rate_limited"],
+    [{ status: "error", error_code: "response_invalid", error: "redacted" }, "model_response_invalid"],
+    [{ status: "error", routing_error_code: "no_eligible_model", error: "redacted" }, "model_policy_invalid"],
+    [{ status: "error", error: "source revision does not match HEAD" }, "source_revision_mismatch"],
+    [{ status: "error", error: "Terraform directory does not exist" }, "agent_input_invalid"],
+    [{ status: "error" }, "agent_execution_failed"],
+  ])("classifies safe structured engine failures", (result, expected) => {
+    expect(classifyAgentFailure(result)).toBe(expected);
   });
 });

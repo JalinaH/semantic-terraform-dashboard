@@ -28,6 +28,42 @@ const PRESENTATIONS: Record<string, WorkerErrorPresentation> = {
     message: "The configured model gateway or selected model was unavailable.",
     action: "Review the model policy and retry after the OpenRouter service or catalog is available.",
   },
+  model_authentication_failed: {
+    message: "OpenRouter rejected the worker’s hosted API credential.",
+    action: "Replace OPENROUTER_API_KEY in the worker task definition, deploy a new task revision, and retry.",
+  },
+  model_not_found: {
+    message: "The selected OpenRouter model is no longer present in the model catalog.",
+    action: "Synchronize the model catalog, select an available model, and retry.",
+  },
+  model_policy_invalid: {
+    message: "No synchronized model satisfies this repository’s saved routing policy.",
+    action: "Synchronize the OpenRouter catalog and save a compatible model policy for the repository.",
+  },
+  model_capability_unsupported: {
+    message: "The selected model cannot return the structured diagnosis contract required by TerraFix.",
+    action: "Select a model marked as compatible with structured output or JSON fallback.",
+  },
+  model_quota_exceeded: {
+    message: "The hosted OpenRouter account has exhausted its quota or credit limit.",
+    action: "Review OpenRouter limits or credits, then retry the workflow.",
+  },
+  model_rate_limited: {
+    message: "OpenRouter rate-limited this diagnosis request.",
+    action: "Wait briefly and retry, or select another available model.",
+  },
+  model_response_invalid: {
+    message: "OpenRouter rejected the request or returned an invalid structured response.",
+    action: "Select another compatible model. If it repeats, inspect the worker’s safe error code.",
+  },
+  model_timeout: {
+    message: "The OpenRouter request timed out after bounded retries.",
+    action: "Retry once or select another available model.",
+  },
+  model_network_error: {
+    message: "The worker could not reach OpenRouter after bounded retries.",
+    action: "Check the ECS task’s outbound network access and retry.",
+  },
   terraform_not_found: {
     message: "The worker could not find its Terraform runtime.",
     action: "A TerraFix operator must repair the worker image before retrying.",
@@ -51,6 +87,10 @@ const PRESENTATIONS: Record<string, WorkerErrorPresentation> = {
   agent_execution_failed: {
     message: "The Terraform diagnosis engine did not complete successfully.",
     action: "Retry the workflow. If it repeats, review the worker’s safe structured logs.",
+  },
+  agent_input_invalid: {
+    message: "The engine rejected one of the bounded repository, Terraform, log, diff, or model inputs.",
+    action: "Check the repository Terraform directory and model policy, then retry. The worker log now records this safe classification.",
   },
 };
 
