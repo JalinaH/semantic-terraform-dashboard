@@ -90,6 +90,30 @@ const contextOptimizationSchema = z.object({
   character_reduction_ratio: nullableRatio,
 }).passthrough();
 
+const contextSectionTelemetrySchema = z.object({
+  characters: z.number().int().nonnegative(),
+  full_available_characters: nullableCount,
+  selected_schema_characters: nullableCount,
+  reduction_ratio: nullableRatio,
+}).passthrough();
+
+const contextTelemetrySchema = z.object({
+  mode: z.enum(["lightweight", "schema-aware", "progressive"]),
+  prompt_characters: z.number().int().nonnegative(),
+  system_prompt_characters: z.number().int().nonnegative(),
+  user_prompt_characters: z.number().int().nonnegative(),
+  resource_schema_included: z.boolean(),
+  git_diff_included: z.boolean(),
+  source_file_count: z.number().int().nonnegative(),
+  source_block_count: z.number().int().nonnegative().optional(),
+  changed_line_count: z.number().int().nonnegative().optional(),
+  referenced_symbol_count: z.number().int().nonnegative().optional(),
+  schema_included: z.boolean().optional(),
+  selected_context_characters: nullableCount,
+  rendered_user_prompt_characters: nullableCount,
+  sections: z.record(z.string().max(100), contextSectionTelemetrySchema).refine((value) => Object.keys(value).length <= 30),
+}).passthrough();
+
 const schemaOptimizationSchema = z.object({
   full_schema_characters: z.number().int().nonnegative().nullable().optional(),
   selected_schema_characters: z.number().int().nonnegative().nullable().optional(),
@@ -178,6 +202,7 @@ const successfulResultSchema = z.object({
   llm_usage: llmUsageSchema.optional(),
   llm_calls: z.array(llmCallSchema).max(100).optional(),
   context_optimization: contextOptimizationSchema.nullable().optional(),
+  context_telemetry: contextTelemetrySchema.nullable().optional(),
   schema_optimization: schemaOptimizationSchema.nullable().optional(),
   context_progression: contextProgressionSchema.nullable().optional(),
   model_progression: modelProgressionSchema.nullable().optional(),
@@ -246,6 +271,7 @@ export function sanitizeSuccessfulAgentResult(result: SuccessfulAgentResult, pac
   const firstCall = result.llm_calls?.[0];
   const finalCall = result.llm_calls?.at(-1);
   const contextOptimization = result.context_optimization;
+  const contextTelemetry = result.context_telemetry;
   const schemaOptimization = result.schema_optimization;
   const contextProgression = result.context_progression;
   const modelProgression = result.model_progression;
@@ -295,6 +321,15 @@ export function sanitizeSuccessfulAgentResult(result: SuccessfulAgentResult, pac
     historicalTokensAvoided: memory?.historical_total_tokens_avoided ?? null,
     historicalCostAvoidedUsd: memory?.historical_cost_avoided_usd ?? null,
   };
+  const safeContextTelemetry = contextTelemetry ? {
+    gitDiffIncluded: contextTelemetry.git_diff_included,
+    changedLineCount: contextTelemetry.changed_line_count ?? null,
+    selectedContextCharacters: contextTelemetry.selected_context_characters ?? null,
+    renderedUserPromptCharacters: contextTelemetry.rendered_user_prompt_characters ?? null,
+    sourceFileCount: contextTelemetry.source_file_count,
+    sourceBlockCount: contextTelemetry.source_block_count ?? null,
+    sections: Object.fromEntries(Object.entries(contextTelemetry.sections).map(([name, section]) => [name, section.characters])),
+  } : null;
   const safeResultPayload = {
     status: "ok",
     repository: {
@@ -343,6 +378,7 @@ export function sanitizeSuccessfulAgentResult(result: SuccessfulAgentResult, pac
       selectedSourceCharacters: telemetry.sourceCharactersSelected,
       reductionRatio: telemetry.sourceReductionRatio,
     } : null,
+    contextTelemetry: safeContextTelemetry,
     schemaOptimization: schemaOptimization ? {
       fullSchemaCharacters: telemetry.schemaCharactersAvailable,
       selectedSchemaCharacters: telemetry.schemaCharactersSelected,
@@ -395,6 +431,7 @@ export function sanitizeSuccessfulAgentResult(result: SuccessfulAgentResult, pac
     tokenUsage,
     llmCalls,
     telemetry,
+    contextTelemetry: safeContextTelemetry,
     verificationDetails: {
       ...result.diagnosis.verification,
       reason: result.diagnosis.verification.reason ? redactSensitiveText(result.diagnosis.verification.reason) : null,

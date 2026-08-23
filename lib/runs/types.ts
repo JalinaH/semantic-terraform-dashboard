@@ -40,6 +40,17 @@ export interface RunAttemptView {
   status: "verified" | "failed" | "rejected" | "unavailable" | "skipped";
   failedStage: string | null;
   commands: Partial<Record<"patch_check" | "patch_apply" | "fmt" | "init" | "validate" | "plan", RunCommandView>>;
+  warnings: string[];
+}
+
+export interface PromptContextTelemetryView {
+  gitDiffIncluded: boolean | null;
+  changedLineCount: number | null;
+  selectedContextCharacters: number | null;
+  renderedUserPromptCharacters: number | null;
+  sourceFileCount: number | null;
+  sourceBlockCount: number | null;
+  sections: Record<string, number>;
 }
 
 export interface RunDetail extends RunListItem {
@@ -87,6 +98,7 @@ export interface RunDetail extends RunListItem {
   sourceCharactersAvailable: number | null;
   sourceCharactersSelected: number | null;
   sourceReductionRatio: number | null;
+  promptContext: PromptContextTelemetryView | null;
   schemaCharactersAvailable: number | null;
   schemaCharactersSelected: number | null;
   schemaReductionRatio: number | null;
@@ -99,6 +111,8 @@ export interface RunDetail extends RunListItem {
   historicalTokensAvoided: number | null;
   historicalCostAvoidedUsd: string | null;
   agentVersion: string | null;
+  verificationFailedStage: string | null;
+  verificationReason: string | null;
   llmCalls: LlmCallView[];
   errorCode: string | null;
   errorMessage: string | null;

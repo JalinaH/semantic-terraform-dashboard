@@ -20,6 +20,17 @@ export function v1AgentResult(overrides: Record<string, unknown> = {}) {
       { provider: "openrouter", requested_model: "openrouter/auto", reported_model: "provider/economy-model", upstream_provider: "Provider", input_tokens: 2280, cached_input_tokens: 0, output_tokens: 240, reasoning_tokens: 60, total_tokens: 2520, cost_usd: 0.00252, latency_ms: 1480, cache_hit: false, call_type: "repair", context_level: "schema", routing_tier: "economy", routing_reason: "provider_constraint_unresolved", call_number: 2 },
     ],
     context_optimization: { strategy: "deterministic_minimal_v1", available_source_characters: 18200, selected_source_characters: 3100, characters_avoided: 15100, reduction_ratio: 0.82967, character_reduction_ratio: 0.82967, input_token_reduction_ratio: null },
+    context_telemetry: {
+      mode: "progressive", prompt_characters: 4120, system_prompt_characters: 980, user_prompt_characters: 3140,
+      resource_schema_included: true, git_diff_included: true, source_file_count: 2, source_block_count: 2,
+      changed_line_count: 2, referenced_symbol_count: 1, schema_included: true,
+      selected_context_characters: 3912, rendered_user_prompt_characters: 3140,
+      sections: {
+        terraform_error: { characters: 420 }, git_diff: { characters: 318 }, terraform_source: { characters: 2400 },
+        supporting_context: { characters: 700 }, metadata: { characters: 94 }, provider_schema: { characters: 2100 },
+      },
+      calls: [],
+    },
     schema_optimization: { strategy: "deterministic_schema_slice_v1", full_schema_characters: 26000, selected_schema_characters: 2100, characters_avoided: 23900, reduction_ratio: 0.91923, character_reduction_ratio: 0.91923, input_token_reduction_ratio: null },
     context_progression: { strategy: "minimal_then_schema_v1", progressive_enabled: true, initial_level: "minimal", final_level: "schema", levels_used: ["minimal", "schema"], escalated: true, escalation_count: 1, reason_code: "provider_constraint_unresolved", reason: "Provider semantic verification failure", schema_retrieval_attempted: true, schema_retrieved: true, schema_avoided: false, same_model: false },
     model_progression: { routing_mode: "auto", initial_model: "nvidia/nemotron:free", final_model: "provider/economy-model", initial_tier: "free", final_tier: "economy", model_escalated: true, tier_escalated: true, max_allowed_tier: "economy", models_used: ["nvidia/nemotron:free", "provider/economy-model"], decisions: [] },

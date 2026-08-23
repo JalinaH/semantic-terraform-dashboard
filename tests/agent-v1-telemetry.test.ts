@@ -25,8 +25,43 @@ describe("agent v1.0 telemetry mapping", () => {
       schemaCharactersSelected: 2100, failureMemoryStatus: "miss", failureMemoryReused: false,
     });
     expect(result.llmCalls).toHaveLength(2);
+    expect(result.contextTelemetry).toMatchObject({
+      gitDiffIncluded: true,
+      changedLineCount: 2,
+      selectedContextCharacters: 3912,
+      renderedUserPromptCharacters: 3140,
+      sections: { terraform_error: 420, git_diff: 318, terraform_source: 2400, supporting_context: 700, provider_schema: 2100 },
+    });
+    expect(result.safeResultPayload).toHaveProperty("contextTelemetry.gitDiffIncluded", true);
     expect(result.safeResultPayload).not.toHaveProperty("repository.terraformFiles");
     expect(JSON.stringify(result.safeResultPayload)).not.toContain("prompt_characters");
+  });
+
+  it("preserves explicit zero selected source while keeping diff evidence separate", () => {
+    const result = sanitize(v1AgentResult({
+      context_optimization: { available_source_characters: 1639, selected_source_characters: 0, character_reduction_ratio: 1 },
+      context_telemetry: {
+        mode: "lightweight", prompt_characters: 900, system_prompt_characters: 300, user_prompt_characters: 600,
+        resource_schema_included: false, git_diff_included: true, source_file_count: 1, source_block_count: 0,
+        changed_line_count: 2, referenced_symbol_count: 0, schema_included: false,
+        selected_context_characters: 510, rendered_user_prompt_characters: 600,
+        sections: { terraform_error: { characters: 192 }, git_diff: { characters: 318 }, terraform_source: { characters: 0 }, supporting_context: { characters: 0 }, provider_schema: { characters: 0 } },
+        calls: [],
+      },
+    }));
+    expect(result.telemetry.sourceCharactersSelected).toBe(0);
+    expect(result.telemetry.sourceReductionRatio).toBe(1);
+    expect(result.contextTelemetry).toMatchObject({ gitDiffIncluded: true, changedLineCount: 2, sections: { git_diff: 318, terraform_source: 0 } });
+  });
+
+  it("keeps missing selected source and section telemetry unknown", () => {
+    const result = sanitize(v1AgentResult({
+      context_optimization: { available_source_characters: 1639 },
+      context_telemetry: null,
+    }));
+    expect(result.telemetry.sourceCharactersSelected).toBeNull();
+    expect(result.telemetry.sourceReductionRatio).toBeNull();
+    expect(result.contextTelemetry).toBeNull();
   });
 
   it("distinguishes explicit zero cost from unknown cost", () => {

@@ -8,7 +8,7 @@ export type VerificationStatus =
   | "pending";
 
 export type VerificationStage = "patch_check" | "patch_apply" | "fmt" | "init" | "validate" | "plan";
-export type StageStatus = "passed" | "failed" | "skipped";
+export type StageStatus = "passed" | "failed" | "rejected" | "not_run" | "unavailable" | "unknown" | "skipped";
 export type ContextMode = "minimal" | "smart" | "full";
 export type RepositoryStatus = "healthy" | "attention" | "disabled";
 export type AWSConnectionStatus = "connected" | "attention" | "not_connected";

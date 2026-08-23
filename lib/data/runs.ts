@@ -14,7 +14,24 @@ const attemptSchema = z.object({
     durationMs: z.number().nonnegative().default(0),
     exitCode: z.number().int().nullable().default(null),
   })).default({}),
+  warnings: z.array(z.string()).max(20).default([]),
 });
+
+const promptContextSchema = z.object({
+  gitDiffIncluded: z.boolean().nullable().default(null),
+  changedLineCount: z.number().int().nonnegative().nullable().default(null),
+  selectedContextCharacters: z.number().int().nonnegative().nullable().default(null),
+  renderedUserPromptCharacters: z.number().int().nonnegative().nullable().default(null),
+  sourceFileCount: z.number().int().nonnegative().nullable().default(null),
+  sourceBlockCount: z.number().int().nonnegative().nullable().default(null),
+  sections: z.record(z.string(), z.number().int().nonnegative()).default({}),
+});
+
+const safePayloadSchema = z.object({ contextTelemetry: promptContextSchema.nullable().optional() }).passthrough();
+const verificationDetailsSchema = z.object({
+  failed_stage: z.string().nullable().optional(),
+  reason: z.string().nullable().optional(),
+}).passthrough();
 
 export interface RunFilters {
   repositoryId?: string;
@@ -66,6 +83,8 @@ export async function getAgentRunForUser(userId: string, id: string): Promise<Ru
   });
   if (!row) return null;
   const listItem = toListItem(row);
+  const promptContext = safePayloadSchema.safeParse(row.safeResultPayload);
+  const verificationDetails = verificationDetailsSchema.safeParse(row.verificationDetails);
   return {
     ...listItem,
     githubWorkflowName: row.githubWorkflowName,
@@ -112,6 +131,7 @@ export async function getAgentRunForUser(userId: string, id: string): Promise<Ru
     sourceCharactersAvailable: row.sourceCharactersAvailable,
     sourceCharactersSelected: row.sourceCharactersSelected,
     sourceReductionRatio: row.sourceReductionRatio,
+    promptContext: promptContext.success ? promptContext.data.contextTelemetry ?? null : null,
     schemaCharactersAvailable: row.schemaCharactersAvailable,
     schemaCharactersSelected: row.schemaCharactersSelected,
     schemaReductionRatio: row.schemaReductionRatio,
@@ -124,6 +144,8 @@ export async function getAgentRunForUser(userId: string, id: string): Promise<Ru
     historicalTokensAvoided: row.historicalTokensAvoided,
     historicalCostAvoidedUsd: row.historicalCostAvoidedUsd?.toFixed() ?? null,
     agentVersion: row.agentVersion,
+    verificationFailedStage: verificationDetails.success ? verificationDetails.data.failed_stage ?? null : null,
+    verificationReason: verificationDetails.success ? verificationDetails.data.reason?.slice(0, 500) ?? null : null,
     llmCalls: llmCalls(row.llmCalls),
     errorCode: row.errorCode,
     errorMessage: row.errorMessage,

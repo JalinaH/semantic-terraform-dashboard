@@ -21,9 +21,9 @@ function run(overrides: Partial<RunDetail> = {}): RunDetail {
     finalModel: "provider/model", initialModelTier: "free", finalModelTier: "free", modelEscalated: false, initialContextLevel: "minimal",
     finalContextLevel: "minimal", contextEscalated: false, contextEscalationReason: null, schemaRetrieved: false, schemaAvoided: true,
     sourceCharactersAvailable: 18200, sourceCharactersSelected: 3100, sourceReductionRatio: 0.83, schemaCharactersAvailable: null,
-    schemaCharactersSelected: null, schemaReductionRatio: null, failureMemoryStatus: "miss", failureMemoryReused: false,
+    promptContext: null, schemaCharactersSelected: null, schemaReductionRatio: null, failureMemoryStatus: "miss", failureMemoryReused: false,
     freshVerificationPassed: null, resolutionSource: "llm", candidateSource: "llm", llmCallsAvoided: 0, historicalTokensAvoided: null,
-    historicalCostAvoidedUsd: null, agentVersion: "1.0.0", llmCalls: [{ callNumber: 1, type: "diagnosis", contextLevel: "minimal", provider: "openrouter", requestedModel: "openrouter/free", reportedModel: "provider/model", upstreamProvider: "Provider", routingTier: "free", routingReason: "initial", inputTokens: 1842, cachedInputTokens: 1100, outputTokens: 218, reasoningTokens: 20, totalTokens: 2060, costUsd: 0, latencyMs: 1820, cacheHit: true }],
+    historicalCostAvoidedUsd: null, agentVersion: "1.0.0", verificationFailedStage: null, verificationReason: null, llmCalls: [{ callNumber: 1, type: "diagnosis", contextLevel: "minimal", provider: "openrouter", requestedModel: "openrouter/free", reportedModel: "provider/model", upstreamProvider: "Provider", routingTier: "free", routingReason: "initial", inputTokens: 1842, cachedInputTokens: 1100, outputTokens: 218, reasoningTokens: 20, totalTokens: 2060, costUsd: 0, latencyMs: 1820, cacheHit: true }],
     errorCode: null, errorMessage: null, skipReason: null, startedAt: null, completedAt: null, publication: null,
     ...overrides,
   };
@@ -39,6 +39,20 @@ describe("usage observability UI", () => {
     expect(html).toContain("Provider schema avoided");
     expect(html).toContain("Model Routing");
     expect(html).toContain("Verified Failure Memory");
+  });
+
+  it("explains explicit zero source blocks while showing separately reported diff context", () => {
+    const html = renderToStaticMarkup(<RunObservability run={run({
+      sourceCharactersAvailable: 1639,
+      sourceCharactersSelected: 0,
+      sourceReductionRatio: 1,
+      promptContext: { gitDiffIncluded: true, changedLineCount: 2, selectedContextCharacters: 510, renderedUserPromptCharacters: 600, sourceFileCount: 1, sourceBlockCount: 0, sections: { terraform_error: 192, git_diff: 318, terraform_source: 0 } },
+    })} />);
+    expect(html).toContain("Terraform source blocks");
+    expect(html).toContain("No standalone Terraform source block was included");
+    expect(html).toContain("The relevant Terraform diff was included separately");
+    expect(html).toContain("Terraform diff included");
+    expect(html).toContain("318 chars");
   });
 
   it("renders the zero-LLM verified-memory explanation with fresh verification", () => {

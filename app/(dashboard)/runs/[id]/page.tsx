@@ -16,9 +16,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { getAgentRunForUser } from "@/lib/data/runs";
-import { STAGE_LABELS } from "@/lib/constants";
+import { suggestedPatchDescription, verificationAttemptSteps } from "@/lib/runs/presentation";
 import type { RunAttemptView, RunDetail } from "@/lib/runs/types";
-import type { VerificationStep, VerificationStage } from "@/lib/types";
 import { getWorkerErrorPresentation } from "@/lib/worker/user-errors";
 import { cn, formatDate, formatRuntime, truncateSha } from "@/lib/utils";
 
@@ -91,12 +90,12 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
         </section>
       ) : null}
 
-      {run.suggestedPatch ? <section aria-labelledby="patch-heading"><SectionHeading id="patch-heading" icon={FileCode2} title="Suggested patch" description="Candidate diff produced and checked in a disposable workspace." /><DiffViewer diff={run.suggestedPatch} /></section> : null}
+      {run.suggestedPatch ? <section aria-labelledby="patch-heading"><SectionHeading id="patch-heading" icon={FileCode2} title="Suggested patch" description={suggestedPatchDescription(run.verificationStatus)} /><DiffViewer diff={run.suggestedPatch} /></section> : null}
 
       {run.attempts.length ? (
         <section aria-labelledby="attempts-heading">
           <SectionHeading id="attempts-heading" icon={Sparkles} title="Verification attempts" description="The initial candidate plus at most one bounded agent repair attempt." />
-          <div className="space-y-4">{run.attempts.map((attempt) => <AttemptCard key={attempt.attempt} attempt={attempt} />)}</div>
+          <div className="space-y-4">{run.attempts.map((attempt, index) => <AttemptCard key={attempt.attempt} attempt={attempt} reason={index === run.attempts.length - 1 ? run.verificationReason : null} />)}</div>
         </section>
       ) : null}
 
@@ -110,14 +109,12 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
   );
 }
 
-function AttemptCard({ attempt }: { attempt: RunAttemptView }) {
+function AttemptCard({ attempt, reason }: { attempt: RunAttemptView; reason: string | null }) {
   const verified = attempt.status === "verified";
-  return <Card className={cn(verified && "border-success/25")}><CardHeader className="flex-row items-start justify-between gap-4 space-y-0"><div className="flex items-start gap-3"><span className={cn("flex size-8 shrink-0 items-center justify-center rounded-full border font-mono text-xs font-semibold", verified ? "border-success/25 bg-success-muted text-success-foreground" : "border-danger/25 bg-danger-muted text-danger-foreground")}>{attempt.attempt}</span><div><CardTitle>Attempt {attempt.attempt}</CardTitle><CardDescription className="mt-1">{attempt.failedStage ? `Stopped at ${formatLabel(attempt.failedStage)}.` : verified ? "All required verification stages passed." : "Verification did not complete."}</CardDescription></div></div><Badge variant="outline" className={cn("capitalize", verified ? "border-success/25 bg-success-muted text-success-foreground" : "border-danger/25 bg-danger-muted text-danger-foreground")}>{verified ? <CheckCircle2 aria-hidden="true" className="size-3" /> : <TriangleAlert aria-hidden="true" className="size-3" />}{attempt.status}</Badge></CardHeader><CardContent><VerificationSteps steps={attemptSteps(attempt)} compact /></CardContent></Card>;
-}
-
-function attemptSteps(attempt: RunAttemptView): VerificationStep[] {
-  const stages: VerificationStage[] = ["patch_check", "patch_apply", "fmt", "init", "validate", "plan"];
-  return stages.map((stage) => ({ name: stage, label: STAGE_LABELS[stage], status: attempt.commands[stage]?.status === "passed" ? "passed" : attempt.commands[stage]?.status === "skipped" || !attempt.commands[stage] ? "skipped" : "failed" }));
+  const unavailable = attempt.status === "unavailable" || attempt.status === "skipped";
+  const statusClass = verified ? "border-success/25 bg-success-muted text-success-foreground" : unavailable ? "border-warning/25 bg-warning-muted text-warning-foreground" : "border-danger/25 bg-danger-muted text-danger-foreground";
+  const description = attempt.failedStage ? `Stopped at ${formatLabel(attempt.failedStage)}.${reason ? ` ${reason}` : ""}` : verified ? "All required verification stages passed." : reason ?? "Verification did not complete.";
+  return <Card className={cn(verified && "border-success/25", !verified && !unavailable && "border-danger/25")}><CardHeader className="flex-row items-start justify-between gap-4 space-y-0"><div className="flex items-start gap-3"><span className={cn("flex size-8 shrink-0 items-center justify-center rounded-full border font-mono text-xs font-semibold", statusClass)}>{attempt.attempt}</span><div><CardTitle>Attempt {attempt.attempt}</CardTitle><CardDescription className="mt-1">{description}</CardDescription></div></div><Badge variant="outline" className={cn("capitalize", statusClass)}>{verified ? <CheckCircle2 aria-hidden="true" className="size-3" /> : <TriangleAlert aria-hidden="true" className="size-3" />}{attempt.status}</Badge></CardHeader><CardContent><VerificationSteps steps={verificationAttemptSteps(attempt)} compact /></CardContent></Card>;
 }
 
 function HeaderMetric({ label, value }: { label: string; value: string }) { return <div className="min-w-28 rounded-lg border bg-card px-3 py-2.5"><p className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{label}</p><p className="mt-1 truncate text-xs font-medium capitalize">{value}</p></div>; }

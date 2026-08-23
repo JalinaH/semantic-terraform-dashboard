@@ -64,8 +64,10 @@ task role, and execution role ARNs when their names differ:
       "Sid": "PushWorkerImage",
       "Effect": "Allow",
       "Action": [
+        "ecr:BatchGetImage",
         "ecr:BatchCheckLayerAvailability",
         "ecr:CompleteLayerUpload",
+        "ecr:GetDownloadUrlForLayer",
         "ecr:InitiateLayerUpload",
         "ecr:PutImage",
         "ecr:UploadLayerPart"
@@ -125,9 +127,11 @@ GitHub Actions secrets for AWS.
 
 ## 4. Connect agent releases
 
-`semantic-terraform-agent/.github/workflows/notify-dashboard-release.yml` sends
-a `semantic-terraform-agent-released` repository-dispatch event whenever a
-stable GitHub release is published. Create a fine-grained personal access token
+`semantic-terraform-agent/.github/workflows/release.yml` validates each pushed
+`v1.x.y` tag, runs Ruff and pytest, builds release artifacts, creates the GitHub
+Release, and sends a `semantic-terraform-agent-released` repository-dispatch
+event. `notify-dashboard-release.yml` provides the same dispatch when a release
+is created manually. Create a fine-grained personal access token
 with access only to `JalinaH/semantic-terraform-dashboard` and **Contents: Read
 and write**, then store it in the agent repository's Actions secrets as:
 
@@ -139,7 +143,16 @@ The token is used only to create the cross-repository dispatch. It is never
 passed to Docker, AWS, ECS, the worker, or the dashboard runtime. A dedicated
 GitHub App installation token can replace it later if desired.
 
-The dashboard resolves the release tag independently and requires all three
+After this one-time setup, the operator release sequence is only:
+
+```bash
+git tag v1.1.0
+git push origin v1.1.0
+```
+
+Do not manually create another release for that tag; the tag workflow creates
+it with generated notes and attaches the wheel/source artifacts. The dashboard
+resolves the release tag independently and requires all three
 values to agree:
 
 - stable release tag such as `v1.1.0`;
