@@ -265,118 +265,137 @@ model AWSConnection {
 }
 
 model AgentRun {
-  id                         String                @id @default(cuid())
-  repositoryId               String
-  repository                 Repository            @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  githubInstallationId       String
-  githubInstallation         GitHubInstallation    @relation(fields: [githubInstallationId], references: [id], onDelete: Cascade)
-  githubEventType            String
-  githubDeliveryId           String                @unique
-  delivery                   WebhookDelivery       @relation(fields: [githubDeliveryId], references: [deliveryId], onDelete: Cascade)
-  githubRunId                String?
-  githubRunAttempt           Int?
-  githubWorkflowName         String?
-  pullRequestNumber          Int?
-  commitSha                  String
-  baseSha                    String?
-  headSha                    String?
-  branch                     String?
-  comparisonFallback         String?
-  failedStage                String?
-  status                     AgentRunStatus        @default(QUEUED)
-  skipReason                 String?
-  verificationStatus         VerificationStatus    @default(PENDING)
-  contextMode                RepositoryContextMode
-  modelProvider              ModelProvider
-  model                      String
-  maxRepairAttempts          Int
-  rootCause                  String?
-  violatedConstraint         String?
-  suggestedPatch             String?
-  verifiedPatch              String?               @db.Text
-  patchSha256                String?
-  verifiedAgainstCommitSha   String?
-  patchAffectedFiles         Json?
-  patchTerraformFilesOnly    Boolean?
-  patchExistingFilesOnly     Boolean?
-  patchRepositoryRelative    Boolean?
-  patchSourceFingerprint     String?
-  patchCandidateSource       String?
-  mutationEligible           Boolean?
-  mutationEligibilityReason  String?
-  mutationEligibilityDetails Json?
-  affectedResources          Json?
-  modelConfidence            Float?
-  evidenceScore              Float?
-  attempts                   Json?
-  timing                     Json?
-  tokenUsage                 Json?
-  llmCalls                   Json?
-  verificationDetails        Json?
-  safeResultPayload          Json?
-  eventMetadata              Json?
-  configSnapshot             Json
-  totalRuntimeMs             Int?
-  inputTokens                Int?
-  cachedInputTokens          Int?
-  outputTokens               Int?
-  reasoningTokens            Int?
-  totalTokens                Int?
-  llmCallCount               Int?
-  llmCostUsd                 Decimal?              @db.Decimal(20, 10)
-  costComplete               Boolean?
-  tokenCountsComplete        Boolean?
-  llmLatencyMs               Int?
-  llmProvider                String?
-  requestedModel             String?
-  reportedModel              String?
-  upstreamProvider           String?
-  routingMode                String?
-  maxModelTier               String?
-  initialModel               String?
-  finalModel                 String?
-  initialModelTier           String?
-  finalModelTier             String?
-  modelEscalated             Boolean?
-  initialContextLevel        String?
-  finalContextLevel          String?
-  contextEscalated           Boolean?
-  contextEscalationReason    String?
-  schemaRetrieved            Boolean?
-  schemaAvoided              Boolean?
-  sourceCharactersAvailable  Int?
-  sourceCharactersSelected   Int?
-  sourceReductionRatio       Float?
-  schemaCharactersAvailable  Int?
-  schemaCharactersSelected   Int?
-  schemaReductionRatio       Float?
-  failureMemoryStatus        String?
-  failureMemoryReused        Boolean?
-  freshVerificationPassed    Boolean?
-  resolutionSource           String?
-  candidateSource            String?
-  llmCallsAvoided            Int?
-  historicalTokensAvoided    Int?
-  historicalCostAvoidedUsd   Decimal?              @db.Decimal(20, 10)
-  agentVersion               String?
-  configuredModelRouting     ModelRouting?
-  configuredMaxModelTier     ModelTier?
-  configuredModelId          String?
-  accountAccessLevel         UserAccessLevel?
-  modelPolicyVersion         String?
-  catalogSyncedAt            DateTime?
-  errorCode                  String?
-  errorMessage               String?
-  workerStage                String                @default("queued")
-  heartbeatAt                DateTime?
-  workerId                   String?
-  claimedAt                  DateTime?
-  startedAt                  DateTime?
-  completedAt                DateTime?
-  createdAt                  DateTime              @default(now())
-  updatedAt                  DateTime              @updatedAt
-  publication                AgentRunPublication?
-  patchApplications          PatchApplication[]
+  id                               String                @id @default(cuid())
+  repositoryId                     String
+  repository                       Repository            @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  githubInstallationId             String
+  githubInstallation               GitHubInstallation    @relation(fields: [githubInstallationId], references: [id], onDelete: Cascade)
+  githubEventType                  String
+  githubDeliveryId                 String                @unique
+  delivery                         WebhookDelivery       @relation(fields: [githubDeliveryId], references: [deliveryId], onDelete: Cascade)
+  githubRunId                      String?
+  githubRunAttempt                 Int?
+  githubWorkflowName               String?
+  pullRequestNumber                Int?
+  commitSha                        String
+  baseSha                          String?
+  headSha                          String?
+  branch                           String?
+  comparisonFallback               String?
+  failedStage                      String?
+  status                           AgentRunStatus        @default(QUEUED)
+  skipReason                       String?
+  verificationStatus               VerificationStatus    @default(PENDING)
+  contextMode                      RepositoryContextMode
+  modelProvider                    ModelProvider
+  model                            String
+  maxRepairAttempts                Int
+  rootCause                        String?
+  violatedConstraint               String?
+  suggestedPatch                   String?
+  verifiedPatch                    String?               @db.Text
+  patchSha256                      String?
+  verifiedAgainstCommitSha         String?
+  patchAffectedFiles               Json?
+  patchTerraformFilesOnly          Boolean?
+  patchExistingFilesOnly           Boolean?
+  patchRepositoryRelative          Boolean?
+  patchSourceFingerprint           String?
+  patchCandidateSource             String?
+  mutationEligible                 Boolean?
+  mutationEligibilityLevel         String?
+  mutationEligibilityReason        String?
+  mutationEligibilityDetails       Json?
+  verificationOutcome              String?
+  assessmentPatchCheckPassed       Boolean?
+  assessmentPatchApplyPassed       Boolean?
+  assessmentFmtPassed              Boolean?
+  assessmentInitPassed             Boolean?
+  assessmentValidatePassed         Boolean?
+  assessmentPlanAttempted          Boolean?
+  assessmentPlanPassed             Boolean?
+  assessmentFullVerificationPassed Boolean?
+  applySafety                      String?
+  planFailureClass                 String?
+  planFailureReasonCode            String?
+  planFailureSummary               String?
+  planFailureDetail                String?
+  planFailureSourceFile            String?
+  planFailureSourceLine            Int?
+  planFailureResourceAddress       String?
+  planDiagnosticFormat             String?
+  affectedResources                Json?
+  modelConfidence                  Float?
+  evidenceScore                    Float?
+  attempts                         Json?
+  timing                           Json?
+  tokenUsage                       Json?
+  llmCalls                         Json?
+  verificationDetails              Json?
+  safeResultPayload                Json?
+  eventMetadata                    Json?
+  configSnapshot                   Json
+  totalRuntimeMs                   Int?
+  inputTokens                      Int?
+  cachedInputTokens                Int?
+  outputTokens                     Int?
+  reasoningTokens                  Int?
+  totalTokens                      Int?
+  llmCallCount                     Int?
+  llmCostUsd                       Decimal?              @db.Decimal(20, 10)
+  costComplete                     Boolean?
+  tokenCountsComplete              Boolean?
+  llmLatencyMs                     Int?
+  llmProvider                      String?
+  requestedModel                   String?
+  reportedModel                    String?
+  upstreamProvider                 String?
+  routingMode                      String?
+  maxModelTier                     String?
+  initialModel                     String?
+  finalModel                       String?
+  initialModelTier                 String?
+  finalModelTier                   String?
+  modelEscalated                   Boolean?
+  initialContextLevel              String?
+  finalContextLevel                String?
+  contextEscalated                 Boolean?
+  contextEscalationReason          String?
+  schemaRetrieved                  Boolean?
+  schemaAvoided                    Boolean?
+  sourceCharactersAvailable        Int?
+  sourceCharactersSelected         Int?
+  sourceReductionRatio             Float?
+  schemaCharactersAvailable        Int?
+  schemaCharactersSelected         Int?
+  schemaReductionRatio             Float?
+  failureMemoryStatus              String?
+  failureMemoryReused              Boolean?
+  freshVerificationPassed          Boolean?
+  resolutionSource                 String?
+  candidateSource                  String?
+  llmCallsAvoided                  Int?
+  historicalTokensAvoided          Int?
+  historicalCostAvoidedUsd         Decimal?              @db.Decimal(20, 10)
+  agentVersion                     String?
+  configuredModelRouting           ModelRouting?
+  configuredMaxModelTier           ModelTier?
+  configuredModelId                String?
+  accountAccessLevel               UserAccessLevel?
+  modelPolicyVersion               String?
+  catalogSyncedAt                  DateTime?
+  errorCode                        String?
+  errorMessage                     String?
+  workerStage                      String                @default("queued")
+  heartbeatAt                      DateTime?
+  workerId                         String?
+  claimedAt                        DateTime?
+  startedAt                        DateTime?
+  completedAt                      DateTime?
+  createdAt                        DateTime              @default(now())
+  updatedAt                        DateTime              @updatedAt
+  publication                      AgentRunPublication?
+  patchApplications                PatchApplication[]
 
   @@unique([repositoryId, githubRunId, githubRunAttempt])
   @@index([repositoryId, createdAt])
@@ -391,43 +410,49 @@ model AgentRun {
   @@index([commitSha])
   @@index([repositoryId, pullRequestNumber])
   @@index([patchSha256])
+  @@index([verificationOutcome, createdAt])
 }
 
 model PatchApplication {
-  id                       String                 @id @default(cuid())
-  agentRunId               String
-  agentRun                 AgentRun               @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
-  repositoryId             String
-  repository               Repository             @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  requestedByUserId        String
-  requestedByUser          User                   @relation(fields: [requestedByUserId], references: [id], onDelete: Restrict)
-  requestedByDisplay       String?
-  status                   PatchApplicationStatus @default(PENDING)
-  stage                    String                 @default("queued")
-  patchSha256              String
-  expectedHeadSha          String
-  verifiedAgainstCommitSha String
-  affectedFiles            Json
-  terraformDir             String
-  terraformVersion         String
-  pullRequestNumber        Int
-  headBranch               String
-  headRepositoryFullName   String
-  intendedCommitSha        String?
-  commitSha                String?
-  commitUrl                String?
-  pullRequestUrl           String?
-  freshVerification        Json?
-  errorCode                String?
-  errorMessage             String?
-  workerId                 String?
-  claimedAt                DateTime?
-  heartbeatAt              DateTime?
-  startedAt                DateTime?
-  completedAt              DateTime?
-  requestedAt              DateTime               @default(now())
-  createdAt                DateTime               @default(now())
-  updatedAt                DateTime               @updatedAt
+  id                             String                 @id @default(cuid())
+  agentRunId                     String
+  agentRun                       AgentRun               @relation(fields: [agentRunId], references: [id], onDelete: Cascade)
+  repositoryId                   String
+  repository                     Repository             @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  requestedByUserId              String
+  requestedByUser                User                   @relation(fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  requestedByDisplay             String?
+  eligibilityLevel               String?
+  verificationOutcomeAtRequest   String?
+  conditionalApproval            Boolean                @default(false)
+  planFailureClassAtRequest      String?
+  planFailureReasonCodeAtRequest String?
+  status                         PatchApplicationStatus @default(PENDING)
+  stage                          String                 @default("queued")
+  patchSha256                    String
+  expectedHeadSha                String
+  verifiedAgainstCommitSha       String
+  affectedFiles                  Json
+  terraformDir                   String
+  terraformVersion               String
+  pullRequestNumber              Int
+  headBranch                     String
+  headRepositoryFullName         String
+  intendedCommitSha              String?
+  commitSha                      String?
+  commitUrl                      String?
+  pullRequestUrl                 String?
+  freshVerification              Json?
+  errorCode                      String?
+  errorMessage                   String?
+  workerId                       String?
+  claimedAt                      DateTime?
+  heartbeatAt                    DateTime?
+  startedAt                      DateTime?
+  completedAt                    DateTime?
+  requestedAt                    DateTime               @default(now())
+  createdAt                      DateTime               @default(now())
+  updatedAt                      DateTime               @updatedAt
 
   @@unique([agentRunId, patchSha256, expectedHeadSha])
   @@index([agentRunId])

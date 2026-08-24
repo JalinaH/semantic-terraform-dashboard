@@ -60,7 +60,7 @@ The queue is PostgreSQL-backed: `AgentRun.status=QUEUED`. A worker claims the ol
 
 - Node 22
 - Terraform 1.15.7
-- `semantic-terraform-agent` v1.1.0 at commit `b67ddc0cf8579c5566a2335a71b586ed167d1480`
+- `semantic-terraform-agent` v1.1.4 at commit `9caaef384897387afe0d8b7a2186b96bd968021e`
 
 The Python agent remains the source of truth. The Node worker is orchestration glue only.
 
@@ -99,9 +99,21 @@ semantic-terraform-agent diagnose
 
 The worker verifies that the installed Terraform CLI exactly matches the saved repository version before invocation. The default complete-job deadline is ten minutes and covers GitHub evidence collection, checkout, AWS role assumption, agent execution, and safe result ingestion. GitHub requests and child processes also have operation-level timeouts. Deadline expiry aborts child work and records `execution_timeout`; an orphaned claim discovered after the deadline plus grace period records `worker_stale`. Other bounded error codes include `github_log_unavailable`, `github_checkout_failed`, `repository_access_removed`, `aws_assume_role_failed`, `terraform_not_found`, `terraform_version_unavailable`, `agent_execution_failed`, `agent_result_invalid`, `model_unavailable`, and `worker_internal_error`.
 
-An agent result is schema-validated. Semantic Terraform Agent v1.1.0 usage and verified-patch provenance are normalized into nullable `AgentRun` fields for LLM calls, token categories, decimal provider cost, routing/context/schema optimization, Verified Failure Memory, exact patch SHA, verified source SHA, affected files, and mutation eligibility. The canonical patch is preserved byte-for-byte in a private worker field while the UI/PR rendering uses its redacted display copy. Raw logs, prompts, command output, full repository source, full provider schema, Terraform state/provider cache, environment data, and credentials are excluded.
+An agent result is schema-validated. Semantic Terraform Agent v1.1.4 usage,
+verified-patch provenance, mutation eligibility level, and deterministic
+`verification_assessment` are normalized into nullable `AgentRun` fields. The
+assessment distinguishes `fully_verified`, `environment_blocked`,
+`semantic_failure`, `patch_invalid`, and `unknown_failure`; only bounded,
+redacted plan classification/reason/source metadata is retained. The canonical
+patch is preserved byte-for-byte in a private worker field while UI/PR rendering
+uses its redacted display copy. Raw plan/log output, prompts, full repository
+source, full provider schema, Terraform state/provider cache, environment data,
+and credentials are excluded.
 
-Older results remain valid. Missing v1 telemetry stays `null`; an explicit provider cost of `0.0` remains zero. The dashboard never turns absent telemetry into a free run.
+Older results remain valid. Missing assessment fields stay `null`; existing
+v1.1.0-v1.1.3 fully verified artifacts retain the Phase 11 path, but never gain
+conditional eligibility. An explicit provider cost of `0.0` remains zero. The
+dashboard never turns absent telemetry into a free run.
 
 `AgentRun.status` describes orchestration (`queued`, `running`, `completed`, `failed`, `skipped`). `verificationStatus` separately describes patch verification. A valid but unverified diagnosis is `completed`, not a worker failure.
 
@@ -132,7 +144,7 @@ For a container worker, run the documented image with server/worker secrets inje
 ## Safety and current limitations
 
 - fork PRs are always skipped before AWS role assumption; `pull_request_target` is not a bypass
-- no git commit/push, merge, Terraform apply, or destroy; the only write is one idempotent advisory PR comment
+- diagnosis never commits or pushes; a separate approved PatchApplication may create one non-force source commit, but never merges or mutates infrastructure
 - no automatic worker retry and no more than one agent repair attempt
 - job logs must still be available through GitHub Actions retention
 - a configured workflow failure is required; the dashboard does not replace the repository's Terraform CI

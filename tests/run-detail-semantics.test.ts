@@ -17,12 +17,13 @@ function timelineRun(overrides: Partial<Parameters<typeof buildRunTimeline>[0]> 
     schemaRetrieved: false, contextEscalationReason: null, modelEscalated: false,
     initialModelTier: "free", initialModel: "model-a", finalModel: "model-a",
     candidateSource: "llm", suggestedPatch: "diff", pullRequestNumber: 12, publication: null,
+    verificationOutcome: null, llmCalls: [],
     ...overrides,
   };
 }
 
 function attempt(overrides: Partial<RunAttemptView> = {}): RunAttemptView {
-  return { attempt: 1, status: "verified", failedStage: null, commands: {}, warnings: [], ...overrides };
+  return { attempt: 1, status: "verified", failedStage: null, commands: {}, warnings: [], candidateSource: null, failureCategory: null, failureReasonCode: null, failureDescription: null, candidateRepresentation: null, patchConstructionStrategy: null, planFailure: null, ...overrides };
 }
 
 describe("run detail telemetry and timeline semantics", () => {

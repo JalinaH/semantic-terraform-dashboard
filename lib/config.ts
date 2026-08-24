@@ -180,8 +180,8 @@ export function getGitHubWebhookSecret() {
   return secret;
 }
 
-export const PINNED_AGENT_VERSION = "1.1.0";
-export const PINNED_AGENT_COMMIT = "b67ddc0cf8579c5566a2335a71b586ed167d1480";
+export const PINNED_AGENT_VERSION = "1.1.4";
+export const PINNED_AGENT_COMMIT = "9caaef384897387afe0d8b7a2186b96bd968021e";
 const supportedAgentVersionPattern = /^1\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
 
 export interface WorkerConfiguration {

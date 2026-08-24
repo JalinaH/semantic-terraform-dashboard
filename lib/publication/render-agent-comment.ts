@@ -1,5 +1,6 @@
 import { redactPublicationSecrets } from "@/lib/publication/redact";
 import type { AgentCommentInput, PublicationAttempt, RenderedAgentComment, VerificationStatus } from "@/lib/publication/types";
+import { planFailureClassLabel, verificationOutcomeLabel } from "@/lib/verification-assessment";
 
 export const AGENT_COMMENT_MARKER = "<!-- semantic-terraform-agent -->";
 export const MAX_PR_COMMENT_PATCH_CHARS = 12_000;
@@ -18,13 +19,24 @@ export function renderAgentComment(input: AgentCommentInput): RenderedAgentComme
   const redactedPatch = redactPublicationSecrets(patchResult.patch);
   redactedPatch.warnings.forEach((warning) => warnings.add(warning));
   const attempt = latestAttempt(input.attempts);
-  const status = statusPresentation(input.verificationStatus, attempt?.failedStage ?? null);
+  const status = statusPresentation(input.verificationStatus, attempt?.failedStage ?? null, input.verificationOutcome ?? null);
   const dashboardLine = input.dashboardUrl ? `[View full diagnosis and TerraFix usage details](${input.dashboardUrl})` : "View the full diagnosis and TerraFix usage details in the dashboard.";
-  const repairLines = repairSummary(input.verificationStatus, input.attempts);
+  const repairLines = attemptSummary(input.attempts, input.llmCallTypes ?? []);
+  const repairUsed = (input.llmCallTypes ?? []).some((type) => type === "repair" || type === "patch_repair");
+  const repairUsage = repairUsed ? "Yes" : (input.llmCallTypes?.length ?? 0) > 0 ? "No" : "Not reported";
+  const planFailureLines = input.planFailure ? [
+    "",
+    "### Plan failure",
+    `**Classification:** ${planFailureClassLabel(input.planFailure.classification)}`,
+    `**Reason:** ${safe(input.planFailure.summary, 500)}`,
+    input.planFailure.sourceFile ? `**Source:** ${inlineCode(safe(`${input.planFailure.sourceFile}${input.planFailure.sourceLine ? `:${input.planFailure.sourceLine}` : ""}`, 600))}` : null,
+    input.planFailure.resourceAddress ? `**Resource:** ${inlineCode(safe(input.planFailure.resourceAddress, 512))}` : null,
+    `**Diagnostic source:** ${input.planFailure.diagnosticFormat === "terraform_json" ? "Terraform JSON diagnostic" : "bounded Terraform text"}`,
+  ].filter((line): line is string => line !== null) : [];
   const applicationLines = input.application ? [
     "",
     "### Application",
-    "✅ **Verified fix applied by TerraFix**",
+    input.application.eligibilityLevel === "conditional" ? "⚠️ **Conditionally approved validated patch applied by TerraFix**" : "✅ **Verified fix applied by TerraFix**",
     `**Commit:** ${input.application.commitUrl ? `[${inlineCode(input.application.commitSha.slice(0, 12))}](${input.application.commitUrl})` : inlineCode(input.application.commitSha.slice(0, 12))}`,
     `**Requested by:** ${input.application.requestedBy ? safe(input.application.requestedBy, 120) : "TerraFix dashboard user"}`,
     "Normal CI is running again. TerraFix does not claim CI success until GitHub reports it.",
@@ -55,12 +67,14 @@ export function renderAgentComment(input: AgentCommentInput): RenderedAgentComme
     "",
     `**Final status:** ${status.label}`,
     status.explanation,
-    `**Repair attempt used:** ${input.verificationStatus === "verified_after_retry" ? "Yes" : "No"}`,
+    ...planFailureLines,
+    `**Repair attempt used:** ${repairUsage}`,
     ...repairLines,
     `**Model confidence:** ${score(input.modelConfidence)}`,
     `**Evidence score:** ${score(input.evidenceScore)}`,
     patchSection,
-    status.verified ? "Terraform verification passed." : "The candidate recommendation was not fully verified.",
+    status.verified ? "Terraform verification passed." : input.verificationOutcome === "environment_blocked" ? "The candidate passed Terraform validation, but a complete plan could not be verified." : "The candidate recommendation was not fully verified.",
+    input.mutationEligibilityLevel === "conditional" ? "TerraFix dashboard may offer a human-approved conditional Apply action." : input.verificationOutcome === "semantic_failure" || input.verificationOutcome === "unknown_failure" ? "The candidate is not eligible for Apply to PR." : "",
     "**Human review is still required because verification does not establish developer intent.**",
     ...applicationLines,
     "",
@@ -82,7 +96,14 @@ function verificationLines(attempt: PublicationAttempt | undefined) {
   }).join("\n");
 }
 
-function statusPresentation(status: VerificationStatus, failedStage: string | null) {
+function statusPresentation(status: VerificationStatus, failedStage: string | null, outcome: AgentCommentInput["verificationOutcome"]) {
+  if (outcome) {
+    return {
+      label: verificationOutcomeLabel(outcome),
+      explanation: outcome === "fully_verified" ? "All isolated Terraform verification stages passed, including terraform plan." : outcome === "environment_blocked" ? "Terraform plan was blocked by a confidently classified external or environmental condition." : outcome === "semantic_failure" ? "Terraform plan still found a configuration error after the candidate patch." : outcome === "patch_invalid" ? "The candidate failed patch safety or applicability checks." : "Terraform plan failed, but TerraFix could not safely classify the cause.",
+      verified: outcome === "fully_verified",
+    };
+  }
   const failedAt = failedStage ? ` at ${inlineCode(escapeProse(failedStage.slice(0, 100)))}` : "";
   const presentations: Record<VerificationStatus, { label: string; explanation: string; verified: boolean }> = {
     verified_first_attempt: { label: "VERIFIED FIRST ATTEMPT", explanation: "The initial candidate passed the configured isolated Terraform verification stages.", verified: true },
@@ -96,9 +117,14 @@ function statusPresentation(status: VerificationStatus, failedStage: string | nu
   return presentations[status];
 }
 
-function repairSummary(status: VerificationStatus, attempts: PublicationAttempt[]) {
-  if (status !== "verified_after_retry") return [];
-  return attempts.slice(0, 2).map((attempt) => `- Attempt ${attempt.attempt}: ${attempt.status === "verified" ? "verified" : attempt.failedStage ? `failed at ${escapeProse(attempt.failedStage.slice(0, 100))}` : attempt.status}`);
+function attemptSummary(attempts: PublicationAttempt[], callTypes: string[]) {
+  if (attempts.length < 2 && !callTypes.some((type) => type === "repair" || type === "patch_repair" || type === "context_escalation" || type === "model_escalation")) return [];
+  const transitions = [
+    callTypes.some((type) => type === "repair" || type === "patch_repair") ? "↻ Patch repair" : null,
+    callTypes.some((type) => type === "context_escalation") ? "↗ Context escalation" : null,
+    callTypes.some((type) => type === "model_escalation") ? "↗ Model escalation" : null,
+  ].filter((line): line is string => line !== null);
+  return [...attempts.slice(0, 2).map((attempt) => `- Attempt ${attempt.attempt}: ${attempt.status === "verified" ? "verified" : attempt.planFailure ? `${planFailureClassLabel(attempt.planFailure.classification)} — ${escapeProse(attempt.planFailure.summary.slice(0, 500))}` : attempt.failedStage ? `failed at ${escapeProse(attempt.failedStage.slice(0, 100))}` : attempt.status}`), ...transitions];
 }
 
 function latestAttempt(attempts: PublicationAttempt[]) {

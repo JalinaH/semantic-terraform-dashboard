@@ -11,6 +11,11 @@ export const patchApplicationErrorCodes = [
   "patch_check_failed",
   "unexpected_file_change",
   "fresh_verification_failed",
+  "fresh_verification_semantic_failure",
+  "fresh_verification_unknown_failure",
+  "fresh_verification_patch_invalid",
+  "conditional_verification_changed",
+  "full_verification_regressed",
   "push_rejected",
   "installation_unavailable",
   "application_already_exists",
@@ -55,7 +60,9 @@ export interface FreshVerificationStage {
   durationMs: number | null;
 }
 
-export type FreshVerificationSummary = Record<
-  "patch_check" | "patch_apply" | "fmt" | "init" | "validate" | "plan",
-  FreshVerificationStage
->;
+export interface FreshVerificationSummary {
+  stages: Record<"patch_check" | "patch_apply" | "fmt" | "init" | "validate" | "plan", FreshVerificationStage>;
+  outcome: import("@/lib/verification-assessment").VerificationOutcome | null;
+  applySafety: import("@/lib/verification-assessment").ApplySafety | null;
+  planFailure: import("@/lib/runs/types").PlanFailureView | null;
+}

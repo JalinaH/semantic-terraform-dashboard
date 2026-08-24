@@ -13,11 +13,15 @@ failure never changes the completed agent-run outcome.
 
 Diagnosis never pushes or commits. A separate confirmed `PatchApplication` job
 can create one non-force bot commit after exact-head, hash, file-scope, and fresh
-Terraform verification checks. Neither job applies infrastructure or persists
+Terraform verification checks. A fully verified request must remain fully
+verified. An explicitly conditionally approved environment-blocked request may
+continue only on fresh full success or the same deterministic environmental
+class and reason. The worker invokes the pinned agent's plan classifier; a
+semantic, unknown, invalid, or changed result stops before commit. Neither job applies infrastructure or persists
 GitHub/AWS/model credentials. The Python engine remains in
 `semantic-terraform-agent` and is installed from commit
-`b67ddc0cf8579c5566a2335a71b586ed167d1480`, the immutable commit behind agent
-version `1.1.0`.
+`9caaef384897387afe0d8b7a2186b96bd968021e`, the immutable commit behind agent
+version `1.1.4`.
 
 Each queued run contains an immutable model-policy snapshot. Fixed policy adds
 `--model-routing fixed` and the validated model ID. Auto Optimize writes the
@@ -45,12 +49,12 @@ pnpm worker:health
 ## Container
 
 ```bash
-docker build -f worker/Dockerfile -t terrafix-worker:1.1.0 .
+docker build -f worker/Dockerfile -t terrafix-worker:1.1.4 .
 ```
 
 The container pins Node 22, Terraform 1.15.7, and Semantic Terraform Agent
-v1.1.0. The image build inspects Python package metadata, and normal worker
-startup repeats that version check before polling. Agent v1.1.0 does not expose
+v1.1.4. The image build inspects Python package metadata, and normal worker
+startup repeats that version check before polling. Agent v1.1.4 does not expose
 a `--version` flag, so package metadata is the authoritative equivalent.
 
 The MVP image intentionally provides one Terraform version. A repository whose

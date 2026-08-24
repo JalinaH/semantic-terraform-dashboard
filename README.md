@@ -12,17 +12,17 @@ The implementation remains intentionally split:
 
 ```text
 semantic-terraform-dashboard   TerraFix hosted control plane + observability
-semantic-terraform-agent       inference + Terraform verification engine v1.1.0
+semantic-terraform-agent       inference + Terraform verification engine v1.1.4
 ```
 
 The dashboard does not implement Terraform reasoning. The worker installs the
-engine from the immutable commit behind `v1.1.0` and invokes its CLI contract.
+engine from the immutable commit behind `v1.1.4` and invokes its CLI contract.
 
 ## What the hosted integration does
 
 ```text
 Developer PR → existing Terraform CI failure → signed GitHub App webhook
-→ durable AgentRun → external worker → agent v1.1.0 → isolated verification
+→ durable AgentRun → external worker → agent v1.1.4 → isolated verification
 → persisted verified artifact → human review → optional Apply to PR job
 → fresh verification → one non-force bot commit → normal CI
 ```
@@ -32,9 +32,11 @@ The consumer repository needs its own normal Terraform CI capable of running
 `OPENROUTER_API_KEY`, `GEMINI_API_KEY`, or an AWS role secret in GitHub.
 
 TerraFix never applies infrastructure, auto-commits, force-pushes, or merges a
-PR. For a v1.1 mutation-eligible same-repository patch, an authorized user may
-explicitly approve one source commit after a fresh head check and fresh safe
-Terraform verification. Verification is evidence; human review is required.
+PR. Agent v1.1.4 distinguishes fully verified, environment-blocked, and
+semantic/unknown outcomes. An authorized user may explicitly approve one
+source commit for a fully verified patch, or separately accept the stronger
+warning for a conditionally eligible environment-blocked patch. Verification
+is evidence; human review is required.
 
 ## Capabilities
 
@@ -50,7 +52,7 @@ Terraform verification. Verification is evidence; human review is required.
   graceful worker shutdown
 - exact revision checkout, bounded Actions evidence, temporary STS credentials,
   and disposable workspaces
-- pinned Semantic Terraform Agent v1.1.0 with startup version verification
+- pinned Semantic Terraform Agent v1.1.4 with startup version verification
 - exact verified-patch provenance, explicit Apply to PR approval, durable audit,
   stale-head rejection, and deterministic zero-LLM application
 - safe structured result ingestion and idempotent PR comment publication
@@ -99,13 +101,17 @@ the worker and is never exposed to repositories or browsers.
 - Prisma 6 / PostgreSQL (Neon supported), Auth.js 5, Octokit, AWS SDK STS
 - Recharts for restrained responsive analytics
 - Vitest, ESLint, esbuild, pnpm
-- Node 22 worker image, Python 3, Git, Terraform 1.15.7, agent v1.1.0
+- Node 22 worker image, Python 3, Git, Terraform 1.15.7, agent v1.1.4
 
 ## Human-approved Apply to PR
 
-Agent v1.1 results may include a SHA-256-bound verified patch, exact verified
+Agent v1.1.4 results may include a SHA-256-bound patch, exact verified
 commit, affected files, source/verification provenance, and conservative
-mutation eligibility. TerraFix independently rechecks every boundary. The
+mutation eligibility. Fully verified means plan passed. Environment blocked
+means patch check/apply, fmt, init, and validate passed, plan was attempted,
+and its failure was confidently classified as external; it has not passed a
+complete plan. Semantic, unknown, inconsistent, and unsafe outcomes are
+ineligible. TerraFix independently rechecks every boundary. The
 server action authenticates the requester, scopes the run through an accessible
 installation, refreshes installation permission and PR metadata, rejects forks,
 closed/merged PRs, stale heads, superseded runs, legacy artifacts, and hash
@@ -115,10 +121,14 @@ The persistent worker checks out the exact verified SHA into a disposable
 workspace, applies the exact UTF-8 patch, requires the changed-file set to match
 the declared existing `.tf`/`.tf.json` files, assumes fresh STS credentials,
 and reruns `fmt -check`, `init -backend=false`, `validate`, and a no-refresh,
-no-lock plan. Only then does it create one `TerraFix Bot` commit and push
-non-force to the exact PR head branch. Apply jobs do not initialize or call a
-model. `terraform apply`, merge, force push, forks, file creation/deletion/
-rename, and branch-protection bypass have no implementation path.
+no-lock plan. The worker uses the pinned agent's deterministic classifier for a
+fresh plan failure. Fully verified requests continue only on fresh full
+verification. A conditionally approved request may continue on fresh full
+success or the same confidently environmental class/reason; semantic, unknown,
+invalid, or changed failures stop before commit. Only then does TerraFix create
+one bot commit and push non-force to the exact PR head branch. Apply jobs never
+call a model. `terraform apply`, merge, force push, forks, file creation/
+deletion/rename, and branch-protection bypass have no implementation path.
 
 ## Local development
 
@@ -146,8 +156,8 @@ pnpm worker
 Or build the production container:
 
 ```bash
-docker build -f worker/Dockerfile -t terrafix-worker:1.1.0 .
-docker run --rm --env-file .env terrafix-worker:1.1.0
+docker build -f worker/Dockerfile -t terrafix-worker:1.1.4 .
+docker run --rm --env-file .env terrafix-worker:1.1.4
 ```
 
 ## Environment boundaries
@@ -219,7 +229,7 @@ pnpm prisma:validate
 pnpm build
 pnpm worker:build
 pnpm worker:health
-docker build -f worker/Dockerfile -t terrafix-worker:1.1.0 .
+docker build -f worker/Dockerfile -t terrafix-worker:1.1.4 .
 git diff --check
 ```
 

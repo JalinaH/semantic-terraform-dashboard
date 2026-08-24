@@ -4,6 +4,13 @@ import { AgentRunStatus, Prisma, VerificationStatus } from "@prisma/client";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import type { LlmCallView, RunAttemptView, RunDetail, RunListItem, RunStatus, RunVerificationStatus } from "@/lib/runs/types";
+import { applySafetyValues, mutationEligibilityLevels, planFailureClasses, verificationOutcomes } from "@/lib/verification-assessment";
+
+const planFailureViewSchema = z.object({
+  classification: z.enum(planFailureClasses), reasonCode: z.string(), summary: z.string(), detail: z.string(),
+  sourceFile: z.string().nullable(), sourceLine: z.number().int().positive().nullable(), resourceAddress: z.string().nullable(),
+  diagnosticFormat: z.enum(["terraform_json", "bounded_text"]),
+});
 
 const attemptSchema = z.object({
   attempt: z.number().int(),
@@ -15,6 +22,13 @@ const attemptSchema = z.object({
     exitCode: z.number().int().nullable().default(null),
   })).default({}),
   warnings: z.array(z.string()).max(20).default([]),
+  candidateSource: z.string().nullable().default(null),
+  failureCategory: z.string().nullable().default(null),
+  failureReasonCode: z.string().nullable().default(null),
+  failureDescription: z.string().nullable().default(null),
+  candidateRepresentation: z.string().nullable().default(null),
+  patchConstructionStrategy: z.string().nullable().default(null),
+  planFailure: planFailureViewSchema.nullable().default(null),
 });
 
 const promptContextSchema = z.object({
@@ -167,7 +181,19 @@ export async function getAgentRunForUser(userId: string, id: string): Promise<Ru
     patchTerraformFilesOnly: row.patchTerraformFilesOnly,
     patchExistingFilesOnly: row.patchExistingFilesOnly,
     mutationEligible: row.mutationEligible,
+    mutationEligibilityLevel: enumValue(row.mutationEligibilityLevel, mutationEligibilityLevels),
     mutationEligibilityReason: row.mutationEligibilityReason,
+    verificationOutcome: enumValue(row.verificationOutcome, verificationOutcomes),
+    assessmentPatchCheckPassed: row.assessmentPatchCheckPassed,
+    assessmentPatchApplyPassed: row.assessmentPatchApplyPassed,
+    assessmentFmtPassed: row.assessmentFmtPassed,
+    assessmentInitPassed: row.assessmentInitPassed,
+    assessmentValidatePassed: row.assessmentValidatePassed,
+    assessmentPlanAttempted: row.assessmentPlanAttempted,
+    assessmentPlanPassed: row.assessmentPlanPassed,
+    assessmentFullVerificationPassed: row.assessmentFullVerificationPassed,
+    applySafety: enumValue(row.applySafety, applySafetyValues),
+    planFailure: normalizedPlanFailure(row),
     patchApplications: row.patchApplications.map((application) => ({
       id: application.id,
       status: application.status.toLowerCase() as import("@/lib/runs/types").PatchApplicationView["status"],
@@ -180,6 +206,11 @@ export async function getAgentRunForUser(userId: string, id: string): Promise<Ru
       expectedHeadSha: application.expectedHeadSha,
       headBranch: application.headBranch,
       affectedFiles: stringArray(application.affectedFiles),
+      eligibilityLevel: enumValue(application.eligibilityLevel, mutationEligibilityLevels),
+      verificationOutcomeAtRequest: enumValue(application.verificationOutcomeAtRequest, verificationOutcomes),
+      conditionalApproval: application.conditionalApproval,
+      planFailureClassAtRequest: enumValue(application.planFailureClassAtRequest, planFailureClasses),
+      planFailureReasonCodeAtRequest: application.planFailureReasonCodeAtRequest,
       commitSha: application.commitSha,
       commitUrl: application.commitUrl,
       pullRequestUrl: application.pullRequestUrl,
@@ -288,7 +319,24 @@ function validDateStart(value: string | undefined) {
 }
 
 function freshVerification(value: unknown) {
-  const schema = z.record(z.string(), z.object({ status: z.string(), durationMs: z.number().int().nonnegative().nullable() }));
-  const parsed = schema.safeParse(value);
-  return parsed.success ? parsed.data : {};
+  const stageSchema = z.record(z.string(), z.object({ status: z.string(), durationMs: z.number().int().nonnegative().nullable() }));
+  const current = z.object({ stages: stageSchema, outcome: z.enum(verificationOutcomes).nullable(), applySafety: z.enum(applySafetyValues).nullable(), planFailure: planFailureViewSchema.nullable() }).safeParse(value);
+  if (current.success) return current.data;
+  const legacy = stageSchema.safeParse(value);
+  return { stages: legacy.success ? legacy.data : {}, outcome: null, applySafety: null, planFailure: null };
+}
+
+function enumValue<const T extends readonly string[]>(value: string | null, values: T): T[number] | null {
+  return value !== null && (values as readonly string[]).includes(value) ? value as T[number] : null;
+}
+
+function normalizedPlanFailure(row: {
+  planFailureClass: string | null; planFailureReasonCode: string | null; planFailureSummary: string | null; planFailureDetail: string | null;
+  planFailureSourceFile: string | null; planFailureSourceLine: number | null; planFailureResourceAddress: string | null; planDiagnosticFormat: string | null;
+}) {
+  const parsed = planFailureViewSchema.safeParse({
+    classification: row.planFailureClass, reasonCode: row.planFailureReasonCode, summary: row.planFailureSummary, detail: row.planFailureDetail,
+    sourceFile: row.planFailureSourceFile, sourceLine: row.planFailureSourceLine, resourceAddress: row.planFailureResourceAddress, diagnosticFormat: row.planDiagnosticFormat,
+  });
+  return parsed.success ? parsed.data : null;
 }

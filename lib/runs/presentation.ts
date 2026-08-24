@@ -1,5 +1,6 @@
 import { STAGE_LABELS } from "@/lib/constants";
 import type { RunAttemptView, RunVerificationStatus } from "@/lib/runs/types";
+import type { VerificationOutcome } from "@/lib/verification-assessment";
 import type { StageStatus, VerificationStage, VerificationStep } from "@/lib/types";
 
 export type TimelineEventState = "success" | "failure" | "rejected" | "skipped" | "neutral" | "published" | "warning";
@@ -33,6 +34,8 @@ interface TimelineRun {
   suggestedPatch: string | null;
   pullRequestNumber: number | null;
   publication: { status: string } | null;
+  verificationOutcome: VerificationOutcome | null;
+  llmCalls: Array<{ type: string }>;
 }
 
 const stageOrder: VerificationStage[] = ["patch_check", "patch_apply", "fmt", "init", "validate", "plan"];
@@ -42,7 +45,12 @@ export function authoritativeReductionRatio(available: number | null, selected: 
   return Math.min(Math.max((available - selected) / available, 0), 1);
 }
 
-export function suggestedPatchDescription(status: RunVerificationStatus) {
+export function suggestedPatchDescription(status: RunVerificationStatus, outcome: VerificationOutcome | null = null) {
+  if (outcome === "fully_verified") return "Candidate diff produced and successfully verified in an isolated workspace, including Terraform plan.";
+  if (outcome === "environment_blocked") return "Candidate diff passed patch safety, fmt, init, and validate, but full Terraform plan was blocked by the execution environment.";
+  if (outcome === "semantic_failure") return "Candidate diff produced, but Terraform plan found a remaining configuration problem.";
+  if (outcome === "unknown_failure") return "Candidate diff produced, but Terraform plan failed for a reason TerraFix could not classify safely.";
+  if (outcome === "patch_invalid") return "Candidate diff produced by TerraFix. This candidate did not pass patch safety verification.";
   if (status === "verified_first_attempt" || status === "verified_after_retry") return "Candidate diff produced and successfully verified in an isolated workspace.";
   if (status === "patch_rejected") return "Candidate diff produced by TerraFix. This candidate did not pass patch safety verification.";
   if (status === "verification_unavailable") return "Candidate diff produced, but full verification could not be completed.";
@@ -108,11 +116,15 @@ export function buildRunTimeline(run: TimelineRun): TimelineEvent[] {
   if (run.attempts.length > 1 && run.attempts[0].status !== "verified") {
     const first = run.attempts[0];
     const firstState: TimelineEventState = first.status === "rejected" ? "rejected" : first.status === "unavailable" ? "warning" : first.status === "skipped" ? "skipped" : "failure";
-    events.push({ label: "First verification", detail: first.failedStage ? `${displayLabel(first.status)} at ${stageLabel(first.failedStage)}` : displayLabel(first.status), state: firstState });
+    events.push({ label: "Attempt 1", detail: first.planFailure ? `${displayLabel(first.planFailure.classification)} · ${first.planFailure.summary}` : first.failedStage ? `${displayLabel(first.status)} at ${stageLabel(first.failedStage)}` : displayLabel(first.status), state: firstState });
   }
+  if (run.llmCalls.some((call) => call.type === "repair" || call.type === "patch_repair")) events.push({ label: "Patch repair", detail: "Malformed or rejected candidate representation repaired", state: "neutral" });
   if (run.contextEscalated) events.push({ label: "Context escalated", detail: run.schemaRetrieved ? "Sliced provider schema added" : displayLabel(run.contextEscalationReason), state: "neutral" });
   if (run.modelEscalated) events.push({ label: "Model escalated", detail: run.initialModelTier && run.finalModelTier ? `${run.initialModelTier.toUpperCase()} → ${run.finalModelTier.toUpperCase()}` : `${run.initialModel ?? "Initial model"} → ${run.finalModel ?? "final model"}`, state: "neutral" });
-  events.push({ label: "Terraform verification", detail: verificationTimelineDetail(run.verificationStatus, run.verificationFailedStage), state: verificationTimelineState(run.verificationStatus) });
+  if (run.verificationOutcome === "environment_blocked" && run.llmCallCount !== null) events.push({ label: "Stopped", detail: "No additional model call required for the environmental plan block", state: "warning" });
+  const assessedState: TimelineEventState = run.verificationOutcome === "fully_verified" ? "success" : run.verificationOutcome === "environment_blocked" ? "warning" : run.verificationOutcome === "semantic_failure" || run.verificationOutcome === "patch_invalid" ? "failure" : run.verificationOutcome === "unknown_failure" ? "warning" : verificationTimelineState(run.verificationStatus);
+  const assessedDetail = run.verificationOutcome === "fully_verified" ? "Full Terraform plan passed" : run.verificationOutcome === "environment_blocked" ? "Terraform plan blocked by environment" : run.verificationOutcome === "semantic_failure" ? "Terraform plan found a configuration problem" : run.verificationOutcome === "unknown_failure" ? "Plan failure could not be classified safely" : verificationTimelineDetail(run.verificationStatus, run.verificationFailedStage);
+  events.push({ label: "Terraform verification", detail: assessedDetail, state: assessedState });
   events.push(publicationEvent(run));
   return events;
 }

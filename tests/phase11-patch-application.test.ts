@@ -11,7 +11,7 @@ const PATCH = "diff --git a/main.tf b/main.tf\n--- a/main.tf\n+++ b/main.tf\n@@ 
 describe("agent v1.1 verified-patch ingestion", () => {
   it("preserves exact patch bytes and normalizes provenance and eligibility", () => {
     const input = v1AgentResult({
-      agent_version: "1.1.0",
+      agent_version: "1.1.4",
       diagnosis: { ...(v1AgentResult().diagnosis as object), final_patch: PATCH },
       verified_patch: {
         patch_sha256: hashVerifiedPatch(PATCH), affected_files: ["main.tf"], repository_relative_paths_only: true,
@@ -38,7 +38,7 @@ describe("agent v1.1 verified-patch ingestion", () => {
     expect(result.verifiedPatch).toBe(PATCH);
     expect(hashVerifiedPatch(result.verifiedPatch!)).toBe(result.telemetry.patchSha256);
     expect(result.telemetry).toMatchObject({
-      agentVersion: "1.1.0", verifiedAgainstCommitSha: HEAD, patchAffectedFiles: ["main.tf"],
+      agentVersion: "1.1.4", verifiedAgainstCommitSha: HEAD, patchAffectedFiles: ["main.tf"],
       patchTerraformFilesOnly: true, patchExistingFilesOnly: true, patchRepositoryRelative: true,
       mutationEligible: true, mutationEligibilityReason: "verified_terraform_patch",
     });
@@ -59,7 +59,10 @@ describe("stored artifact gates", () => {
   const artifact = () => ({ status: "COMPLETED", verificationStatus: "VERIFIED_FIRST_ATTEMPT", pullRequestNumber: 12,
     verifiedPatch: PATCH, patchSha256: hashVerifiedPatch(PATCH), verifiedAgainstCommitSha: HEAD,
     patchAffectedFiles: ["main.tf"], patchTerraformFilesOnly: true, patchExistingFilesOnly: true,
-    patchRepositoryRelative: true, mutationEligible: true, mutationEligibilityReason: "verified_terraform_patch" });
+    patchRepositoryRelative: true, mutationEligible: true, mutationEligibilityLevel: null, mutationEligibilityReason: "verified_terraform_patch",
+    verificationOutcome: null, assessmentPatchCheckPassed: null, assessmentPatchApplyPassed: null, assessmentFmtPassed: null,
+    assessmentInitPassed: null, assessmentValidatePassed: null, assessmentPlanAttempted: null, assessmentPlanPassed: null,
+    assessmentFullVerificationPassed: null, applySafety: null, planFailureClass: null, planFailureReasonCode: null });
 
   it("distinguishes a legacy artifact and a hash mismatch", () => {
     expect(validateStoredPatchArtifact({ ...artifact(), mutationEligible: null, mutationEligibilityReason: null })).toEqual({ ok: false, code: "legacy_run" });
@@ -70,6 +73,15 @@ describe("stored artifact gates", () => {
     expect(validateTerraformAffectedFiles(["modules/app/main.tf", "modules/app/vars.tf.json"], "modules/app")).toBe(true);
     expect(validateTerraformAffectedFiles(["modules/app/main.tf", "README.md"], "modules/app")).toBe(false);
     expect(validateTerraformAffectedFiles(["../main.tf"], ".")).toBe(false);
+  });
+
+  it("accepts only internally consistent v1.1.4 verified and conditional artifacts", () => {
+    const verified = { ...artifact(), mutationEligibilityLevel: "verified", verificationOutcome: "fully_verified", assessmentPatchCheckPassed: true, assessmentPatchApplyPassed: true, assessmentFmtPassed: true, assessmentInitPassed: true, assessmentValidatePassed: true, assessmentPlanAttempted: true, assessmentPlanPassed: true, assessmentFullVerificationPassed: true, applySafety: "verified" };
+    const conditional = { ...verified, verificationStatus: "VERIFICATION_UNAVAILABLE", mutationEligibilityLevel: "conditional", mutationEligibilityReason: "terraform_plan_environment_blocked", verificationOutcome: "environment_blocked", assessmentPlanPassed: false, assessmentFullVerificationPassed: false, applySafety: "conditionally_eligible", planFailureClass: "permissions", planFailureReasonCode: "aws_access_denied" };
+    expect(validateStoredPatchArtifact(verified)).toMatchObject({ ok: true, eligibilityLevel: "verified" });
+    expect(validateStoredPatchArtifact(conditional)).toMatchObject({ ok: true, eligibilityLevel: "conditional" });
+    expect(validateStoredPatchArtifact({ ...conditional, planFailureClass: "terraform_semantic" })).toEqual({ ok: false, code: "not_mutation_eligible" });
+    expect(validateStoredPatchArtifact({ ...conditional, mutationEligible: false })).toEqual({ ok: false, code: "not_mutation_eligible" });
   });
 
   it("rejects missing Contents Write, closed PRs, forks, and stale heads", () => {
@@ -104,7 +116,7 @@ describe("deterministic patch application worker", () => {
       commands: command,
     });
     expect(result).toMatchObject({ outcome: "applied", commitSha: COMMIT });
-    expect(store.recordIntendedCommit).toHaveBeenCalledWith("application-1", COMMIT, expect.objectContaining({ plan: expect.objectContaining({ status: "passed" }) }));
+    expect(store.recordIntendedCommit).toHaveBeenCalledWith("application-1", COMMIT, expect.objectContaining({ stages: expect.objectContaining({ plan: expect.objectContaining({ status: "passed" }) }) }));
     expect(store.markApplied).toHaveBeenCalledOnce();
     expect(commands.some((entry) => entry.command === "git" && entry.args.includes("push") && entry.args.includes("--force"))).toBe(false);
     expect(commands.filter((entry) => entry.command === "terraform").map((entry) => entry.args[0])).toEqual(["version", "fmt", "init", "validate", "plan"]);
@@ -139,7 +151,9 @@ function job(overrides: Record<string, unknown> = {}) {
   return { id: "application-1", agentRunId: "run-1", repositoryId: "repo-1", repositoryOwner: "acme", repositoryName: "infra", repositoryFullName: "acme/infra", repositoryAccessible: true,
     installationId: "9001", installationActive: true, pullRequestNumber: 12, expectedHeadSha: HEAD, verifiedAgainstCommitSha: HEAD,
     headBranch: "fix", headRepositoryFullName: "acme/infra", patchSha256: hashVerifiedPatch(PATCH), patch: PATCH, affectedFiles: ["main.tf"], terraformDir: ".", terraformVersion: "1.15.7",
-    requestedByDisplay: "octocat", intendedCommitSha: null, aws: { roleArn: "arn:aws:iam::123456789012:role/TerraFix", externalId: "external", region: "us-east-1", connected: true }, ...overrides } as never;
+    requestedByDisplay: "octocat", eligibilityLevel: "verified", verificationOutcomeAtRequest: null, conditionalApproval: false,
+    planFailureClassAtRequest: null, planFailureReasonCodeAtRequest: null, intendedCommitSha: null,
+    aws: { roleArn: "arn:aws:iam::123456789012:role/TerraFix", externalId: "external", region: "us-east-1", connected: true }, ...overrides } as never;
 }
 function githubHead(sha: string) { return { contentsPermission: "write", token: "ephemeral-token", snapshot: { state: "open", merged: false, draft: false, headSha: sha, headBranch: "fix", headRepositoryFullName: "acme/infra", baseRepositoryFullName: "acme/infra", htmlUrl: "https://github.com/acme/infra/pull/12" } } as const; }
 function storeMock() { return { updateProgress: vi.fn(async () => undefined), recordFreshVerification: vi.fn(async () => undefined), recordIntendedCommit: vi.fn(async () => undefined), markApplied: vi.fn(async () => undefined), markError: vi.fn(async () => undefined) }; }

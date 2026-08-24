@@ -27,6 +27,17 @@ const commandsSchema = z.object({
   plan: commandSchema.nullable().optional(),
 }).passthrough();
 
+const planFailureSchema = z.object({
+  classification: z.enum(["terraform_semantic", "credentials", "permissions", "network", "provider_unavailable", "external_service", "runtime_environment", "unknown"]),
+  reason_code: z.string().min(1).max(100),
+  summary: z.string().min(1).max(500),
+  detail: z.string().min(1).max(2_000),
+  source_file: z.string().max(512).nullable().optional(),
+  source_line: z.number().int().positive().nullable().optional(),
+  resource_address: z.string().max(512).nullable().optional(),
+  diagnostic_format: z.enum(["terraform_json", "bounded_text"]),
+});
+
 const attemptSchema = z.object({
   attempt: z.number().int().min(1).max(2),
   patch: z.string().max(250_000),
@@ -37,6 +48,13 @@ const attemptSchema = z.object({
   commands: commandsSchema,
   temporary_copy_cleaned: z.boolean(),
   warnings: z.array(z.string()).max(30).default([]),
+  candidate_source: z.enum(["llm", "verified_failure_memory"]).optional(),
+  failure_category: z.string().max(100).nullable().optional(),
+  failure_reason_code: z.string().max(100).nullable().optional(),
+  failure_description: z.string().max(500).nullable().optional(),
+  candidate_representation: z.enum(["structured_edit", "legacy_diff"]).nullable().optional(),
+  patch_construction_strategy: z.string().max(80).nullable().optional(),
+  plan_failure: planFailureSchema.nullable().optional(),
 }).passthrough();
 
 const candidateSchema = z.object({
@@ -191,6 +209,7 @@ const verificationProvenanceSchema = z.object({
   init_passed: z.boolean(),
   validate_passed: z.boolean(),
   plan_required: z.boolean(),
+  plan_attempted: z.boolean().optional(),
   plan_passed: z.boolean(),
   terraform_version: z.string().max(100).nullable(),
   provider_versions: z.record(z.string().max(500), z.string().max(100)),
@@ -198,10 +217,25 @@ const verificationProvenanceSchema = z.object({
 
 const mutationEligibilitySchema = z.object({
   eligible: z.boolean(),
+  eligibility_level: z.enum(["verified", "conditional", "ineligible"]).optional(),
   reason_code: z.string().min(1).max(100),
   reasons: z.array(z.string().min(1).max(100)).max(30),
   requires_fresh_head_check: z.boolean(),
 }).passthrough();
+
+const verificationAssessmentSchema = z.object({
+  outcome: z.enum(["fully_verified", "environment_blocked", "semantic_failure", "patch_invalid", "unknown_failure"]),
+  patch_check_passed: z.boolean(),
+  patch_apply_passed: z.boolean(),
+  fmt_passed: z.boolean(),
+  init_passed: z.boolean(),
+  validate_passed: z.boolean(),
+  plan_attempted: z.boolean(),
+  plan_passed: z.boolean(),
+  full_verification_passed: z.boolean(),
+  apply_safety: z.enum(["verified", "conditionally_eligible", "ineligible"]),
+  plan_failure: planFailureSchema.nullable().optional(),
+});
 
 const successfulResultSchema = z.object({
   status: z.literal("ok"),
@@ -261,6 +295,7 @@ const successfulResultSchema = z.object({
   verified_patch: verifiedPatchSchema.nullable().optional(),
   source_provenance: sourceProvenanceSchema.nullable().optional(),
   verification_provenance: verificationProvenanceSchema.nullable().optional(),
+  verification_assessment: verificationAssessmentSchema.nullable().optional(),
   mutation_eligibility: mutationEligibilitySchema.nullable().optional(),
   agent_version: z.string().max(100).nullable().optional(),
   warnings: z.array(z.string()).max(100).default([]),
@@ -293,6 +328,13 @@ export function sanitizeSuccessfulAgentResult(result: SuccessfulAgentResult, pac
     temporaryCopyCleaned: attempt.temporary_copy_cleaned,
     warnings: attempt.warnings.slice(0, 20).map((warning) => redactSensitiveText(warning.slice(0, 500))),
     commands: sanitizeCommands(attempt.commands),
+    candidateSource: attempt.candidate_source ?? null,
+    failureCategory: attempt.failure_category ?? null,
+    failureReasonCode: attempt.failure_reason_code ?? null,
+    failureDescription: attempt.failure_description ? redactSensitiveText(attempt.failure_description) : null,
+    candidateRepresentation: attempt.candidate_representation ?? null,
+    patchConstructionStrategy: attempt.patch_construction_strategy ?? null,
+    planFailure: sanitizePlanFailure(attempt.plan_failure),
   }));
   const timing = Object.fromEntries(Object.entries(result.timing).map(([key, seconds]) => [key.replace(/_seconds$/, "_ms"), Math.round(seconds * 1_000)]));
   const tokenUsage = {
@@ -332,6 +374,7 @@ export function sanitizeSuccessfulAgentResult(result: SuccessfulAgentResult, pac
   const verifiedPatch = result.verified_patch;
   const sourceProvenance = result.source_provenance;
   const verificationProvenance = result.verification_provenance;
+  const verificationAssessment = result.verification_assessment;
   const mutationEligibility = result.mutation_eligibility;
   const finalAttempt = result.diagnosis.attempts.at(-1);
   const telemetry = {
@@ -386,8 +429,27 @@ export function sanitizeSuccessfulAgentResult(result: SuccessfulAgentResult, pac
     patchSourceFingerprint: verifiedPatch?.source_fingerprint_sha256 ?? null,
     patchCandidateSource: verifiedPatch?.candidate_source ?? null,
     mutationEligible: mutationEligibility?.eligible ?? null,
+    mutationEligibilityLevel: mutationEligibility?.eligibility_level ?? null,
     mutationEligibilityReason: mutationEligibility?.reason_code ?? null,
     mutationEligibilityDetails: mutationEligibility?.reasons ?? null,
+    verificationOutcome: verificationAssessment?.outcome ?? null,
+    assessmentPatchCheckPassed: verificationAssessment?.patch_check_passed ?? null,
+    assessmentPatchApplyPassed: verificationAssessment?.patch_apply_passed ?? null,
+    assessmentFmtPassed: verificationAssessment?.fmt_passed ?? null,
+    assessmentInitPassed: verificationAssessment?.init_passed ?? null,
+    assessmentValidatePassed: verificationAssessment?.validate_passed ?? null,
+    assessmentPlanAttempted: verificationAssessment?.plan_attempted ?? null,
+    assessmentPlanPassed: verificationAssessment?.plan_passed ?? null,
+    assessmentFullVerificationPassed: verificationAssessment?.full_verification_passed ?? null,
+    applySafety: verificationAssessment?.apply_safety ?? null,
+    planFailureClass: verificationAssessment?.plan_failure?.classification ?? null,
+    planFailureReasonCode: verificationAssessment?.plan_failure?.reason_code ?? null,
+    planFailureSummary: verificationAssessment?.plan_failure ? redactSensitiveText(verificationAssessment.plan_failure.summary) : null,
+    planFailureDetail: verificationAssessment?.plan_failure ? redactSensitiveText(verificationAssessment.plan_failure.detail) : null,
+    planFailureSourceFile: verificationAssessment?.plan_failure?.source_file ?? null,
+    planFailureSourceLine: verificationAssessment?.plan_failure?.source_line ?? null,
+    planFailureResourceAddress: verificationAssessment?.plan_failure?.resource_address ?? null,
+    planDiagnosticFormat: verificationAssessment?.plan_failure?.diagnostic_format ?? null,
   };
   const safeContextTelemetry = contextTelemetry ? {
     gitDiffIncluded: contextTelemetry.git_diff_included,
@@ -515,12 +577,27 @@ export function sanitizeSuccessfulAgentResult(result: SuccessfulAgentResult, pac
       initPassed: verificationProvenance.init_passed,
       validatePassed: verificationProvenance.validate_passed,
       planRequired: verificationProvenance.plan_required,
+      planAttempted: verificationProvenance.plan_attempted ?? null,
       planPassed: verificationProvenance.plan_passed,
       terraformVersion: verificationProvenance.terraform_version,
       providerVersions: verificationProvenance.provider_versions,
     } : null,
+    verificationAssessment: verificationAssessment ? {
+      outcome: telemetry.verificationOutcome,
+      patchCheckPassed: telemetry.assessmentPatchCheckPassed,
+      patchApplyPassed: telemetry.assessmentPatchApplyPassed,
+      fmtPassed: telemetry.assessmentFmtPassed,
+      initPassed: telemetry.assessmentInitPassed,
+      validatePassed: telemetry.assessmentValidatePassed,
+      planAttempted: telemetry.assessmentPlanAttempted,
+      planPassed: telemetry.assessmentPlanPassed,
+      fullVerificationPassed: telemetry.assessmentFullVerificationPassed,
+      applySafety: telemetry.applySafety,
+      planFailure: sanitizePlanFailure(verificationAssessment.plan_failure),
+    } : null,
     mutationEligibility: mutationEligibility ? {
       eligible: mutationEligibility.eligible,
+      eligibilityLevel: mutationEligibility.eligibility_level ?? null,
       reasonCode: mutationEligibility.reason_code,
       reasons: mutationEligibility.reasons,
       requiresFreshHeadCheck: mutationEligibility.requires_fresh_head_check,
@@ -580,4 +657,17 @@ function sanitizeCommands(commands: z.infer<typeof commandsSchema>) {
       durationMs: Math.round(command.duration_seconds * 1_000),
     }]] : [];
   }));
+}
+
+function sanitizePlanFailure(value: z.infer<typeof planFailureSchema> | null | undefined) {
+  return value ? {
+    classification: value.classification,
+    reasonCode: value.reason_code,
+    summary: redactSensitiveText(value.summary),
+    detail: redactSensitiveText(value.detail),
+    sourceFile: value.source_file ?? null,
+    sourceLine: value.source_line ?? null,
+    resourceAddress: value.resource_address ?? null,
+    diagnosticFormat: value.diagnostic_format,
+  } : null;
 }

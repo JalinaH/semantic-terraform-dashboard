@@ -91,7 +91,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
         </section>
       ) : null}
 
-      {run.suggestedPatch ? <section aria-labelledby="patch-heading" className="space-y-4"><SectionHeading id="patch-heading" icon={FileCode2} title="Suggested patch" description={suggestedPatchDescription(run.verificationStatus)} /><DiffViewer diff={run.suggestedPatch} /><ApplyVerifiedPatch run={run} /></section> : null}
+      {run.suggestedPatch ? <section aria-labelledby="patch-heading" className="space-y-4"><SectionHeading id="patch-heading" icon={FileCode2} title="Suggested patch" description={suggestedPatchDescription(run.verificationStatus, run.verificationOutcome)} /><DiffViewer diff={run.suggestedPatch} /><ApplyVerifiedPatch run={run} /></section> : null}
 
       {run.attempts.length ? (
         <section aria-labelledby="attempts-heading">

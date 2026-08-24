@@ -26,6 +26,11 @@ export interface ClaimedPatchApplication {
   terraformDir: string;
   terraformVersion: string;
   requestedByDisplay: string | null;
+  eligibilityLevel: "verified" | "conditional";
+  verificationOutcomeAtRequest: import("@/lib/verification-assessment").VerificationOutcome | null;
+  conditionalApproval: boolean;
+  planFailureClassAtRequest: import("@/lib/verification-assessment").PlanFailureClass | null;
+  planFailureReasonCodeAtRequest: string | null;
   intendedCommitSha: string | null;
   aws: { roleArn: string; externalId: string; region: string; connected: boolean } | null;
 }
@@ -49,7 +54,7 @@ export async function claimNextPatchApplication(workerId: string): Promise<Claim
     include: { repository: { include: { installation: true, awsConnection: true } }, agentRun: true },
   });
   const affectedFiles = parseAffectedFiles(row?.affectedFiles);
-  if (!row || !row.agentRun.verifiedPatch || !affectedFiles) {
+  if (!row || !row.agentRun.verifiedPatch || !affectedFiles || (row.eligibilityLevel !== "verified" && row.eligibilityLevel !== "conditional") || (row.eligibilityLevel === "conditional" && !row.verificationOutcomeAtRequest)) {
     if (row) await markPatchApplicationError(row.id, "not_mutation_eligible", "The persisted verified patch artifact is incomplete.", "REJECTED");
     return null;
   }
@@ -75,6 +80,11 @@ export async function claimNextPatchApplication(workerId: string): Promise<Claim
     terraformDir: row.terraformDir,
     terraformVersion: row.terraformVersion,
     requestedByDisplay: row.requestedByDisplay,
+    eligibilityLevel: row.eligibilityLevel,
+    verificationOutcomeAtRequest: row.verificationOutcomeAtRequest as import("@/lib/verification-assessment").VerificationOutcome | null,
+    conditionalApproval: row.conditionalApproval,
+    planFailureClassAtRequest: row.planFailureClassAtRequest as import("@/lib/verification-assessment").PlanFailureClass | null,
+    planFailureReasonCodeAtRequest: row.planFailureReasonCodeAtRequest,
     intendedCommitSha: row.intendedCommitSha,
     aws: aws?.roleArn ? { roleArn: aws.roleArn, externalId: aws.externalId, region: aws.region, connected: aws.status === "CONNECTED" } : null,
   };

@@ -18,13 +18,42 @@ describe("PR comment renderer", () => {
   });
 
   it("shows bounded repair attempt context", () => {
-    const result = renderAgentComment(input({ verificationStatus: "verified_after_retry", attempts: [
+    const result = renderAgentComment(input({ verificationStatus: "verified_after_retry", llmCallTypes: ["diagnosis", "repair"], attempts: [
       { attempt: 1, status: "failed", failedStage: "fmt", commands: { fmt: { status: "failed" } } },
       { attempt: 2, status: "verified", failedStage: null, commands: { plan: { status: "passed" } } },
     ] }));
     expect(result.body).toContain("Repair attempt used:** Yes");
     expect(result.body).toContain("Attempt 1: failed at fmt");
     expect(result.body).toContain("Attempt 2: verified");
+  });
+
+  it("does not call every second model invocation a repair", () => {
+    const result = renderAgentComment(input({ llmCallTypes: ["diagnosis", "context_escalation"], attempts: [
+      { attempt: 1, status: "failed", failedStage: "plan", commands: { plan: { status: "failed" } } },
+      { attempt: 2, status: "verified", failedStage: null, commands: { plan: { status: "passed" } } },
+    ] }));
+    expect(result.body).toContain("Repair attempt used:** No");
+    expect(result.body).toContain("Context escalation");
+    expect(result.body).not.toContain("Patch repair");
+  });
+
+  it("publishes the bounded environmental plan reason and conditional Apply advisory", () => {
+    const result = renderAgentComment(input({ verificationStatus: "verification_unavailable", verificationOutcome: "environment_blocked", mutationEligibilityLevel: "conditional", planFailure: failure("permissions", "aws_access_denied") }));
+    expect(result.body).toContain("ENVIRONMENT BLOCKED");
+    expect(result.body).toContain("AWS / provider permissions");
+    expect(result.body).toContain("The role is not authorized");
+    expect(result.body).toContain("human-approved conditional Apply action");
+    expect(result.body).toContain("Root cause");
+  });
+
+  it.each([
+    ["semantic_failure", "terraform_semantic", "SEMANTIC FAILURE"],
+    ["unknown_failure", "unknown", "PLAN FAILURE UNCLASSIFIED"],
+  ] as const)("marks %s ineligible without replacing the diagnosis", (verificationOutcome, classification, label) => {
+    const result = renderAgentComment(input({ verificationStatus: "verification_failed", verificationOutcome, mutationEligibilityLevel: "ineligible", planFailure: failure(classification, classification === "unknown" ? "unclassified_plan_failure" : "invalid_variable_value") }));
+    expect(result.body).toContain(label);
+    expect(result.body).toContain("not eligible for Apply to PR");
+    expect(result.body).toContain("The hash key does not match");
   });
 
   it("bounds huge patches without breaking a malicious Markdown fence", () => {
@@ -78,4 +107,8 @@ function input(overrides: Partial<AgentCommentInput> = {}): AgentCommentInput {
     dashboardUrl: "http://localhost:3000/runs/run_1",
     ...overrides,
   };
+}
+
+function failure(classification: "permissions" | "terraform_semantic" | "unknown", reasonCode: string) {
+  return { classification, reasonCode, summary: "The role is not authorized.", detail: "Bounded detail", sourceFile: "main.tf", sourceLine: 4, resourceAddress: "aws_s3_bucket.example", diagnosticFormat: "terraform_json" as const };
 }

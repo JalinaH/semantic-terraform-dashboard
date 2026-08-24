@@ -67,6 +67,14 @@ through the separately approved verified-patch boundary below.
 - Apply never calls an LLM, never force-pushes or merges, and never runs
   Terraform apply/destroy/import/taint. A pre-push failure is discarded with the
   temporary workspace, leaving the source branch untouched.
+- Fully verified Apply requires the v1.1.4 `fully_verified`/`verified` field
+  conjunction. Conditional Apply additionally requires every pre-plan stage to
+  pass, a plan attempt, `environment_blocked`, `conditionally_eligible`, a
+  confidently external class, and explicit conditional approval. The worker
+  calls the pinned agent's deterministic classifier again and requires the same
+  class/reason for an environmental failure. Semantic, unknown, invalid,
+  changed, or inconsistent results stop before commit. A fully verified request
+  never silently downgrades to conditional.
 - Older completed runs cannot overwrite a newer PR diagnosis. Publication
   ownership is checked before mutation, and marked comments are updated only
   when authored by this App bot.
@@ -85,9 +93,13 @@ through the separately approved verified-patch boundary below.
 
 ## Human review
 
-A passing Terraform verification means the candidate satisfied the configured
+A passing full Terraform verification means the candidate satisfied the configured
 bounded checks in an isolated workspace. It does not prove business intent,
 production safety, or approval to merge. Every UI/PR result remains advisory:
 
 > Terraform verification passed. Human review is still required because
 > verification does not establish developer intent.
+
+An environment-blocked candidate has not passed a complete Terraform plan.
+TerraFix labels it amber, preserves the bounded plan reason, and requires a
+separate conditional approval; it is never presented as fully verified.

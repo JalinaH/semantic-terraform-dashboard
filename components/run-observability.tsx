@@ -1,9 +1,11 @@
 import { AlertTriangle, ArrowUpRight, BrainCircuit, Check, CircleDollarSign, DatabaseZap, Gauge, Info, Minus, Route, Sparkles, X, Zap } from "lucide-react";
 import { ModelTierBadge } from "@/components/model-tier-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { formatExactTokens, formatLatency, formatPercent, formatUsd } from "@/lib/analytics/format";
 import { authoritativeReductionRatio, buildRunTimeline, type TimelineEventState } from "@/lib/runs/presentation";
 import type { LlmCallView, RunDetail } from "@/lib/runs/types";
+import { planFailureClassLabel, verificationOutcomeLabel } from "@/lib/verification-assessment";
 import { cn } from "@/lib/utils";
 
 export function RunObservability({ run }: { run: RunDetail }) {
@@ -11,6 +13,7 @@ export function RunObservability({ run }: { run: RunDetail }) {
   return (
     <div className="space-y-7">
       {run.resolutionSource === "verified_failure_memory" && run.llmCallCount === 0 ? <ZeroLlmCallout run={run} /> : null}
+      {run.verificationOutcome ? <VerificationAssessment run={run} /> : null}
       <section aria-labelledby="ai-usage-heading">
         <SectionHeading id="ai-usage-heading" icon={BrainCircuit} title="AI Usage" description="Provider-reported model usage aggregated across this TerraFix diagnosis." />
         <Card className="overflow-hidden">
@@ -50,6 +53,24 @@ export function RunObservability({ run }: { run: RunDetail }) {
       <RunTimeline run={run} />
     </div>
   );
+}
+
+function VerificationAssessment({ run }: { run: RunDetail }) {
+  const tone = run.verificationOutcome === "fully_verified" ? "border-success/25 bg-success-muted text-success-foreground" : run.verificationOutcome === "environment_blocked" || run.verificationOutcome === "unknown_failure" ? "border-warning/25 bg-warning-muted text-warning-foreground" : "border-danger/25 bg-danger-muted text-danger-foreground";
+  const stages = [
+    ["Patch check", run.assessmentPatchCheckPassed, null], ["Patch apply", run.assessmentPatchApplyPassed, null], ["Terraform fmt", run.assessmentFmtPassed, null],
+    ["Terraform init", run.assessmentInitPassed, null], ["Terraform validate", run.assessmentValidatePassed, null], ["Terraform plan", run.assessmentPlanPassed, run.assessmentPlanAttempted],
+  ] as const;
+  const explanation = run.verificationOutcome === "fully_verified"
+    ? "Full Terraform plan verification completed successfully."
+    : run.verificationOutcome === "environment_blocked"
+      ? "The candidate passed local Terraform validation, but full plan verification was blocked by the execution environment."
+      : run.verificationOutcome === "semantic_failure"
+        ? "Terraform plan found a remaining Terraform configuration problem."
+        : run.verificationOutcome === "unknown_failure"
+          ? "Terraform plan failed, but TerraFix could not safely determine whether the cause was external or related to the configuration."
+          : "The candidate did not pass patch safety verification.";
+  return <section aria-labelledby="verification-assessment-heading"><SectionHeading id="verification-assessment-heading" icon={run.verificationOutcome === "fully_verified" ? Check : AlertTriangle} title="Verification outcome" description="Agent v1.1.4 deterministic assessment; the original diagnosis remains separate." /><Card><CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><div><CardTitle>{verificationOutcomeLabel(run.verificationOutcome)}</CardTitle><CardDescription className="mt-1">{explanation}</CardDescription></div><Badge variant="outline" className={tone}>{verificationOutcomeLabel(run.verificationOutcome)}</Badge></div></CardHeader><CardContent className="space-y-5"><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{stages.map(([label, passed, attempted]) => { const state = attempted === false ? "Not run" : passed === true ? "Passed" : passed === false ? "Failed" : "Not reported"; return <div key={label} className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs"><span>{label}</span><span className={state === "Passed" ? "text-success-foreground" : state === "Failed" ? "text-danger-foreground" : "text-muted-foreground"}>{state}</span></div>; })}</div>{run.planFailure ? <div className="rounded-lg border bg-secondary/20 p-4"><p className="text-xs font-semibold">Plan failure</p><dl className="mt-3 grid gap-3 sm:grid-cols-2"><Definition label="Classification" value={planFailureClassLabel(run.planFailure.classification)} /><Definition label="Reason" value={run.planFailure.summary} />{run.planFailure.sourceFile ? <Definition label="Source" value={`${run.planFailure.sourceFile}${run.planFailure.sourceLine ? `:${run.planFailure.sourceLine}` : ""}`} /> : null}{run.planFailure.resourceAddress ? <Definition label="Resource" value={run.planFailure.resourceAddress} /> : null}<Definition label="Diagnostic source" value={run.planFailure.diagnosticFormat === "terraform_json" ? "Terraform JSON diagnostic" : "Bounded Terraform text"} /><div className="sm:col-span-2"><Definition label="Detail" value={run.planFailure.detail} /></div></dl></div> : null}</CardContent></Card></section>;
 }
 
 function CallBreakdown({ calls, costComplete }: { calls: LlmCallView[]; costComplete: boolean | null }) {

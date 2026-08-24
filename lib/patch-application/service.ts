@@ -20,6 +20,10 @@ export interface PatchApplicationPreflightSuccess {
   affectedFiles: string[];
   terraformDir: string;
   terraformVersion: string;
+  eligibilityLevel: "verified" | "conditional";
+  verificationOutcome: import("@/lib/verification-assessment").VerificationOutcome | null;
+  planFailureClass: import("@/lib/verification-assessment").PlanFailureClass | null;
+  planFailureReasonCode: string | null;
   head: PullRequestHeadSnapshot;
 }
 
@@ -74,6 +78,10 @@ export async function preflightPatchApplication(userId: string, agentRunId: stri
     affectedFiles: artifact.affectedFiles,
     terraformDir: config.data.terraformDir,
     terraformVersion: config.data.terraformVersion,
+    eligibilityLevel: artifact.eligibilityLevel,
+    verificationOutcome: artifact.verificationOutcome,
+    planFailureClass: artifact.planFailureClass,
+    planFailureReasonCode: artifact.planFailureReasonCode,
     head: github.snapshot,
   };
 }
@@ -84,11 +92,13 @@ export async function requestPatchApplication(input: {
   agentRunId: string;
   submittedPatchSha256: string;
   submittedExpectedHeadSha: string;
+  conditionalApproval: boolean;
 }): Promise<PatchApplicationActionState> {
   const preflight = await preflightPatchApplication(input.userId, input.agentRunId);
   if (!preflight.ok) return preflight;
   if (preflight.patchSha256 !== input.submittedPatchSha256) return actionFailure("patch_hash_mismatch");
   if (preflight.expectedHeadSha !== input.submittedExpectedHeadSha.toLowerCase()) return actionFailure("stale_pull_request");
+  if (preflight.eligibilityLevel === "conditional" && input.conditionalApproval !== true) return actionFailure("not_mutation_eligible");
   try {
     const application = await db.patchApplication.create({
       data: {
@@ -96,6 +106,11 @@ export async function requestPatchApplication(input: {
         repositoryId: preflight.repositoryId,
         requestedByUserId: input.userId,
         requestedByDisplay: input.userDisplay?.slice(0, 120) ?? null,
+        eligibilityLevel: preflight.eligibilityLevel,
+        verificationOutcomeAtRequest: preflight.verificationOutcome,
+        conditionalApproval: preflight.eligibilityLevel === "conditional",
+        planFailureClassAtRequest: preflight.planFailureClass,
+        planFailureReasonCodeAtRequest: preflight.planFailureReasonCode,
         patchSha256: preflight.patchSha256,
         expectedHeadSha: preflight.expectedHeadSha,
         verifiedAgainstCommitSha: preflight.expectedHeadSha,
@@ -108,7 +123,7 @@ export async function requestPatchApplication(input: {
         pullRequestUrl: preflight.head.htmlUrl,
       },
     });
-    return { ok: true, applicationId: application.id, message: "TerraFix is applying the verified patch." };
+    return { ok: true, applicationId: application.id, message: preflight.eligibilityLevel === "conditional" ? "TerraFix is applying the validated patch with your conditional approval." : "TerraFix is applying the verified patch." };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return actionFailure("application_already_exists");
     throw error;

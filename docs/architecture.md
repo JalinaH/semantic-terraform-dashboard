@@ -1,7 +1,7 @@
 # TerraFix architecture
 
 TerraFix is the hosted control plane and observability product.
-`semantic-terraform-agent` v1.1.0 is the separate inference and Terraform
+`semantic-terraform-agent` v1.1.4 is the separate inference and Terraform
 verification engine. The Next.js dashboard never performs Terraform reasoning
 and never runs a persistent worker inside Vercel.
 
@@ -21,7 +21,7 @@ TerraFix control plane (Vercel)
 TerraFix worker (AWS ECS Fargate)
         ├── bounded Actions evidence + exact disposable checkout
         ├── STS AssumeRole with repository External ID
-        └── Semantic Terraform Agent v1.1.0
+        └── Semantic Terraform Agent v1.1.4
               ├── Verified Failure Memory
               ├── deterministic minimal context
               ├── server-bounded model routing
@@ -96,7 +96,10 @@ TerraFix owns the OpenRouter key; repositories do not.
 
 ## Result and analytics data
 
-The agent result is schema-validated, bounded, and redacted. Normalized nullable
+The agent result is schema-validated, bounded, and redacted. Agent v1.1.4's
+verification assessment is normalized separately from the diagnosis: outcome,
+pre-plan stage booleans, plan attempt/pass, apply safety, mutation eligibility
+level, and bounded plan classification/reason/source metadata. Normalized nullable
 columns support LLM calls, token categories, Decimal provider cost,
 completeness, latency, requested/reported model, routing/context/schema
 progression, reductions, and Verified Failure Memory. Explicit zero is distinct
@@ -113,10 +116,14 @@ failure logs, environment dumps, and credentials are not analytics inputs.
 
 ## Apply trust boundary
 
-Diagnosis is read-only. Source mutation requires a v1.1 verified artifact,
+Diagnosis is read-only. Source mutation requires a v1.1 artifact,
 explicit authenticated approval bound to patch/head SHA, current installation
 Contents Write, a same-repository open PR, exact head freshness, independent
-file-scope checks, and fresh deterministic verification. The asynchronous
+file-scope checks, and fresh deterministic verification. Fully verified requests
+must pass fresh plan again. Environment-blocked conditional requests require a
+separate explicit warning acceptance and may proceed only if the fresh result is
+fully verified or matches the same confidently external class and reason.
+Semantic, unknown, invalid, and inconsistent outcomes fail closed. The asynchronous
 worker creates one non-force bot commit; it never merges. There is no execution
 path for Terraform apply/destroy/import/taint. Verification remains evidence,
 not proof of developer intent or production safety.

@@ -18,6 +18,11 @@ export interface PublicationAttempt {
   status: "verified" | "failed" | "rejected" | "unavailable" | "skipped";
   failedStage?: string | null;
   commands: Record<string, PublicationCommand>;
+  failureCategory?: string | null;
+  failureReasonCode?: string | null;
+  failureDescription?: string | null;
+  candidateRepresentation?: string | null;
+  planFailure?: import("@/lib/runs/types").PlanFailureView | null;
 }
 
 export interface AgentCommentInput {
@@ -31,11 +36,16 @@ export interface AgentCommentInput {
   modelConfidence: number | null;
   evidenceScore: number | null;
   attempts: PublicationAttempt[];
+  llmCallTypes?: string[];
+  verificationOutcome?: import("@/lib/verification-assessment").VerificationOutcome | null;
+  mutationEligibilityLevel?: import("@/lib/verification-assessment").MutationEligibilityLevel | null;
+  planFailure?: import("@/lib/runs/types").PlanFailureView | null;
   dashboardUrl: string | null;
   application?: {
     commitSha: string;
     commitUrl: string | null;
     requestedBy: string | null;
+    eligibilityLevel: import("@/lib/verification-assessment").MutationEligibilityLevel | null;
   } | null;
 }
 

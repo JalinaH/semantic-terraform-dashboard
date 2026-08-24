@@ -4,7 +4,7 @@
 
 1. Open the Vercel health endpoint and confirm `status: ok`.
 2. Confirm the worker container is healthy and its latest startup log reports
-   Agent v1.1.0.
+   Agent v1.1.4.
 3. Run `pnpm prisma migrate status` against production and confirm no pending
    migrations.
 4. Sign in, verify the GitHub App installation is active, and synchronize the
@@ -30,7 +30,10 @@
 5. Show the final root cause, candidate diff, and Terraform verification stages.
 6. Review the suggested diff and state that verification does not establish
    developer intent.
-7. Click **Apply to PR**, review the repository/branch/head/files, and confirm.
+7. For a fully verified run, click **Apply to PR**. For an environment-blocked
+   fixture/run, show the amber **Apply validated patch** warning and explicitly
+   state that full plan did not pass. Never demo Apply for semantic or unknown
+   failures.
 8. Show fresh verification, the TerraFix bot commit, and normal CI rerunning.
 9. Open the updated idempotent TerraFix PR comment.
 10. Open AI Usage for tokens, provider-reported cost, actual model, context/schema

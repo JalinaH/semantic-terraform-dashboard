@@ -41,6 +41,24 @@ export interface RunAttemptView {
   failedStage: string | null;
   commands: Partial<Record<"patch_check" | "patch_apply" | "fmt" | "init" | "validate" | "plan", RunCommandView>>;
   warnings: string[];
+  candidateSource: string | null;
+  failureCategory: string | null;
+  failureReasonCode: string | null;
+  failureDescription: string | null;
+  candidateRepresentation: string | null;
+  patchConstructionStrategy: string | null;
+  planFailure: PlanFailureView | null;
+}
+
+export interface PlanFailureView {
+  classification: import("@/lib/verification-assessment").PlanFailureClass;
+  reasonCode: string;
+  summary: string;
+  detail: string;
+  sourceFile: string | null;
+  sourceLine: number | null;
+  resourceAddress: string | null;
+  diagnosticFormat: "terraform_json" | "bounded_text";
 }
 
 export interface PromptContextTelemetryView {
@@ -126,7 +144,19 @@ export interface RunDetail extends RunListItem {
   patchTerraformFilesOnly: boolean | null;
   patchExistingFilesOnly: boolean | null;
   mutationEligible: boolean | null;
+  mutationEligibilityLevel: import("@/lib/verification-assessment").MutationEligibilityLevel | null;
   mutationEligibilityReason: string | null;
+  verificationOutcome: import("@/lib/verification-assessment").VerificationOutcome | null;
+  assessmentPatchCheckPassed: boolean | null;
+  assessmentPatchApplyPassed: boolean | null;
+  assessmentFmtPassed: boolean | null;
+  assessmentInitPassed: boolean | null;
+  assessmentValidatePassed: boolean | null;
+  assessmentPlanAttempted: boolean | null;
+  assessmentPlanPassed: boolean | null;
+  assessmentFullVerificationPassed: boolean | null;
+  applySafety: import("@/lib/verification-assessment").ApplySafety | null;
+  planFailure: PlanFailureView | null;
   patchApplications: PatchApplicationView[];
 }
 
@@ -142,12 +172,22 @@ export interface PatchApplicationView {
   expectedHeadSha: string;
   headBranch: string;
   affectedFiles: string[];
+  eligibilityLevel: import("@/lib/verification-assessment").MutationEligibilityLevel | null;
+  verificationOutcomeAtRequest: import("@/lib/verification-assessment").VerificationOutcome | null;
+  conditionalApproval: boolean;
+  planFailureClassAtRequest: import("@/lib/verification-assessment").PlanFailureClass | null;
+  planFailureReasonCodeAtRequest: string | null;
   commitSha: string | null;
   commitUrl: string | null;
   pullRequestUrl: string | null;
   errorCode: string | null;
   errorMessage: string | null;
-  freshVerification: Record<string, { status: string; durationMs: number | null }>;
+  freshVerification: {
+    stages: Record<string, { status: string; durationMs: number | null }>;
+    outcome: import("@/lib/verification-assessment").VerificationOutcome | null;
+    applySafety: import("@/lib/verification-assessment").ApplySafety | null;
+    planFailure: PlanFailureView | null;
+  };
 }
 
 export interface LlmCallView {

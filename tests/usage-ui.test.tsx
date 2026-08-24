@@ -26,7 +26,10 @@ function run(overrides: Partial<RunDetail> = {}): RunDetail {
     historicalCostAvoidedUsd: null, agentVersion: "1.0.0", verificationFailedStage: null, verificationReason: null, llmCalls: [{ callNumber: 1, type: "diagnosis", contextLevel: "minimal", provider: "openrouter", requestedModel: "openrouter/free", reportedModel: "provider/model", upstreamProvider: "Provider", routingTier: "free", routingReason: "initial", inputTokens: 1842, cachedInputTokens: 1100, outputTokens: 218, reasoningTokens: 20, totalTokens: 2060, costUsd: 0, latencyMs: 1820, cacheHit: true }],
     errorCode: null, errorMessage: null, skipReason: null, startedAt: null, completedAt: null, publication: null,
     patchSha256: null, verifiedAgainstCommitSha: null, patchAffectedFiles: [], patchTerraformFilesOnly: null,
-    patchExistingFilesOnly: null, mutationEligible: null, mutationEligibilityReason: null, patchApplications: [],
+    patchExistingFilesOnly: null, mutationEligible: null, mutationEligibilityLevel: null, mutationEligibilityReason: null,
+    verificationOutcome: null, assessmentPatchCheckPassed: null, assessmentPatchApplyPassed: null, assessmentFmtPassed: null,
+    assessmentInitPassed: null, assessmentValidatePassed: null, assessmentPlanAttempted: null, assessmentPlanPassed: null,
+    assessmentFullVerificationPassed: null, applySafety: null, planFailure: null, patchApplications: [],
     ...overrides,
   };
 }
@@ -62,6 +65,14 @@ describe("usage observability UI", () => {
     expect(html).toContain("0 LLM calls required");
     expect(html).toContain("re-verified the candidate patch");
     expect(html).not.toContain("automatically trusted");
+  });
+
+  it("renders bounded environment-blocked plan details separately from the diagnosis", () => {
+    const html = renderToStaticMarkup(<RunObservability run={run({ verificationOutcome: "environment_blocked", assessmentPatchCheckPassed: true, assessmentPatchApplyPassed: true, assessmentFmtPassed: true, assessmentInitPassed: true, assessmentValidatePassed: true, assessmentPlanAttempted: true, assessmentPlanPassed: false, assessmentFullVerificationPassed: false, applySafety: "conditionally_eligible", planFailure: { classification: "permissions", reasonCode: "aws_access_denied", summary: "The role is not authorized.", detail: "Access denied by provider.", sourceFile: "main.tf", sourceLine: 4, resourceAddress: "aws_s3_bucket.example", diagnosticFormat: "terraform_json" } })} />);
+    expect(html).toContain("ENVIRONMENT BLOCKED");
+    expect(html).toContain("AWS / provider permissions");
+    expect(html).toContain("main.tf:4");
+    expect(html).toContain("Terraform JSON diagnostic");
   });
 
   it("renders legacy unknown telemetry without converting it to zero", () => {

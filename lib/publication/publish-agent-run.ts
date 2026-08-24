@@ -14,7 +14,17 @@ const attemptSchema = z.array(z.object({
   status: z.enum(["verified", "failed", "rejected", "unavailable", "skipped"]),
   failedStage: z.string().nullable().optional(),
   commands: z.record(z.string(), z.object({ status: z.enum(["passed", "failed", "skipped", "error"]) })).default({}),
+  failureCategory: z.string().nullable().optional(),
+  failureReasonCode: z.string().nullable().optional(),
+  failureDescription: z.string().nullable().optional(),
+  candidateRepresentation: z.string().nullable().optional(),
+  planFailure: z.object({
+    classification: z.enum(["terraform_semantic", "credentials", "permissions", "network", "provider_unavailable", "external_service", "runtime_environment", "unknown"]),
+    reasonCode: z.string(), summary: z.string(), detail: z.string(), sourceFile: z.string().nullable(), sourceLine: z.number().int().positive().nullable(),
+    resourceAddress: z.string().nullable(), diagnosticFormat: z.enum(["terraform_json", "bounded_text"]),
+  }).nullable().optional(),
 })).max(2);
+const llmCallTypesSchema = z.array(z.object({ type: z.string().max(100) })).max(100);
 
 type Target = NonNullable<Awaited<ReturnType<typeof publicationStore.getTarget>>>;
 
@@ -69,6 +79,7 @@ export async function publishClaimedAgentRun(
     }
 
     const parsedAttempts = attemptSchema.safeParse(run.attempts);
+    const parsedCalls = llmCallTypesSchema.safeParse(run.llmCalls);
     const origin = getApplicationOrigin();
     const rendered = renderAgentComment({
       runId: run.id,
@@ -81,11 +92,21 @@ export async function publishClaimedAgentRun(
       modelConfidence: run.modelConfidence,
       evidenceScore: run.evidenceScore,
       attempts: parsedAttempts.success ? parsedAttempts.data as PublicationAttempt[] : [],
+      llmCallTypes: parsedCalls.success ? parsedCalls.data.map((call) => call.type) : [],
+      verificationOutcome: run.verificationOutcome as Parameters<typeof renderAgentComment>[0]["verificationOutcome"],
+      mutationEligibilityLevel: run.mutationEligibilityLevel as Parameters<typeof renderAgentComment>[0]["mutationEligibilityLevel"],
+      planFailure: run.planFailureClass && run.planFailureReasonCode && run.planFailureSummary && run.planFailureDetail && (run.planDiagnosticFormat === "terraform_json" || run.planDiagnosticFormat === "bounded_text") ? {
+        classification: run.planFailureClass as NonNullable<Parameters<typeof renderAgentComment>[0]["planFailure"]>["classification"],
+        reasonCode: run.planFailureReasonCode, summary: run.planFailureSummary, detail: run.planFailureDetail,
+        sourceFile: run.planFailureSourceFile, sourceLine: run.planFailureSourceLine, resourceAddress: run.planFailureResourceAddress,
+        diagnosticFormat: run.planDiagnosticFormat,
+      } : null,
       dashboardUrl: origin ? `${origin}/runs/${encodeURIComponent(run.id)}` : null,
       application: run.patchApplications?.[0]?.commitSha ? {
         commitSha: run.patchApplications[0].commitSha,
         commitUrl: run.patchApplications[0].commitUrl,
         requestedBy: run.patchApplications[0].requestedByDisplay,
+        eligibilityLevel: run.patchApplications[0].eligibilityLevel as "verified" | "conditional" | "ineligible" | null,
       } : null,
     });
     if (rendered.body.length > MAX_PR_COMMENT_CHARS) throw new PublicationError("comment_too_large");
