@@ -1,9 +1,39 @@
 {
   "version": "terrafix_model_policy_v1",
   "models": {
-    "openrouter/free": { "tier": "FREE", "enabled": true, "recommended": true, "priority": 10 },
-    "openai/gpt-4o-mini": { "tier": "ECONOMY", "enabled": true, "recommended": false, "priority": 30 },
-    "anthropic/claude-sonnet-4": { "tier": "BALANCED", "enabled": true, "recommended": false, "priority": 50 },
-    "openai/gpt-5": { "tier": "PREMIUM", "enabled": true, "recommended": false, "priority": 70 }
+    "openai/gpt-oss-20b:free": {
+      "tier": "FREE",
+      "enabled": true,
+      "recommended": true,
+      "priority": 10
+    },
+
+    "openrouter/free": {
+      "tier": "FREE",
+      "enabled": false,
+      "recommended": false,
+      "priority": 90
+    },
+
+    "openai/gpt-4o-mini": {
+      "tier": "ECONOMY",
+      "enabled": true,
+      "recommended": false,
+      "priority": 30
+    },
+
+    "anthropic/claude-sonnet-4": {
+      "tier": "BALANCED",
+      "enabled": true,
+      "recommended": false,
+      "priority": 50
+    },
+
+    "openai/gpt-5": {
+      "tier": "PREMIUM",
+      "enabled": true,
+      "recommended": false,
+      "priority": 70
+    }
   }
 }
