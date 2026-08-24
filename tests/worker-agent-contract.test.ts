@@ -41,6 +41,13 @@ describe("Python agent process boundary", () => {
     process.env.OPENROUTER_API_KEY = "openrouter-key";
     const environment = createAgentEnvironment({ accessKeyId: "temporary-id", secretAccessKey: "temporary-secret", sessionToken: "temporary-session", region: "us-east-1" });
     expect(environment).toMatchObject({ GEMINI_API_KEY: "hosted-model-key", OPENROUTER_API_KEY: "openrouter-key", AWS_ACCESS_KEY_ID: "temporary-id", AWS_SESSION_TOKEN: "temporary-session" });
+    expect(environment.SEMANTIC_TERRAFORM_AGENT_PASSTHROUGH_ENV?.split(",")).toEqual([
+      "AWS_ACCESS_KEY_ID",
+      "AWS_DEFAULT_REGION",
+      "AWS_REGION",
+      "AWS_SECRET_ACCESS_KEY",
+      "AWS_SESSION_TOKEN",
+    ]);
     expect(environment).not.toHaveProperty("DATABASE_URL");
     expect(environment).not.toHaveProperty("GITHUB_APP_PRIVATE_KEY");
     expect(environment).not.toHaveProperty("GITHUB_WEBHOOK_SECRET");

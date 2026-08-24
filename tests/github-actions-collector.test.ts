@@ -26,6 +26,31 @@ describe("GitHub Actions failure collector", () => {
     }, 1)).toBeNull();
   });
 
+  it("trusts the explicitly failed Plan step when the job log also mentions successful validation", async () => {
+    const result = await collectTerraformFailureLog({
+      async listJobs() {
+        return [{
+          id: 9,
+          name: "Terraform Plan",
+          conclusion: "failure",
+          steps: [
+            { name: "Terraform Validate", conclusion: "success" },
+            { name: "Terraform Plan", conclusion: "failure" },
+          ],
+        }];
+      },
+      async downloadJobLog() {
+        return [
+          "terraform validate -no-color",
+          "Success! The configuration is valid.",
+          "terraform plan -refresh=false -no-color",
+          "Error: Resource precondition failed",
+        ].join("\n");
+      },
+    }, 2);
+    expect(result?.failedStage).toBe("plan");
+  });
+
   it("strips ANSI control sequences and bounds large logs", () => {
     const log = `${"ordinary output\n".repeat(10_000)}\u001b[31mError: terraform validate failed\u001b[0m`;
     const extracted = extractTerraformFailureText(log);

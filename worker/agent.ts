@@ -6,6 +6,13 @@ import type { ClaimedAgentRun, PreparedAgentWorkspace, TemporaryAwsCredentials }
 import { runCommand } from "@/worker/command";
 
 const MAX_RESULT_BYTES = 2 * 1024 * 1024;
+const AWS_TERRAFORM_PASSTHROUGH = [
+  "AWS_ACCESS_KEY_ID",
+  "AWS_DEFAULT_REGION",
+  "AWS_REGION",
+  "AWS_SECRET_ACCESS_KEY",
+  "AWS_SESSION_TOKEN",
+].join(",");
 
 export async function invokeSemanticTerraformAgent(input: {
   run: ClaimedAgentRun;
@@ -97,6 +104,7 @@ export function createAgentEnvironment(credentials: TemporaryAwsCredentials): No
     NO_PROXY: process.env.NO_PROXY,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+    SEMANTIC_TERRAFORM_AGENT_PASSTHROUGH_ENV: AWS_TERRAFORM_PASSTHROUGH,
     AWS_ACCESS_KEY_ID: credentials.accessKeyId,
     AWS_SECRET_ACCESS_KEY: credentials.secretAccessKey,
     AWS_SESSION_TOKEN: credentials.sessionToken,

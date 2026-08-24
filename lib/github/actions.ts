@@ -120,7 +120,14 @@ export async function collectTerraformFailureLog(
     if (!excerpt) continue;
     jobIds.push(job.id);
     excerpts.push(`## GitHub Actions job: ${job.name}\n${excerpt}`);
-    const inferred = inferFailedStage(`${job.name}\n${job.steps.filter((step) => step.conclusion === "failure").map((step) => step.name).join("\n")}\n${excerpt}`);
+    const failedSteps = job.steps
+      .filter((step) => step.conclusion === "failure")
+      .map((step) => step.name)
+      .join("\n");
+    const explicitStage = inferFailedStage(failedSteps);
+    const inferred = explicitStage === "unknown"
+      ? inferFailedStage(`${job.name}\n${excerpt}`)
+      : explicitStage;
     if (inferred === "validate" || failedStage === "unknown") failedStage = inferred;
   }
 
