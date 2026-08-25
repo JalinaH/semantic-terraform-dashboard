@@ -196,16 +196,30 @@ and checks the expected account/role before invoking the engine. On ECS, the
 task role supplies temporary workload credentials through the standard AWS SDK
 credential chain.
 
+Guided onboarding requires a public HTTPS `NEXT_PUBLIC_APP_URL` so the customer
+callback Lambda can reach `/api/aws/onboarding/complete`. TerraFix serves the
+versioned, secret-free template at
+`/api/aws/onboarding/cloudformation-template/v1`. For production, prefer
+uploading that exact response to an immutable public S3 object and set:
+
+```dotenv
+AWS_ONBOARDING_TEMPLATE_URL="https://your-bucket.s3.us-east-1.amazonaws.com/terrafix-aws-onboarding-v1.yaml"
+```
+
+The object contains no credentials or customer values. Version it instead of
+overwriting it so existing launch URLs remain deterministic.
+
 ## 8. Production smoke checklist
 
 1. Health endpoint succeeds without disclosing configuration.
 2. Auth.js login returns to the production origin.
 3. App installation returns through the Setup URL and repositories sync.
-4. AWS CloudFormation download works only for an authorized repository.
-5. STS verification changes the repository to connected.
-6. Model catalog has a current successful sync and an eligible FREE model.
-7. Worker starts with `agentVersion: 1.1.4` and atomically claims diagnosis or patch-application jobs.
-8. Run [e2e-validation.md](e2e-validation.md) against the dedicated demo repo.
+4. Guided AWS setup opens Quick Create and connects automatically after the stack callback.
+5. Advanced / Manual CloudFormation download remains authorized and functional.
+6. STS verification changes the repository to connected.
+7. Model catalog has a current successful sync and an eligible FREE model.
+8. Worker starts with `agentVersion: 1.1.4` and atomically claims diagnosis or patch-application jobs.
+9. Run [e2e-validation.md](e2e-validation.md) against the dedicated demo repo.
 
 ## Recovery notes
 

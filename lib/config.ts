@@ -141,6 +141,12 @@ export interface AwsControlPlaneConfiguration {
   principalArn: string;
 }
 
+export interface AwsGuidedOnboardingConfiguration extends AwsControlPlaneConfiguration {
+  applicationOrigin: string;
+  callbackEndpoint: string;
+  templateUrl: string;
+}
+
 export class MissingAwsConfigurationError extends Error {
   constructor(readonly missing: string[]) {
     super(`AWS control-plane configuration is missing ${missing.length} required value(s).`);
@@ -164,6 +170,31 @@ export function getAwsControlPlaneConfiguration(): AwsControlPlaneConfiguration 
   return {
     region: awsRegionSchema.parse(process.env.AWS_CONTROL_PLANE_REGION?.trim()),
     principalArn: iamPrincipalArnSchema.parse(process.env.AWS_ASSUME_ROLE_PRINCIPAL_ARN?.trim()),
+  };
+}
+
+export function getAwsGuidedOnboardingConfiguration(): AwsGuidedOnboardingConfiguration {
+  const controlPlane = getAwsControlPlaneConfiguration();
+  const applicationOrigin = getApplicationOrigin();
+  if (!applicationOrigin || !applicationOrigin.startsWith("https://")) {
+    throw new MissingAwsConfigurationError(["NEXT_PUBLIC_APP_URL (public HTTPS)"]);
+  }
+  const configuredTemplate = process.env.AWS_ONBOARDING_TEMPLATE_URL?.trim();
+  const templateUrl = configuredTemplate || `${applicationOrigin}/api/aws/onboarding/cloudformation-template/v1`;
+  let parsedTemplate: URL;
+  try {
+    parsedTemplate = new URL(templateUrl);
+  } catch {
+    throw new MissingAwsConfigurationError(["AWS_ONBOARDING_TEMPLATE_URL"]);
+  }
+  if (parsedTemplate.protocol !== "https:" || parsedTemplate.username || parsedTemplate.password) {
+    throw new MissingAwsConfigurationError(["AWS_ONBOARDING_TEMPLATE_URL"]);
+  }
+  return {
+    ...controlPlane,
+    applicationOrigin,
+    callbackEndpoint: `${applicationOrigin}/api/aws/onboarding/complete`,
+    templateUrl: parsedTemplate.toString(),
   };
 }
 
@@ -238,10 +269,21 @@ export function getDashboardRuntimeConfigurationStatus(): RuntimeConfigurationSt
   const invalid = [
     ...(present(process.env.AUTH_TRUST_HOST) && process.env.AUTH_TRUST_HOST !== "true" ? ["AUTH_TRUST_HOST"] : []),
     ...(present(process.env.NEXT_PUBLIC_APP_URL) && !getApplicationOrigin() ? ["NEXT_PUBLIC_APP_URL"] : []),
+    ...(present(process.env.AWS_ONBOARDING_TEMPLATE_URL) && !isPublicHttpsUrl(process.env.AWS_ONBOARDING_TEMPLATE_URL) ? ["AWS_ONBOARDING_TEMPLATE_URL"] : []),
     ...(present(process.env.GITHUB_APP_SLUG) && !normalizeGitHubAppSlug(process.env.GITHUB_APP_SLUG) ? ["GITHUB_APP_SLUG"] : []),
     ...getAwsControlPlaneConfigurationStatus().missing.filter((name) => !missing.includes(name as typeof required[number])),
   ];
   return { configured: missing.length === 0 && invalid.length === 0, missing, invalid };
+}
+
+function isPublicHttpsUrl(value: string | undefined) {
+  if (!value?.trim()) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && !url.username && !url.password;
+  } catch {
+    return false;
+  }
 }
 
 export function getWorkerRuntimeConfigurationStatus(): RuntimeConfigurationStatus {

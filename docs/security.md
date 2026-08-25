@@ -37,6 +37,21 @@ through the separately approved verified-patch boundary below.
   the child process, and never persisted or rendered.
 - `GetCallerIdentity` confirms the expected AWS account and assumed role before
   the engine runs.
+- Guided onboarding sessions last 30 minutes and are scoped to one repository,
+  installation, and requester. Callback tokens contain 256 bits of random
+  material; PostgreSQL stores only their SHA-256 hashes.
+- The raw callback token appears only inside the short-lived Quick Create URL.
+  It is never logged or returned separately, cannot create a second connection
+  after consumption, and is rejected after expiry.
+- The public callback bounds and validates every field, atomically matches the
+  token hash, checks the IAM role ARN/account, and performs `AssumeRole` with
+  the stored External ID followed by `GetCallerIdentity`. Only that result can
+  populate the existing `AWSConnection` record.
+- The generic hosted template contains no customer or dashboard credentials.
+  Its non-VPC callback Lambda has only CloudWatch logging permissions, reports
+  the already-created role metadata, and implements CloudFormation response
+  handling for Create, Update, and Delete. It contains no Terraform or agent
+  logic and has no IAM discovery permissions.
 
 ## Model gateway and telemetry
 

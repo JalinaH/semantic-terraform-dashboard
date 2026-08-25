@@ -28,7 +28,8 @@ export type AwsConnectionAccessErrorCode =
   | "repository_access_removed"
   | "repository_not_configured"
   | "connection_not_started"
-  | "role_not_configured";
+  | "role_not_configured"
+  | "connected_reconnect_required";
 
 export class AwsConnectionAccessError extends Error {
   constructor(readonly code: AwsConnectionAccessErrorCode) {
@@ -57,6 +58,7 @@ export async function startAwsOnboarding(
 ) {
   const access = await getAuthorizedAwsContext(store, userId, repositoryId);
   if (!access.configured) throw new AwsConnectionAccessError("repository_not_configured");
+  if (access.connection?.status === "connected") throw new AwsConnectionAccessError("connected_reconnect_required");
   const region = awsRegionSchema.parse(regionInput);
   return store.startOnboarding(repositoryId, region, access.connection?.externalId ?? generateExternalId());
 }
@@ -69,6 +71,7 @@ export async function saveAwsRole(
 ) {
   const access = await getAuthorizedAwsContext(store, userId, repositoryId);
   if (!access.connection) throw new AwsConnectionAccessError("connection_not_started");
+  if (access.connection.status === "connected") throw new AwsConnectionAccessError("connected_reconnect_required");
   const roleArn = iamRoleArnSchema.parse(roleArnInput);
   return store.saveRole(repositoryId, roleArn);
 }

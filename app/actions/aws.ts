@@ -140,6 +140,7 @@ function safeActionError(error: unknown, operation: string, userId: string, repo
       repository_not_configured: "Save the repository configuration before connecting AWS.",
       connection_not_started: "Choose an AWS region before configuring the role.",
       role_not_configured: "Save an IAM role ARN before verifying the connection.",
+      connected_reconnect_required: "Use guided Reconnect to preserve the current working role until its replacement is verified.",
     };
     return { status: "error", message: messages[error.code] };
   }

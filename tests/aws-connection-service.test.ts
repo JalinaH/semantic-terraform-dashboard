@@ -117,6 +117,17 @@ describe("AWS connection service", () => {
     expect(store.records.get("repo-1")?.status).toBe("access_removed");
   });
 
+  it("blocks manual replacement of a connected role so reconnect remains atomic", async () => {
+    const store = await startedStore();
+    await saveAwsRole(store, "user-1", "repo-1", validRoleArn);
+    await verifyAwsConnection(store, successfulVerifier, "user-1", "repo-1");
+    await expect(saveAwsRole(store, "user-1", "repo-1", "arn:aws:iam::123456789012:role/Replacement"))
+      .rejects.toMatchObject({ code: "connected_reconnect_required" });
+    await expect(startAwsOnboarding(store, () => "new", "user-1", "repo-1", "us-east-1"))
+      .rejects.toMatchObject({ code: "connected_reconnect_required" });
+    expect(store.records.get("repo-1")?.roleArn).toBe(validRoleArn);
+  });
+
   it("disconnects only the dashboard record", async () => {
     const store = await startedStore();
     await disconnectAwsConnection(store, "user-1", "repo-1");

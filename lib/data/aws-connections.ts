@@ -59,21 +59,27 @@ export const prismaAwsConnectionStore: AwsConnectionStore = {
   },
 
   async startOnboarding(repositoryId, region, newExternalId) {
-    const saved = await db.aWSConnection.upsert({
-      where: { repositoryId },
-      create: {
-        repositoryId,
-        region,
-        externalId: newExternalId,
-        status: AWSConnectionStatus.PENDING,
-      },
-      update: {
-        region,
-        status: AWSConnectionStatus.PENDING,
-        awsAccountId: null,
-        lastVerifiedAt: null,
-        verificationError: null,
-      },
+    const saved = await db.$transaction(async (transaction) => {
+      await transaction.awsOnboardingSession.updateMany({
+        where: { repositoryId, status: { in: ["PENDING", "STACK_LAUNCHED", "CALLBACK_RECEIVED", "VERIFYING"] } },
+        data: { status: "EXPIRED", completedAt: new Date() },
+      });
+      return transaction.aWSConnection.upsert({
+        where: { repositoryId },
+        create: {
+          repositoryId,
+          region,
+          externalId: newExternalId,
+          status: AWSConnectionStatus.PENDING,
+        },
+        update: {
+          region,
+          status: AWSConnectionStatus.PENDING,
+          awsAccountId: null,
+          lastVerifiedAt: null,
+          verificationError: null,
+        },
+      });
     });
     return toAwsConnectionRecord(saved);
   },

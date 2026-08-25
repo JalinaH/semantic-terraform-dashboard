@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generateCloudFormationTemplate, getVerificationRoleName } from "@/lib/aws/cloudformation";
+import { buildCloudFormationQuickCreateUrl, generateCloudFormationTemplate, generateGuidedOnboardingTemplate, getVerificationRoleName } from "@/lib/aws/cloudformation";
 import { generateStarterVerificationPolicy, generateTrustPolicy } from "@/lib/aws/policies";
 
 const principal = "arn:aws:iam::111122223333:role/SemanticTerraformControlPlane";
@@ -48,5 +48,37 @@ describe("CloudFormation generation", () => {
     expect(first).toBe(getVerificationRoleName("repo/with unsafe spaces"));
     expect(first).toMatch(/^TerraFixVerificationRole-[a-f0-9]{10}$/);
     expect(first.length).toBeLessThanOrEqual(64);
+  });
+
+  it("generates a callback-enabled guided template with bounded customer resources", () => {
+    const template = generateGuidedOnboardingTemplate();
+    expect(template).toContain("Type: AWS::IAM::Role");
+    expect(template).toContain("Type: AWS::Lambda::Function");
+    expect(template).toContain("Type: Custom::TerraFixOnboarding");
+    expect(template).toContain("CallbackToken: !Ref CallbackToken");
+    expect(template).toContain("RoleArn: !GetAtt VerificationRole.Arn");
+    expect(template).toContain('Status: status');
+    expect(template).toContain('event.ResponseURL, "PUT"');
+    expect(template).toContain("TerraFixRoleArn:");
+    expect(template).toContain("Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*");
+    expect(template).not.toContain("AdministratorAccess");
+    expect(template).not.toMatch(/AWS::(?:EC2|S3|DynamoDB|ApiGateway|RDS)::/);
+  });
+
+  it("prefills only the expected Quick Create parameters", () => {
+    const url = buildCloudFormationQuickCreateUrl(
+      "https://bucket.s3.us-east-1.amazonaws.com/terrafix-v1.yaml",
+      "TerraFix-abc123",
+      "us-east-1",
+      { ExternalId: "stfa_repo", CallbackToken: "one-time-token" },
+    );
+    const fragment = new URLSearchParams(new URL(url).hash.split("?")[1]);
+    expect(Object.fromEntries(fragment)).toEqual({
+      templateURL: "https://bucket.s3.us-east-1.amazonaws.com/terrafix-v1.yaml",
+      stackName: "TerraFix-abc123",
+      param_ExternalId: "stfa_repo",
+      param_CallbackToken: "one-time-token",
+    });
+    expect(url).not.toContain("AWS_SECRET_ACCESS_KEY");
   });
 });

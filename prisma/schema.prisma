@@ -58,6 +58,16 @@ enum AWSConnectionStatus {
   ACCESS_REMOVED
 }
 
+enum AwsOnboardingSessionStatus {
+  PENDING
+  STACK_LAUNCHED
+  CALLBACK_RECEIVED
+  VERIFYING
+  CONNECTED
+  EXPIRED
+  FAILED
+}
+
 enum VerificationStatus {
   VERIFIED_FIRST_ATTEMPT
   VERIFIED_AFTER_RETRY
@@ -101,28 +111,29 @@ enum PatchApplicationStatus {
 }
 
 model User {
-  id                String             @id @default(cuid())
-  name              String?
-  email             String?            @unique
-  emailVerified     DateTime?
-  image             String?
-  githubUserId      String?            @unique
-  githubLogin       String?
-  avatarUrl         String?
-  accessLevel       UserAccessLevel    @default(FREE)
-  accounts          Account[]
-  sessions          Session[]
-  userInstallations UserInstallation[]
-  patchApplications PatchApplication[]
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  id                    String                 @id @default(cuid())
+  name                  String?
+  email                 String?                @unique
+  emailVerified         DateTime?
+  image                 String?
+  githubUserId          String?                @unique
+  githubLogin           String?
+  avatarUrl             String?
+  accessLevel           UserAccessLevel        @default(FREE)
+  accounts              Account[]
+  sessions              Session[]
+  userInstallations     UserInstallation[]
+  patchApplications     PatchApplication[]
+  awsOnboardingSessions AwsOnboardingSession[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
 
   @@index([githubLogin])
 }
 
 model GitHubInstallation {
-  id                     String              @id @default(cuid())
-  installationId         String              @unique
+  id                     String                 @id @default(cuid())
+  installationId         String                 @unique
   accountId              String?
   accountLogin           String
   accountType            AccountType
@@ -134,8 +145,9 @@ model GitHubInstallation {
   userInstallations      UserInstallation[]
   repositories           Repository[]
   agentRuns              AgentRun[]
-  createdAt              DateTime            @default(now())
-  updatedAt              DateTime            @updatedAt
+  awsOnboardingSessions  AwsOnboardingSession[]
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
 
   @@index([accountId])
   @@index([accountLogin])
@@ -156,26 +168,27 @@ model UserInstallation {
 }
 
 model Repository {
-  id                 String                @id @default(cuid())
-  githubRepositoryId String                @unique
-  owner              String
-  name               String
-  fullName           String                @unique
-  defaultBranch      String                @default("main")
-  private            Boolean               @default(false)
-  archived           Boolean               @default(false)
-  accessible         Boolean               @default(true)
-  removedAt          DateTime?
-  installationId     String
-  installation       GitHubInstallation    @relation(fields: [installationId], references: [id], onDelete: Cascade)
-  config             RepositoryConfig?
-  awsConnection      AWSConnection?
-  agentRuns          AgentRun[]
-  publications       AgentRunPublication[]
-  webhookDeliveries  WebhookDelivery[]
-  patchApplications  PatchApplication[]
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
+  id                    String                 @id @default(cuid())
+  githubRepositoryId    String                 @unique
+  owner                 String
+  name                  String
+  fullName              String                 @unique
+  defaultBranch         String                 @default("main")
+  private               Boolean                @default(false)
+  archived              Boolean                @default(false)
+  accessible            Boolean                @default(true)
+  removedAt             DateTime?
+  installationId        String
+  installation          GitHubInstallation     @relation(fields: [installationId], references: [id], onDelete: Cascade)
+  config                RepositoryConfig?
+  awsConnection         AWSConnection?
+  awsOnboardingSessions AwsOnboardingSession[]
+  agentRuns             AgentRun[]
+  publications          AgentRunPublication[]
+  webhookDeliveries     WebhookDelivery[]
+  patchApplications     PatchApplication[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
 
   @@index([installationId])
   @@index([installationId, accessible])
@@ -262,6 +275,32 @@ model AWSConnection {
 
   @@index([status])
   @@index([awsAccountId])
+}
+
+model AwsOnboardingSession {
+  id                 String                     @id @default(cuid())
+  repositoryId       String
+  repository         Repository                 @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  installationId     String
+  installation       GitHubInstallation         @relation(fields: [installationId], references: [id], onDelete: Cascade)
+  externalId         String                     @unique
+  callbackTokenHash  String                     @unique
+  region             String
+  status             AwsOnboardingSessionStatus @default(PENDING)
+  expiresAt          DateTime
+  callbackReceivedAt DateTime?
+  completedAt        DateTime?
+  roleArn            String?
+  awsAccountId       String?
+  failureCode        String?
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  @@index([repositoryId, createdAt])
+  @@index([userId, repositoryId])
+  @@index([status, expiresAt])
 }
 
 model AgentRun {

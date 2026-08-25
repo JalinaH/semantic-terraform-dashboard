@@ -88,6 +88,31 @@ and status—not customer access keys. Dashboard verification and worker executi
 use STS through the deployed control-plane identity. Temporary role credentials
 exist only in worker memory and the allowlisted child environment.
 
+Guided onboarding adds a short-lived handshake without creating a second
+connection architecture:
+
+```text
+authenticated repository user
+        ↓ create session (repository External ID + hashed one-time token)
+TerraFix dashboard
+        ↓ prefilled CloudFormation Quick Create URL
+customer AWS account
+        ├── least-privilege verification role
+        └── small non-VPC callback Lambda/custom resource
+                         ↓ role ARN + account + one-time token
+public TerraFix callback
+        ↓ session/token/expiry/account/role validation
+STS AssumeRole(ExternalId) → GetCallerIdentity
+        ↓ only after identity matches
+canonical Repository.AWSConnection = CONNECTED
+```
+
+The customer AWS account and TerraFix are separate trust boundaries. Neither a
+CloudFormation success nor a callback claim is proof of access. Only the
+configured principal successfully assuming the exact role with the stored,
+session-specific External ID can replace the repository connection. A failed
+reconnect leaves the previous verified connection untouched.
+
 The OpenRouter catalog stores bounded public metadata. TerraFix's versioned
 policy—not OpenRouter—assigns FREE/ECONOMY/BALANCED/PREMIUM tiers. Unknown models
 remain disabled. Repository policy is validated server-side and snapshotted on

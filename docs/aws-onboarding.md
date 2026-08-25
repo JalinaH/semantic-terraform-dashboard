@@ -55,18 +55,56 @@ Do not place `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY` in `.env.example`, c
 
 1. Sign in and synchronize a repository through the GitHub App.
 2. Save the repository's Terraform/agent configuration and keep the agent enabled.
-3. Open **Repositories → repository → Connect AWS**.
-4. Choose a supported default AWS region. `ap-south-1` is the default and `ap-southeast-1` is also available.
-5. Use either **CloudFormation starter role** or **I already have a role**.
-6. Paste the resulting IAM role ARN.
-7. Select **Verify connection**.
-8. On success, confirm the account, region, role, and verification time. The repository becomes **Ready**.
+3. Open **Repositories → repository → AWS Connection** and select **Connect AWS**.
+4. TerraFix creates a 30-minute onboarding session and opens AWS CloudFormation Quick Create in a new tab.
+5. Review the prefilled stack, acknowledge IAM resource creation, and create it.
+6. Keep TerraFix open. The page polls while the stack creates the role, calls TerraFix, and TerraFix verifies `AssumeRole` plus `GetCallerIdentity`.
+7. On success, confirm the account, region, role, and verification time. The repository becomes **Ready** without copying a role ARN.
+
+The main tab shows **Preparing secure connection → Create TerraFix role →
+Verify AWS connection → Connected**. If the session expires, select **Start
+again**; old callback tokens are not reused. Reconnect keeps the previous
+working role active until the new role has passed STS verification.
 
 The allowed MVP regions are `us-east-1`, `us-east-2`, `us-west-1`, `us-west-2`, `eu-west-1`, `eu-central-1`, `ap-south-1`, `ap-southeast-1`, and `ap-southeast-2`.
 
-## Option A: CloudFormation starter role
+## CloudFormation Quick Create
 
-The onboarding page provides **Download CloudFormation template**. The YAML is generated for the authorized repository and contains:
+Quick Create uses a versioned, public, parameterized template. TerraFix prefills
+the template URL, stack name, trusted principal, session-specific External ID,
+repository/session identifiers, callback endpoint, one-time callback token, and
+role name. The generic template itself contains no token, dashboard credential,
+AWS credential, or repository-specific value.
+
+The callback token cannot use CloudFormation `NoEcho` because AWS ignores
+`NoEcho` parameters supplied through Quick Create URLs. TerraFix therefore
+treats it as an intentionally short-lived provisioning capability: high
+entropy, stored only as a hash, accepted for one session, unable to create a
+second connection after success, and invalid after expiry. It is never logged
+or returned separately from the launch URL.
+
+The guided stack creates only:
+
+- the existing least-privilege verification IAM role and inline policy;
+- a minimal Lambda execution role with CloudWatch Logs access;
+- a small, non-VPC callback Lambda; and
+- one custom resource that reports the role ARN and AWS account ID.
+
+The Lambda contains no TerraFix agent or Terraform logic and has no IAM read or
+discovery permissions. It notifies TerraFix on Create, treats Update/Delete as
+safe no-ops for dashboard state, and always PUTs a valid `SUCCESS` or `FAILED` response
+to CloudFormation's presigned response URL.
+
+TerraFix does not trust the callback. The endpoint validates the bounded
+payload, session, expiry, callback hash, callback state, role ARN, and account,
+then uses the stored External ID for real STS verification. Only a matching
+assumed-role identity updates the canonical repository connection.
+
+## Advanced / Manual setup
+
+The existing manual flow remains under **Advanced / Manual setup**. The page
+provides **Download CloudFormation template**. The YAML is generated for the
+authorized repository and contains:
 
 - one `AWS::IAM::Role`;
 - a trust statement for only the configured control-plane principal;
@@ -85,9 +123,8 @@ It does not create users, access keys, EC2 instances, Lambda functions, S3 bucke
 4. Select **Upload a template file** and upload the YAML.
 5. Review the role and inline policy. Acknowledge that the stack creates IAM resources.
 6. Create the stack and wait for `CREATE_COMPLETE`.
-7. Copy `RoleArn` from the stack's **Outputs** tab into the dashboard.
-
-TerraFix does not fabricate a CloudFormation Quick Create URL. Quick Create requires the template to be hosted at a reachable HTTPS URL. The UI stays with authenticated downloads until production template hosting is designed.
+7. Copy `RoleArn` or `TerraFixRoleArn` from the stack's **Outputs** tab into the dashboard.
+8. Save and verify the connection.
 
 ## Starter verification policy
 
@@ -95,7 +132,7 @@ The generated policy contains selected read/list/describe actions for common EC2
 
 This policy is only a starting point. A Terraform plan can need different API calls based on provider behavior, data sources, imported modules, and resources. Add narrowly scoped resource-specific read/list/describe calls when verification reports missing permissions. Where an AWS API cannot be resource-scoped, a wildcard resource can still be necessary for that read action; review such additions using normal IAM controls.
 
-## Option B: Existing role
+## Existing role in manual setup
 
 Choose **I already have a role** and provide an ARN in this form:
 
@@ -144,6 +181,11 @@ No temporary key, secret, or session token is returned to a Client Component, Se
 
 Only bounded, safe user-facing messages are persisted. AWS SDK stack traces, request objects, credentials, and tokens are not stored or returned.
 
+Guided session statuses are `pending`, `stack_launched`, `callback_received`,
+`verifying`, `connected`, `expired`, and `failed`. Authenticated duplicate
+custom-resource callbacks are idempotent and cannot create a parallel
+connection. Expired sessions are marked lazily; no cleanup scheduler is needed.
+
 ## Disconnecting
 
 **Disconnect AWS** requires confirmation and deletes the dashboard's active `AWSConnection` row. It does not make an AWS API call and does not delete or modify the IAM role in the customer's account. Delete the CloudFormation stack or role separately in AWS if it is no longer needed.
@@ -164,10 +206,10 @@ Then:
 
 1. Sign in through GitHub and open the test repository.
 2. Save repository configuration with the agent enabled.
-3. Open **Connect AWS**, select the target region, and continue.
-4. Download the CloudFormation YAML and create the stack in the test account.
-5. Paste the output role ARN and save it.
-6. Select **Verify connection**.
+3. Open **AWS Connection**, select **Connect AWS**, and create the prefilled stack in the test account.
+4. Keep the TerraFix page open and confirm it progresses through waiting and verification without a pasted ARN.
+5. Confirm the previous connection remains active if a reconnect attempt fails.
+6. Repeat once through **Advanced / Manual setup** to validate the fallback.
 7. Confirm the displayed account and role match the test account and CloudFormation output.
 8. Return to the repository list and dashboard; confirm the repository is **Ready** and the real ready count increased.
 9. Remove or break the customer role trust, then select **Re-verify**. Confirm the safe failure state appears without a raw stack trace.
@@ -181,12 +223,14 @@ Then:
 - **Role not found:** ensure the ARN is an IAM role ARN from the account where the stack was created, not the CloudFormation stack ARN.
 - **External ID mismatch:** copy the current repository External ID. An ID from another repository or a connection created before disconnect will not work.
 - **Repository is not Ready after successful AWS setup:** confirm GitHub access is still active, repository configuration exists, and the agent is enabled.
+- **Guided setup unavailable:** use a public HTTPS `NEXT_PUBLIC_APP_URL`; in production, configure a versioned public S3 `AWS_ONBOARDING_TEMPLATE_URL`.
+- **Callback expired:** start again. Do not reuse the old stack parameters or callback token.
 
 ## Current limitations
 
 - one active AWS connection per repository;
 - no multiple environment/account bindings yet;
-- no hosted CloudFormation Quick Create URL;
+- one active guided onboarding attempt per repository; starting again expires the previous attempt;
 - no automatic IAM role updates or deletion;
 - no Terraform execution or permission discovery;
 - no worker, queue, GitHub failure webhook, PR comment, or run ingestion.

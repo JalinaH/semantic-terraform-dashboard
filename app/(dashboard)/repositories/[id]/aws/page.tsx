@@ -9,6 +9,7 @@ import {
   LockKeyhole,
   TriangleAlert,
 } from "lucide-react";
+import { AwsGuidedOnboarding } from "@/components/aws-guided-onboarding";
 import { AwsDisconnectForm, AwsRegionForm, AwsRoleForm, AwsVerifyForm } from "@/components/aws-onboarding-forms";
 import { AwsStatusBadge } from "@/components/aws-status-badge";
 import { CopyButton } from "@/components/copy-button";
@@ -20,6 +21,9 @@ import { getVerificationRoleName } from "@/lib/aws/cloudformation";
 import { generateStarterVerificationPolicy, generateTrustPolicy } from "@/lib/aws/policies";
 import { DEFAULT_AWS_REGION, getAwsRegionLabel } from "@/lib/aws/regions";
 import { getAwsControlPlaneConfiguration, getAwsControlPlaneConfigurationStatus } from "@/lib/config";
+import { getAwsGuidedOnboardingConfiguration } from "@/lib/config";
+import { getLatestAwsOnboardingSessionForUser } from "@/lib/aws/onboarding-session";
+import { prismaAwsOnboardingSessionStore } from "@/lib/data/aws-onboarding-sessions";
 import { getRepositoryForUser } from "@/lib/data/repositories";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +39,12 @@ export default async function AwsOnboardingPage({ params }: { params: Promise<{ 
   const awsConfiguration = getAwsControlPlaneConfigurationStatus();
   const currentStep = !connection ? 1 : !connection.roleArn ? 2 : connection.status === "CONNECTED" ? 4 : 3;
   const connected = connection?.status === "CONNECTED";
+  const latestOnboarding = await getLatestAwsOnboardingSessionForUser(
+    prismaAwsOnboardingSessionStore,
+    user.id,
+    repository.id,
+  );
+  const guidedConfigured = isGuidedOnboardingConfigured();
   const generatedSetup = connection && awsConfiguration.configured
     ? createGeneratedSetup(repository.id, connection.externalId)
     : null;
@@ -46,14 +56,12 @@ export default async function AwsOnboardingPage({ params }: { params: Promise<{ 
         <div className="mt-3 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
             <div className="flex flex-wrap items-center gap-2"><p className="font-mono text-xs text-muted-foreground">{repository.fullName}</p><AwsStatusBadge status={connection ? connection.status.toLowerCase() as "pending" | "connected" | "verification_failed" | "access_removed" : "not_connected"} /></div>
-            <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em]">Connect AWS</h1>
-            <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted-foreground">Create one repository-scoped IAM role, then let the dashboard verify it with short-lived STS credentials.</p>
+            <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em]">AWS Connection</h1>
+            <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted-foreground">TerraFix uses a customer-controlled IAM role and temporary STS credentials to verify Terraform plans.</p>
           </div>
           <Badge variant="outline" className="w-fit bg-success-muted text-success-foreground"><LockKeyhole aria-hidden="true" className="size-3" />No permanent access keys</Badge>
         </div>
       </div>
-
-      <AwsStepper currentStep={currentStep} />
 
       {!githubReady ? <BlockingNotice title="GitHub access unavailable">Restore the installation and repository grant before changing its AWS connection.</BlockingNotice> : null}
       {!repository.config ? <BlockingNotice title="Repository configuration required">Save the Terraform and agent configuration before starting AWS onboarding. <Link href={`/repositories/${repository.id}`} className="font-medium underline">Configure repository</Link></BlockingNotice> : null}
@@ -70,10 +78,31 @@ export default async function AwsOnboardingPage({ params }: { params: Promise<{ 
         </Card>
       ) : null}
 
+      <section aria-labelledby="guided-aws-heading">
+        <Card className={!connected ? "border-foreground/15" : undefined}>
+          <CardHeader className="border-b"><CardTitle id="guided-aws-heading">{connected ? "AWS" : "Connect AWS"}</CardTitle><CardDescription>One TerraFix action, one AWS stack confirmation, then automatic role verification.</CardDescription></CardHeader>
+          <CardContent className="pt-5">
+            <AwsGuidedOnboarding
+              repositoryId={repository.id}
+              region={connection?.region ?? DEFAULT_AWS_REGION}
+              connected={connected}
+              configured={guidedConfigured}
+              disabled={!githubReady || !repository.config}
+              initialSession={latestOnboarding}
+            />
+            <p className="mt-5 text-[11px] leading-5 text-muted-foreground">TerraFix never asks for or stores AWS access keys. AWS access remains customer-controlled and uses temporary role sessions.</p>
+          </CardContent>
+        </Card>
+      </section>
+
+      <details className="rounded-xl border bg-card">
+        <summary className="cursor-pointer px-5 py-4 text-sm font-semibold">Advanced / Manual setup</summary>
+        <div className="space-y-6 border-t p-5">
+
       <section aria-labelledby="aws-region-heading">
         <Card>
           <CardHeader className="border-b"><div className="flex items-start gap-3"><StepIcon step={1} active={currentStep === 1} complete={Boolean(connection)} /><div><CardTitle id="aws-region-heading">Choose a verification region</CardTitle><CardDescription>Select the default region the hosted verification worker will use for this repository.</CardDescription></div></div></CardHeader>
-          <CardContent className="pt-5"><div className="max-w-xl"><AwsRegionForm repositoryId={repository.id} currentRegion={connection?.region ?? DEFAULT_AWS_REGION} started={Boolean(connection)} disabled={!githubReady || !repository.config} /></div></CardContent>
+          <CardContent className="pt-5"><div className="max-w-xl"><AwsRegionForm repositoryId={repository.id} currentRegion={connection?.region ?? DEFAULT_AWS_REGION} started={Boolean(connection)} disabled={!githubReady || !repository.config || connected} /></div>{connected ? <p className="mt-3 text-xs text-muted-foreground">Use Reconnect above to replace a working connection without downtime.</p> : null}</CardContent>
         </Card>
       </section>
 
@@ -102,7 +131,7 @@ export default async function AwsOnboardingPage({ params }: { params: Promise<{ 
                 </div>
                 <div className="rounded-xl border p-4">
                   <div className="flex items-start gap-3"><span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-secondary/50"><KeyRound aria-hidden="true" className="size-4" /></span><div><h3 className="text-sm font-semibold">I already have a role</h3><p className="mt-1 text-xs leading-5 text-muted-foreground">Use an existing IAM role whose trust relationship contains this principal and External ID.</p></div></div>
-                  <div className="mt-4"><AwsRoleForm repositoryId={repository.id} currentRoleArn={connection.roleArn ?? ""} disabled={!githubReady} /></div>
+                  <div className="mt-4"><AwsRoleForm repositoryId={repository.id} currentRoleArn={connection.roleArn ?? ""} disabled={!githubReady || connected} /></div>
                 </div>
               </div>
 
@@ -142,8 +171,20 @@ export default async function AwsOnboardingPage({ params }: { params: Promise<{ 
           </Card>
         </section>
       ) : null}
+
+        </div>
+      </details>
     </div>
   );
+}
+
+function isGuidedOnboardingConfigured() {
+  try {
+    getAwsGuidedOnboardingConfiguration();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function createGeneratedSetup(repositoryId: string, externalId: string) {
@@ -153,11 +194,6 @@ function createGeneratedSetup(repositoryId: string, externalId: string) {
     trustPolicy: JSON.stringify(generateTrustPolicy(principalArn, externalId), null, 2),
     starterPolicy: JSON.stringify(generateStarterVerificationPolicy(), null, 2),
   };
-}
-
-function AwsStepper({ currentStep }: { currentStep: number }) {
-  const steps = ["Choose region", "Create role", "Verify", "Connected"];
-  return <ol aria-label="AWS onboarding progress" className="grid gap-2 sm:grid-cols-4">{steps.map((label, index) => { const step = index + 1; const complete = step < currentStep || currentStep === 4; return <li key={label} className={cn("flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-xs", step === currentStep && "border-foreground/25 bg-card", complete && "border-success/20 bg-success-muted")}><span className={cn("flex size-5 items-center justify-center rounded-full border font-mono text-[10px]", complete && "border-success/30 bg-success text-white")}>{complete ? <Check aria-hidden="true" className="size-3" /> : step}</span><span className="font-medium">{label}</span></li>; })}</ol>;
 }
 
 function StepIcon({ step, active, complete }: { step: number; active: boolean; complete: boolean }) {

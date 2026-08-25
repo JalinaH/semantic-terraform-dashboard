@@ -44,6 +44,7 @@ is evidence; human review is required.
 - automatic installation return and repository synchronization
 - per-repository Terraform workflow/path/stage configuration
 - repository-scoped AWS AssumeRole onboarding with random External ID
+- guided AWS Quick Create onboarding with automatic callback and STS verification
 - server-enforced Auto Optimize or fixed OpenRouter model policy
 - FREE/ECONOMY/BALANCED/PREMIUM policy tiers with immutable run snapshots
 - bounded raw-body webhook verification and delivery-ID idempotency
@@ -145,6 +146,11 @@ pnpm dev
 Open `http://localhost:3000`. Use a trusted HTTPS tunnel for the GitHub webhook;
 GitHub cannot reach localhost. Development setup details are in
 [github-app-setup.md](docs/github-app-setup.md).
+
+The primary AWS flow is **Connect AWS → Open AWS Setup → Create stack →
+TerraFix connects automatically**. Guided onboarding also needs a public HTTPS
+`NEXT_PUBLIC_APP_URL` that the customer callback Lambda can reach. The previous
+download/paste/verify flow remains under **Advanced / Manual setup**.
 
 To run the independently configured worker after installing Terraform and the
 pinned Python engine locally:
