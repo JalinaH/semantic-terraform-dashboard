@@ -201,7 +201,6 @@ export function calculateUsageSummary(rows: UsageRow[], period: UsagePeriod): Us
   const cachedInputTokens = completed.reduce((sum, row) => sum + (row.cachedInputTokens ?? 0), 0);
   const aiSpend = sumDecimal(costComplete.map((row) => row.llmCostUsd));
   const allCostsComplete = completed.length > 0 && costComplete.length === completed.length;
-  const allTokensComplete = completed.length > 0 && tokenComplete.length === completed.length;
   const modelCalls = callReported.reduce((sum, row) => sum + (row.llmCallCount ?? 0), 0);
   const zeroLlmRuns = completed.filter((row) => row.resolutionSource === "verified_failure_memory" && row.llmCallCount === 0).length;
 
@@ -223,8 +222,8 @@ export function calculateUsageSummary(rows: UsageRow[], period: UsagePeriod): Us
     tokenCompleteRuns: tokenComplete.length,
     aiSpendUsd: aiSpend.toFixed(),
     costCompleteRuns: costComplete.length,
-    averageTokensPerRun: allTokensComplete ? totalTokens / completed.length : null,
-    averageCostPerRunUsd: allCostsComplete ? aiSpend.div(completed.length).toFixed() : null,
+    averageTokensPerRun: tokenComplete.length ? totalTokens / tokenComplete.length : null,
+    averageCostPerRunUsd: costComplete.length ? aiSpend.div(costComplete.length).toFixed() : null,
     costPerVerifiedFixUsd: allCostsComplete && verified.length ? aiSpend.div(verified.length).toFixed() : null,
     modelCalls,
     modelCallReportedRuns: callReported.length,

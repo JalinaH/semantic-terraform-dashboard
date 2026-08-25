@@ -8,7 +8,9 @@ export type GitHubIntegrationErrorCode =
   | "user_token_expired"
   | "rate_limited"
   | "github_unavailable"
-  | "sync_failed";
+  | "sync_failed"
+  | "repository_not_found"
+  | "repository_remove_failed";
 
 const userMessages: Record<GitHubIntegrationErrorCode, string> = {
   configuration_missing: "GitHub integration is not configured for this environment.",
@@ -21,6 +23,8 @@ const userMessages: Record<GitHubIntegrationErrorCode, string> = {
   rate_limited: "GitHub API rate limits are temporarily preventing synchronization. Try again later.",
   github_unavailable: "GitHub could not be reached. Try again shortly.",
   sync_failed: "Repositories could not be synchronized. Existing repository access was left unchanged.",
+  repository_not_found: "This repository is not available to the signed-in account.",
+  repository_remove_failed: "The repository could not be removed from TerraFix. No access settings were changed.",
 };
 
 export class GitHubIntegrationError extends Error {

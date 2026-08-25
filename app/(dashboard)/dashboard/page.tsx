@@ -45,9 +45,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   ];
   const secondaryMetrics = [
     { title: "Total tokens", value: usage.tokenCompleteRuns ? formatCompactTokens(usage.totalTokens) : "Not reported", description: `${usage.tokenCompleteRuns} of ${usage.completedRunCount} completed diagnoses`, icon: Sparkles },
-    { title: "Average tokens / run", value: usage.averageTokensPerRun === null ? "Not enough data" : formatCompactTokens(Math.round(usage.averageTokensPerRun)), description: "Shown only with complete selected token data", icon: BrainCircuit },
-    { title: "Average cost / run", value: usage.averageCostPerRunUsd === null ? "Not enough data" : formatUsd(usage.averageCostPerRunUsd), description: "Shown only with complete selected cost data", icon: CircleDollarSign },
-    { title: "Cost / verified fix", value: usage.costPerVerifiedFixUsd === null ? "Not enough complete cost data" : formatUsd(usage.costPerVerifiedFixUsd), description: "Complete cost divided by verified fixes", icon: BadgeCheck },
+    { title: "Average tokens / reporting run", value: usage.averageTokensPerRun === null ? "Not reported" : formatCompactTokens(Math.round(usage.averageTokensPerRun)), description: `${usage.tokenCompleteRuns} of ${usage.completedRunCount} completed diagnoses reported tokens`, icon: BrainCircuit },
+    { title: "Average cost / reporting run", value: usage.averageCostPerRunUsd === null ? "Not reported" : formatUsd(usage.averageCostPerRunUsd), description: `${usage.costCompleteRuns} of ${usage.completedRunCount} completed diagnoses reported complete cost`, icon: CircleDollarSign },
+    { title: "Cost / verified fix", value: usage.costPerVerifiedFixUsd === null ? "Unavailable" : formatUsd(usage.costPerVerifiedFixUsd), description: costPerVerifiedFixDescription(usage), icon: BadgeCheck },
   ];
 
   return (
@@ -125,4 +125,11 @@ function optimizationInsight(usage: { zeroLlmRuns: number; schemaAvoidanceRate: 
       ? `${formatPercent(usage.schemaAvoidanceRate)} of ${usage.schemaAvoidanceReportedRuns} eligible reporting runs avoided provider schema.`
       : "Optimization insights will appear when v1 telemetry is reported.";
   return <div className="rounded-lg border bg-secondary/25 px-4 py-3 text-xs"><strong className="font-medium">Top optimization insight:</strong> <span className="text-muted-foreground">{message}</span></div>;
+}
+
+function costPerVerifiedFixDescription(usage: { completedRunCount: number; costCompleteRuns: number; verifiedFixes: number }) {
+  const missing = usage.completedRunCount - usage.costCompleteRuns;
+  if (missing > 0) return `${missing} completed ${missing === 1 ? "diagnosis lacks" : "diagnoses lack"} cost telemetry`;
+  if (!usage.verifiedFixes) return "No fully verified fixes in the selected period";
+  return "Complete diagnosis cost divided by fully verified fixes";
 }

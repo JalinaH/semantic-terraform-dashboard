@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowUpRight, Cloud, FolderCog, GitBranch, Lock, Settings2, TriangleAlert } from "lucide-react";
 import { RepositoryConfigStatusBadge } from "@/components/repository-config-status-badge";
+import { RepositoryRemovalButton } from "@/components/repository-removal-button";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -94,7 +95,10 @@ export function ConnectedRepositoryCard({ repository, accountLogin, modelPolicyV
         {repository.config ? <p className="text-[11px] text-muted-foreground">Context: {formatContext(repository.config.contextMode)}</p> : null}
         {!githubReady ? <p className="flex items-center gap-1.5 text-xs text-warning-foreground"><TriangleAlert aria-hidden="true" className="size-3.5" />The grant or installation is unavailable; configuration is preserved read-only.</p> : null}
         {repository.archived ? <p className="text-xs text-warning-foreground">This repository is archived on GitHub.</p> : null}
-        <Link href={action.href} className={cn(buttonVariants({ size: "sm", variant: action.primary ? "default" : "outline" }), "w-full")}>{action.label}</Link>
+        <div className={cn("grid gap-2", githubReady && "grid-cols-[1fr_auto]")}>
+          <Link href={action.href} className={cn(buttonVariants({ size: "sm", variant: action.primary ? "default" : "outline" }), "w-full")}>{action.label}</Link>
+          {githubReady ? <RepositoryRemovalButton repositoryId={repository.id} repositoryName={repository.fullName} compact /> : null}
+        </div>
       </CardContent>
     </Card>
   );

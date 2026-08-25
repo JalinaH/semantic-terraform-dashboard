@@ -26,15 +26,17 @@ export default async function RepositoriesPage({ searchParams }: RepositoriesPag
   const user = await requireAuthenticatedUser();
   const [params, userInstallations, catalog] = await Promise.all([
     searchParams,
-    listInstallationsForUser(user.id, { includeInaccessible: true }),
+    listInstallationsForUser(user.id),
     getCatalogViewForUser(user.id),
   ]);
   const error = singleValue(params.error);
   const connected = singleValue(params.github) === "connected";
   const synced = singleValue(params.synced);
   const removed = singleValue(params.removed);
+  const removedRepository = singleValue(params.removedRepository);
+  const cancelled = Number(singleValue(params.cancelled) ?? 0);
   const repositoryCount = userInstallations.reduce(
-    (total, { githubInstallation }) => total + githubInstallation.repositories.filter((repository) => repository.accessible).length,
+    (total, { githubInstallation }) => total + githubInstallation.repositories.length,
     0,
   );
 
@@ -43,7 +45,7 @@ export default async function RepositoriesPage({ searchParams }: RepositoriesPag
       <PageIntro
         eyebrow="GitHub access"
         title="Repositories"
-        description="Configure repositories granted to the GitHub App. Removed grants remain visible so saved settings and future history are preserved."
+        description="Configure repositories granted to the GitHub App. Removing a repository disables new diagnoses while preserving historical runs."
         action={
           <form action={beginGitHubInstallationAction}>
             <input type="hidden" name="returnTo" value="/repositories" />
@@ -54,6 +56,7 @@ export default async function RepositoriesPage({ searchParams }: RepositoriesPag
 
       {error ? <Notice tone="error" title="GitHub operation failed">{getGitHubErrorMessage(error)}</Notice> : null}
       {connected ? <Notice tone="success" title="GitHub App connected">The installation was verified and its granted repositories were synchronized.</Notice> : null}
+      {removedRepository ? <Notice tone="success" title="Repository removed">{removedRepository} was disabled and removed from the dashboard. Historical runs were preserved.{cancelled ? ` ${cancelled} queued ${cancelled === 1 ? "run was" : "runs were"} cancelled.` : ""} Synchronizing will reconnect it while the GitHub grant remains active.</Notice> : null}
       {synced !== undefined ? <Notice tone="success" title="Repositories synchronized">GitHub reports {synced} accessible repositor{synced === "1" ? "y" : "ies"}. {Number(removed) > 0 ? `${removed} removed grant${removed === "1" ? " was" : "s were"} marked inaccessible.` : "No repository grants were removed."}</Notice> : null}
 
       {userInstallations.length === 0 ? (
@@ -80,7 +83,7 @@ export default async function RepositoriesPage({ searchParams }: RepositoriesPag
                       <Badge variant="outline">{githubInstallation.accountType === "ORGANIZATION" ? "Organization" : "Personal account"}</Badge>
                       <Badge variant="outline">{githubInstallation.repositorySelection === "ALL" ? "All repositories" : "Selected repositories"}</Badge>
                     </div>
-                    <p className="mt-1.5 text-xs text-muted-foreground">{githubInstallation.repositories.filter((repository) => repository.accessible).length} accessible repositor{githubInstallation.repositories.filter((repository) => repository.accessible).length === 1 ? "y" : "ies"}</p>
+                    <p className="mt-1.5 text-xs text-muted-foreground">{githubInstallation.repositories.length} connected repositor{githubInstallation.repositories.length === 1 ? "y" : "ies"}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <form action={syncRepositoriesAction}>

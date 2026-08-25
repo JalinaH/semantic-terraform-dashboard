@@ -38,7 +38,7 @@ describe("usage aggregation", () => {
     expect(summary.memoryReuseRate).toBeCloseTo(1 / 3);
   });
 
-  it("withholds averages and cost per verified fix when selected cost or token data is incomplete", () => {
+  it("averages reporting runs but withholds cost per verified fix when selected telemetry is incomplete", () => {
     const summary = calculateUsageSummary([
       row(),
       row({ id: "run-2", totalTokens: null, tokenCountsComplete: false, llmCostUsd: null, costComplete: false }),
@@ -46,8 +46,8 @@ describe("usage aggregation", () => {
     expect(summary.aiSpendUsd).toBe("0.0014");
     expect(summary.costCompleteRuns).toBe(1);
     expect(summary.tokenCompleteRuns).toBe(1);
-    expect(summary.averageCostPerRunUsd).toBeNull();
-    expect(summary.averageTokensPerRun).toBeNull();
+    expect(summary.averageCostPerRunUsd).toBe("0.0014");
+    expect(summary.averageTokensPerRun).toBe(2000);
     expect(summary.costPerVerifiedFixUsd).toBeNull();
     expect(summary.repositoryBreakdown[0].costPerVerifiedFixUsd).toBeNull();
   });

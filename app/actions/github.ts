@@ -13,6 +13,8 @@ import { createInstallationState, INSTALLATION_STATE_COOKIE } from "@/lib/github
 import { syncPersistedInstallation } from "@/lib/github/sync";
 import { getGitHubAppInstallationUrl } from "@/lib/github/urls";
 import { validateInternalRedirect } from "@/lib/security/redirect";
+import { prismaRepositoryRemovalStore } from "@/lib/data/repositories";
+import { removeRepositoryFromDashboard, RepositoryRemovalError } from "@/lib/repositories/removal";
 
 export async function beginGitHubInstallationAction(formData?: FormData) {
   const user = await requireAuthenticatedUser();
@@ -59,4 +61,28 @@ export async function syncRepositoriesAction(formData: FormData) {
   redirect(
     `/repositories?synced=${result?.synchronizedCount ?? 0}&removed=${result?.removedCount ?? 0}`,
   );
+}
+
+export async function removeRepositoryFromDashboardAction(formData: FormData) {
+  const user = await requireAuthenticatedUser();
+  const repositoryId = formData.get("repositoryId")?.toString();
+  if (!repositoryId) redirect("/repositories?error=repository_remove_failed");
+
+  let result: Awaited<ReturnType<typeof removeRepositoryFromDashboard>> | null = null;
+  let errorCode: "repository_not_found" | "repository_remove_failed" | null = null;
+  try {
+    result = await removeRepositoryFromDashboard(prismaRepositoryRemovalStore, user.id, repositoryId);
+    revalidatePath("/dashboard");
+    revalidatePath("/repositories");
+    revalidatePath("/runs");
+    revalidatePath("/usage");
+    revalidatePath("/settings");
+  } catch (error) {
+    errorCode = error instanceof RepositoryRemovalError && error.code === "repository_not_found" ? "repository_not_found" : "repository_remove_failed";
+  }
+
+  if (errorCode) redirect(`/repositories?error=${errorCode}`);
+  const query = new URLSearchParams({ removedRepository: result!.fullName });
+  if (result!.cancelledRuns) query.set("cancelled", String(result!.cancelledRuns));
+  redirect(`/repositories?${query}`);
 }

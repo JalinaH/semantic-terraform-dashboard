@@ -6,6 +6,7 @@ import { TokenTrendChart } from "@/components/analytics/usage-trend-charts";
 import { EmptyState } from "@/components/empty-state";
 import { RepositoryConfigurationForm } from "@/components/repository-configuration-form";
 import { RepositoryConfigStatusBadge } from "@/components/repository-config-status-badge";
+import { RepositoryRemovalButton } from "@/components/repository-removal-button";
 import { RunPoller } from "@/components/run-poller";
 import { RunsTable } from "@/components/runs-table";
 import { Badge } from "@/components/ui/badge";
@@ -58,7 +59,7 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
             <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.025em]">{repository.fullName}</h1>
             <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted-foreground">Configure which Terraform workflow failures can dispatch the hosted TerraFix worker.</p>
           </div>
-          <Link href={`https://github.com/${repository.fullName}`} target="_blank" rel="noreferrer" className={cn(buttonVariants({ variant: "outline" }), "w-fit")}>View on GitHub <ExternalLink aria-hidden="true" /></Link>
+          <div className="flex flex-wrap gap-2"><Link href={`https://github.com/${repository.fullName}`} target="_blank" rel="noreferrer" className={cn(buttonVariants({ variant: "outline" }), "w-fit")}>View on GitHub <ExternalLink aria-hidden="true" /></Link>{githubReady ? <RepositoryRemovalButton repositoryId={repository.id} repositoryName={repository.fullName} /> : null}</div>
         </div>
       </div>
 
