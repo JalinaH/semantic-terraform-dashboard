@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm prisma:validate && pnpm worker:build",
+    "check": "pnpm prisma:generate && pnpm lint && pnpm typecheck && pnpm test && pnpm prisma:validate && pnpm worker:build",
     "worker": "tsx --tsconfig worker/tsconfig.json worker/index.ts",
     "worker:once": "tsx --tsconfig worker/tsconfig.json worker/index.ts --once",
     "worker:health": "node dist/worker/index.mjs --healthcheck",
