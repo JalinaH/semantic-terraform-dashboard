@@ -22,6 +22,8 @@ export interface PatchApplicationPreflightSuccess {
   terraformVersion: string;
   eligibilityLevel: "verified" | "conditional";
   verificationOutcome: import("@/lib/verification-assessment").VerificationOutcome | null;
+  verificationMode: "local" | "full";
+  planRequested: boolean;
   planFailureClass: import("@/lib/verification-assessment").PlanFailureClass | null;
   planFailureReasonCode: string | null;
   head: PullRequestHeadSnapshot;
@@ -80,6 +82,8 @@ export async function preflightPatchApplication(userId: string, agentRunId: stri
     terraformVersion: config.data.terraformVersion,
     eligibilityLevel: artifact.eligibilityLevel,
     verificationOutcome: artifact.verificationOutcome,
+    verificationMode: artifact.verificationMode,
+    planRequested: artifact.planRequested,
     planFailureClass: artifact.planFailureClass,
     planFailureReasonCode: artifact.planFailureReasonCode,
     head: github.snapshot,
@@ -108,7 +112,10 @@ export async function requestPatchApplication(input: {
         requestedByDisplay: input.userDisplay?.slice(0, 120) ?? null,
         eligibilityLevel: preflight.eligibilityLevel,
         verificationOutcomeAtRequest: preflight.verificationOutcome,
+        verificationModeAtRequest: preflight.verificationMode,
+        planRequestedAtRequest: preflight.planRequested,
         conditionalApproval: preflight.eligibilityLevel === "conditional",
+        conditionalApprovalKind: preflight.verificationOutcome === "locally_validated" ? "local_conditional" : preflight.eligibilityLevel === "conditional" ? "environment_conditional" : null,
         planFailureClassAtRequest: preflight.planFailureClass,
         planFailureReasonCodeAtRequest: preflight.planFailureReasonCode,
         patchSha256: preflight.patchSha256,

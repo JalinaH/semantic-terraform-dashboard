@@ -36,10 +36,10 @@ export function renderAgentComment(input: AgentCommentInput): RenderedAgentComme
   const applicationLines = input.application ? [
     "",
     "### Application",
-    input.application.eligibilityLevel === "conditional" ? "⚠️ **Conditionally approved validated patch applied by TerraFix**" : "✅ **Verified fix applied by TerraFix**",
+    input.verificationOutcome === "locally_validated" ? "✅ **Locally validated patch applied to PR**" : input.application.eligibilityLevel === "conditional" ? "⚠️ **Conditionally approved validated patch applied by TerraFix**" : "✅ **Verified fix applied by TerraFix**",
     `**Commit:** ${input.application.commitUrl ? `[${inlineCode(input.application.commitSha.slice(0, 12))}](${input.application.commitUrl})` : inlineCode(input.application.commitSha.slice(0, 12))}`,
     `**Requested by:** ${input.application.requestedBy ? safe(input.application.requestedBy, 120) : "TerraFix dashboard user"}`,
-    "Normal CI is running again. TerraFix does not claim CI success until GitHub reports it.",
+    input.verificationOutcome === "locally_validated" ? "Local verification passed before commit. Repository CI will perform the final provider-aware validation." : "Normal CI is running again. TerraFix does not claim CI success until GitHub reports it.",
   ] : [];
   const patchSection = redactedPatch.content
     ? `\n<details>\n<summary>Suggested patch</summary>\n\n${fencedDiff(redactedPatch.content)}${patchResult.truncated ? "\n\n_… patch truncated. View the full diagnosis in the dashboard._" : ""}\n\n</details>\n`
@@ -63,7 +63,7 @@ export function renderAgentComment(input: AgentCommentInput): RenderedAgentComme
     input.suggestedPatch ? "Review the bounded candidate patch below." : "No candidate patch was produced.",
     "",
     "### Terraform verification",
-    verificationLines(attempt),
+    verificationLines(attempt, input.planRequested),
     "",
     `**Final status:** ${status.label}`,
     status.explanation,
@@ -73,7 +73,7 @@ export function renderAgentComment(input: AgentCommentInput): RenderedAgentComme
     `**Model confidence:** ${score(input.modelConfidence)}`,
     `**Evidence score:** ${score(input.evidenceScore)}`,
     patchSection,
-    status.verified ? "Terraform verification passed." : input.verificationOutcome === "environment_blocked" ? "The candidate passed Terraform validation, but a complete plan could not be verified." : "The candidate recommendation was not fully verified.",
+    input.verificationOutcome === "locally_validated" ? "TerraFix validated the patch locally. Provider-aware Terraform plan verification was not run because cloud verification is not configured." : status.verified ? "Terraform verification passed." : input.verificationOutcome === "environment_blocked" ? "The candidate passed Terraform validation, but a complete plan could not be verified." : "The candidate recommendation was not fully verified.",
     input.mutationEligibilityLevel === "conditional" ? "TerraFix dashboard may offer a human-approved conditional Apply action." : input.verificationOutcome === "semantic_failure" || input.verificationOutcome === "unknown_failure" ? "The candidate is not eligible for Apply to PR." : "",
     "**Human review is still required because verification does not establish developer intent.**",
     ...applicationLines,
@@ -87,11 +87,11 @@ export function renderAgentComment(input: AgentCommentInput): RenderedAgentComme
   return { body: bounded, redactionWarnings: [...warnings], patchTruncated: patchResult.truncated || bounded.length < finalRedaction.content.length };
 }
 
-function verificationLines(attempt: PublicationAttempt | undefined) {
+function verificationLines(attempt: PublicationAttempt | undefined, planRequested?: boolean | null) {
   return STAGES.map((stage) => {
     const command = attempt?.commands[stage];
     const status = command?.status ?? "skipped";
-    const view = status === "passed" ? ["✅", "passed"] : status === "skipped" ? ["⏭️", "skipped"] : ["❌", "failed"];
+    const view = stage === "plan" && planRequested === false ? ["⏭️", "not requested"] : status === "passed" ? ["✅", "passed"] : status === "skipped" ? ["⏭️", "skipped"] : ["❌", "failed"];
     return `- ${view[0]} ${inlineCode(stageLabel(stage))}: ${view[1]}`;
   }).join("\n");
 }
@@ -100,14 +100,16 @@ function statusPresentation(status: VerificationStatus, failedStage: string | nu
   if (outcome) {
     return {
       label: verificationOutcomeLabel(outcome),
-      explanation: outcome === "fully_verified" ? "All isolated Terraform verification stages passed, including terraform plan." : outcome === "environment_blocked" ? "Terraform plan was blocked by a confidently classified external or environmental condition." : outcome === "semantic_failure" ? "Terraform plan still found a configuration error after the candidate patch." : outcome === "patch_invalid" ? "The candidate failed patch safety or applicability checks." : "Terraform plan failed, but TerraFix could not safely classify the cause.",
-      verified: outcome === "fully_verified",
+      explanation: outcome === "fully_verified" ? "All isolated Terraform verification stages passed, including terraform plan." : outcome === "locally_validated" ? "Patch check, patch apply, fmt, init, and validate passed. Terraform plan was not requested." : outcome === "environment_blocked" ? "Terraform plan was blocked by a confidently classified external or environmental condition." : outcome === "semantic_failure" ? "Terraform plan still found a configuration error after the candidate patch." : outcome === "patch_invalid" ? "The candidate failed patch safety or applicability checks." : "Terraform plan failed, but TerraFix could not safely classify the cause.",
+      verified: outcome === "fully_verified" || outcome === "locally_validated",
     };
   }
   const failedAt = failedStage ? ` at ${inlineCode(escapeProse(failedStage.slice(0, 100)))}` : "";
   const presentations: Record<VerificationStatus, { label: string; explanation: string; verified: boolean }> = {
     verified_first_attempt: { label: "VERIFIED FIRST ATTEMPT", explanation: "The initial candidate passed the configured isolated Terraform verification stages.", verified: true },
     verified_after_retry: { label: "VERIFIED AFTER REPAIR", explanation: "The initial candidate failed, and one bounded repair attempt passed verification.", verified: true },
+    locally_validated_first_attempt: { label: "LOCALLY VALIDATED", explanation: "Local Terraform verification passed on the first attempt; plan was not requested.", verified: true },
+    locally_validated_after_retry: { label: "LOCALLY VALIDATED", explanation: "Local Terraform verification passed after repair; plan was not requested.", verified: true },
     verification_failed: { label: "NOT VERIFIED", explanation: `A candidate was produced, but Terraform verification failed${failedAt}.`, verified: false },
     patch_rejected: { label: "PATCH REJECTED", explanation: "The generated patch failed safety or applicability checks and was not accepted.", verified: false },
     verification_unavailable: { label: "VERIFICATION UNAVAILABLE", explanation: "The verification environment could not complete the required checks; this does not prove that the patch is incorrect.", verified: false },

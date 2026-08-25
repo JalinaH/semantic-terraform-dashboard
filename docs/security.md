@@ -20,11 +20,15 @@ through the separately approved verified-patch boundary below.
 - Every webhook is bounded to 2 MiB, verified over its raw bytes with
   HMAC-SHA256, and deduplicated by `X-GitHub-Delivery` before processing.
 - Same-repository PRs may run. Fork PRs and missing PR metadata for PR-triggered
-  workflows are skipped before AWS role assumption or model invocation.
+  workflows are skipped before any AWS role assumption or model invocation.
 - A short-lived token is provided to Git through temporary configuration, not
   embedded in a clone URL. The remote is removed before agent execution.
 
-## AWS
+## Optional AWS
+
+- AWS is not required for repository readiness. Without a connected role, the
+  worker selects local verification, makes no STS call, and strips AWS variables
+  from the agent child environment.
 
 - Each repository receives a cryptographically random External ID and a
   repository-specific customer role.
@@ -82,9 +86,13 @@ through the separately approved verified-patch boundary below.
 - Apply never calls an LLM, never force-pushes or merges, and never runs
   Terraform apply/destroy/import/taint. A pre-push failure is discarded with the
   temporary workspace, leaving the source branch untouched.
-- Fully verified Apply requires the v1.1.4 `fully_verified`/`verified` field
-  conjunction. Conditional Apply additionally requires every pre-plan stage to
-  pass, a plan attempt, `environment_blocked`, `conditionally_eligible`, a
+- Fully verified Apply requires the v1.2.0 `full`/`fully_verified`/`verified`
+  field conjunction. Local conditional Apply requires explicit `local` mode,
+  `locally_validated`, every local stage passing, plan requested/attempted false,
+  plan passed null, the cloud-not-configured skip reason, and explicit approval.
+  It repeats local verification with no STS or plan. Environment-blocked
+  conditional Apply requires every pre-plan stage to pass, a plan attempt,
+  `environment_blocked`, `conditionally_eligible`, a
   confidently external class, and explicit conditional approval. The worker
   calls the pinned agent's deterministic classifier again and requires the same
   class/reason for an environmental failure. Semantic, unknown, invalid,
@@ -115,6 +123,6 @@ production safety, or approval to merge. Every UI/PR result remains advisory:
 > Terraform verification passed. Human review is still required because
 > verification does not establish developer intent.
 
-An environment-blocked candidate has not passed a complete Terraform plan.
+Locally validated and environment-blocked candidates have not passed a complete Terraform plan.
 TerraFix labels it amber, preserves the bounded plan reason, and requires a
 separate conditional approval; it is never presented as fully verified.

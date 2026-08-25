@@ -17,7 +17,7 @@ const AWS_TERRAFORM_PASSTHROUGH = [
 export async function invokeSemanticTerraformAgent(input: {
   run: ClaimedAgentRun;
   workspace: PreparedAgentWorkspace;
-  awsCredentials: TemporaryAwsCredentials;
+  awsCredentials: TemporaryAwsCredentials | null;
   signal?: AbortSignal;
 }) {
   const configuration = getWorkerConfiguration();
@@ -78,6 +78,7 @@ export function buildAgentArguments(input: {
     "--max-model-tier", input.run.config.maxModelTier,
     "--context-mode", input.run.config.contextMode,
     "--verify-patch",
+    "--verification-mode", verificationModeForRun(input.run),
     "--max-repair-attempts", String(input.run.config.maxRepairAttempts),
     "--output", outputPath,
   ];
@@ -91,8 +92,12 @@ export function buildAgentArguments(input: {
   return args;
 }
 
-export function createAgentEnvironment(credentials: TemporaryAwsCredentials): NodeJS.ProcessEnv {
-  return {
+export function verificationModeForRun(run: ClaimedAgentRun): "local" | "full" {
+  return run.aws?.connected ? "full" : "local";
+}
+
+export function createAgentEnvironment(credentials: TemporaryAwsCredentials | null): NodeJS.ProcessEnv {
+  const environment: NodeJS.ProcessEnv = {
     NODE_ENV: process.env.NODE_ENV,
     PATH: process.env.PATH,
     LANG: process.env.LANG ?? "C.UTF-8",
@@ -104,6 +109,10 @@ export function createAgentEnvironment(credentials: TemporaryAwsCredentials): No
     NO_PROXY: process.env.NO_PROXY,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+  };
+  if (!credentials) return environment;
+  return {
+    ...environment,
     SEMANTIC_TERRAFORM_AGENT_PASSTHROUGH_ENV: AWS_TERRAFORM_PASSTHROUGH,
     AWS_ACCESS_KEY_ID: credentials.accessKeyId,
     AWS_SECRET_ACCESS_KEY: credentials.secretAccessKey,

@@ -27,8 +27,8 @@ function run(overrides: Partial<RunDetail> = {}): RunDetail {
     errorCode: null, errorMessage: null, skipReason: null, startedAt: null, completedAt: null, publication: null,
     patchSha256: null, verifiedAgainstCommitSha: null, patchAffectedFiles: [], patchTerraformFilesOnly: null,
     patchExistingFilesOnly: null, mutationEligible: null, mutationEligibilityLevel: null, mutationEligibilityReason: null,
-    verificationOutcome: null, assessmentPatchCheckPassed: null, assessmentPatchApplyPassed: null, assessmentFmtPassed: null,
-    assessmentInitPassed: null, assessmentValidatePassed: null, assessmentPlanAttempted: null, assessmentPlanPassed: null,
+    verificationOutcome: null, verificationMode: null, assessmentPatchCheckPassed: null, assessmentPatchApplyPassed: null, assessmentFmtPassed: null,
+    assessmentInitPassed: null, assessmentValidatePassed: null, assessmentPlanRequested: null, assessmentPlanAttempted: null, assessmentPlanPassed: null, planSkipReason: null,
     assessmentFullVerificationPassed: null, applySafety: null, planFailure: null, patchApplications: [],
     ...overrides,
   };
@@ -73,6 +73,15 @@ describe("usage observability UI", () => {
     expect(html).toContain("AWS / provider permissions");
     expect(html).toContain("main.tf:4");
     expect(html).toContain("Terraform JSON diagnostic");
+  });
+
+  it("renders local validation positively with plan not requested and a successful timeline", () => {
+    const html = renderToStaticMarkup(<RunObservability run={run({ verificationStatus: "locally_validated_first_attempt", verificationOutcome: "locally_validated", verificationMode: "local", assessmentPatchCheckPassed: true, assessmentPatchApplyPassed: true, assessmentFmtPassed: true, assessmentInitPassed: true, assessmentValidatePassed: true, assessmentPlanRequested: false, assessmentPlanAttempted: false, assessmentPlanPassed: null, planSkipReason: "cloud_verification_not_configured", assessmentFullVerificationPassed: false, applySafety: "conditionally_eligible" })} />);
+    expect(html).toContain("LOCALLY VALIDATED");
+    expect(html).toContain("Not requested");
+    expect(html).toContain("Terraform local verification");
+    expect(html).toContain("Succeeded");
+    expect(html).not.toContain("Plan failure");
   });
 
   it("renders legacy unknown telemetry without converting it to zero", () => {

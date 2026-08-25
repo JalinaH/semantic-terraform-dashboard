@@ -61,6 +61,8 @@ export interface FreshVerificationStage {
 }
 
 export interface FreshVerificationSummary {
+  verificationMode: "local" | "full";
+  planRequested: boolean;
   stages: Record<"patch_check" | "patch_apply" | "fmt" | "init" | "validate" | "plan", FreshVerificationStage>;
   outcome: import("@/lib/verification-assessment").VerificationOutcome | null;
   applySafety: import("@/lib/verification-assessment").ApplySafety | null;

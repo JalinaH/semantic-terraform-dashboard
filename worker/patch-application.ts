@@ -39,6 +39,7 @@ export async function processClaimedPatchApplication(run: ClaimedPatchApplicatio
   timer.unref();
   const command = dependencies.commands ?? runCommand;
   let workspaceRoot: string | null = null;
+  const verificationMode = requestVerificationMode(run);
   let pushed = false;
   const progress = async (stage: PatchApplicationStage) => {
     await dependencies.store.updateProgress(run.id, stage);
@@ -67,7 +68,7 @@ export async function processClaimedPatchApplication(run: ClaimedPatchApplicatio
     const terraformDataPath = path.join(workspaceRoot, "terraform-data");
     await writeFile(patchPath, run.patch, { encoding: "utf8", mode: 0o600 });
     await checkoutExactHead(run, checkoutPath, github.token, command, controller.signal);
-    const verification = emptyVerification();
+    const verification = emptyVerification(verificationMode);
     verification.stages.patch_check = (await runStage(command, "git", ["apply", "--check", "--", patchPath], checkoutPath, safeEnvironment(), controller.signal)).stage;
     await dependencies.store.recordFreshVerification(run.id, verification);
     if (verification.stages.patch_check.status !== "passed") throw new PatchApplicationError("patch_check_failed", "REJECTED");
@@ -80,7 +81,9 @@ export async function processClaimedPatchApplication(run: ClaimedPatchApplicatio
     await verifyChangedFiles(run, checkoutPath, command, controller.signal);
 
     await progress("fresh_verification");
-    const credentials = await dependencies.aws.assume(run, controller.signal);
+    const credentials = verificationMode === "full"
+      ? await dependencies.aws.assume(run, controller.signal)
+      : null;
     await verifyTerraformVersion(run.terraformVersion, command, controller.signal);
     const terraformCwd = path.resolve(checkoutPath, run.terraformDir);
     const environment = terraformEnvironment(credentials, terraformDataPath);
@@ -88,7 +91,7 @@ export async function processClaimedPatchApplication(run: ClaimedPatchApplicatio
       ["fmt", ["fmt", "-check"]],
       ["init", ["init", "-backend=false", "-input=false", "-no-color"]],
       ["validate", ["validate", "-no-color"]],
-      ["plan", ["plan", "-input=false", "-lock=false", "-refresh=false", "-no-color"]],
+      ...(verificationMode === "full" ? [["plan", ["plan", "-input=false", "-lock=false", "-refresh=false", "-no-color"]] as const] : []),
     ] as const;
     for (const [stage, args] of terraformStages) {
       const execution = await runStage(command, "terraform", [...args], terraformCwd, environment, controller.signal);
@@ -113,6 +116,12 @@ export async function processClaimedPatchApplication(run: ClaimedPatchApplicatio
     if (verification.stages.plan.status === "passed") {
       verification.outcome = "fully_verified";
       verification.applySafety = "verified";
+      await dependencies.store.recordFreshVerification(run.id, verification);
+      enforceFreshVerificationPolicy(run, verification);
+    }
+    if (verificationMode === "local" && verification.stages.validate.status === "passed") {
+      verification.outcome = "locally_validated";
+      verification.applySafety = "conditionally_eligible";
       await dependencies.store.recordFreshVerification(run.id, verification);
       enforceFreshVerificationPolicy(run, verification);
     }
@@ -165,13 +174,20 @@ export async function processClaimedPatchApplication(run: ClaimedPatchApplicatio
 }
 
 function requireRunState(run: ClaimedPatchApplication) {
-  if (!run.repositoryAccessible || !run.installationActive || !run.aws?.connected) throw new PatchApplicationError("installation_unavailable", "REJECTED");
+  const verificationMode = requestVerificationMode(run);
+  if (!run.repositoryAccessible || !run.installationActive || (verificationMode === "full" && !run.aws?.connected)) throw new PatchApplicationError("installation_unavailable", "REJECTED");
   if (run.expectedHeadSha !== run.verifiedAgainstCommitSha) throw new PatchApplicationError("source_revision_mismatch", "REJECTED");
   if (run.eligibilityLevel === "verified") {
     if ((run.verificationOutcomeAtRequest !== "fully_verified" && run.verificationOutcomeAtRequest !== null) || run.conditionalApproval) throw new PatchApplicationError("not_mutation_eligible", "REJECTED");
     return;
   }
-  if (run.eligibilityLevel !== "conditional" || run.verificationOutcomeAtRequest !== "environment_blocked" || run.conditionalApproval !== true || !isEnvironmentalPlanFailureClass(run.planFailureClassAtRequest) || !run.planFailureReasonCodeAtRequest) throw new PatchApplicationError("not_mutation_eligible", "REJECTED");
+  if (run.eligibilityLevel !== "conditional" || run.conditionalApproval !== true) throw new PatchApplicationError("not_mutation_eligible", "REJECTED");
+  if (run.verificationOutcomeAtRequest === "locally_validated" && run.verificationModeAtRequest === "local" && run.planRequestedAtRequest === false && run.conditionalApprovalKind === "local_conditional") return;
+  if (run.verificationOutcomeAtRequest !== "environment_blocked" || run.verificationModeAtRequest !== "full" || run.planRequestedAtRequest !== true || run.conditionalApprovalKind !== "environment_conditional" || !isEnvironmentalPlanFailureClass(run.planFailureClassAtRequest) || !run.planFailureReasonCodeAtRequest) throw new PatchApplicationError("not_mutation_eligible", "REJECTED");
+}
+
+function requestVerificationMode(run: Pick<ClaimedPatchApplication, "verificationModeAtRequest" | "verificationOutcomeAtRequest">): "local" | "full" {
+  return run.verificationModeAtRequest === "local" && run.verificationOutcomeAtRequest === "locally_validated" ? "local" : "full";
 }
 
 async function reconcileIfAlreadyPushed(run: ClaimedPatchApplication, head: PullRequestHeadSnapshot, store: PatchApplicationStore) {
@@ -227,8 +243,10 @@ async function requireCommand(command: typeof runCommand, executable: string, ar
   return result;
 }
 
-function emptyVerification(): FreshVerificationSummary {
+function emptyVerification(verificationMode: "local" | "full"): FreshVerificationSummary {
   return {
+    verificationMode,
+    planRequested: verificationMode === "full",
     stages: Object.fromEntries(["patch_check", "patch_apply", "fmt", "init", "validate", "plan"].map((stage) => [stage, { status: "not_run", durationMs: null }])) as FreshVerificationSummary["stages"],
     outcome: null,
     applySafety: null,
@@ -236,10 +254,14 @@ function emptyVerification(): FreshVerificationSummary {
   };
 }
 
-export function enforceFreshVerificationPolicy(run: Pick<ClaimedPatchApplication, "eligibilityLevel" | "conditionalApproval" | "planFailureClassAtRequest" | "planFailureReasonCodeAtRequest">, verification: FreshVerificationSummary) {
+export function enforceFreshVerificationPolicy(run: Pick<ClaimedPatchApplication, "eligibilityLevel" | "verificationModeAtRequest" | "verificationOutcomeAtRequest" | "conditionalApproval" | "conditionalApprovalKind" | "planFailureClassAtRequest" | "planFailureReasonCodeAtRequest">, verification: FreshVerificationSummary) {
   if (verification.outcome === "fully_verified" && verification.applySafety === "verified") return;
   if (run.eligibilityLevel === "verified") throw new PatchApplicationError("full_verification_regressed", "FAILED");
   if (run.eligibilityLevel !== "conditional" || run.conditionalApproval !== true) throw new PatchApplicationError("not_mutation_eligible", "REJECTED");
+  if (run.verificationModeAtRequest === "local" && run.verificationOutcomeAtRequest === "locally_validated" && run.conditionalApprovalKind === "local_conditional") {
+    if (verification.verificationMode === "local" && verification.planRequested === false && verification.stages.plan.status === "not_run" && verification.outcome === "locally_validated" && verification.applySafety === "conditionally_eligible") return;
+    throw new PatchApplicationError("conditional_verification_changed", "FAILED");
+  }
   if (verification.outcome === "semantic_failure") throw new PatchApplicationError("fresh_verification_semantic_failure", "FAILED");
   if (verification.outcome === "unknown_failure") throw new PatchApplicationError("fresh_verification_unknown_failure", "FAILED");
   if (verification.outcome === "patch_invalid") throw new PatchApplicationError("fresh_verification_patch_invalid", "FAILED");
@@ -297,8 +319,10 @@ function gitAuthEnvironment(token: string): NodeJS.ProcessEnv {
   return { ...safeEnvironment(), GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "http.https://github.com/.extraheader", GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${basic}` };
 }
 
-function terraformEnvironment(credentials: TemporaryAwsCredentials, dataDir: string): NodeJS.ProcessEnv {
-  return { ...safeEnvironment(), TF_IN_AUTOMATION: "1", TF_DATA_DIR: dataDir, AWS_ACCESS_KEY_ID: credentials.accessKeyId, AWS_SECRET_ACCESS_KEY: credentials.secretAccessKey, AWS_SESSION_TOKEN: credentials.sessionToken, AWS_REGION: credentials.region, AWS_DEFAULT_REGION: credentials.region };
+function terraformEnvironment(credentials: TemporaryAwsCredentials | null, dataDir: string): NodeJS.ProcessEnv {
+  const environment = { ...safeEnvironment(), TF_IN_AUTOMATION: "1", TF_DATA_DIR: dataDir };
+  if (!credentials) return environment;
+  return { ...environment, AWS_ACCESS_KEY_ID: credentials.accessKeyId, AWS_SECRET_ACCESS_KEY: credentials.secretAccessKey, AWS_SESSION_TOKEN: credentials.sessionToken, AWS_REGION: credentials.region, AWS_DEFAULT_REGION: credentials.region };
 }
 
 export function applicationCommitFingerprint(runId: string, patchSha256: string) {

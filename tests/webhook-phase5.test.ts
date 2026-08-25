@@ -75,7 +75,6 @@ describe("workflow_run filtering", () => {
   it.each([
     ["workflow_not_configured", repositorySnapshot(), workflowRunPayload({ name: "Unit tests" }), executionContext()],
     ["repository_not_ready", repositorySnapshot({ config: null }), workflowRunPayload(), executionContext()],
-    ["repository_not_ready", repositorySnapshot({ awsConnected: false }), workflowRunPayload(), executionContext()],
     ["repository_not_ready", repositorySnapshot({ accessible: false }), workflowRunPayload(), executionContext()],
     ["trigger_disabled", repositorySnapshot({ config: { ...repositorySnapshot().config!, triggerOnPullRequest: false } }), workflowRunPayload(), executionContext()],
     ["fork_pr_untrusted", repositorySnapshot(), workflowRunPayload(), executionContext({ isForkPullRequest: true })],
@@ -85,6 +84,19 @@ describe("workflow_run filtering", () => {
     const result = await processWebhookDelivery(store, { resolve: async () => context as ReturnType<typeof executionContext> }, { deliveryId, eventName: "workflow_run", payload });
     expect(result).toMatchObject({ outcome: "skipped", reason });
     if (store.created[0]) expect(store.created[0]).toMatchObject({ status: "skipped", skipReason: reason });
+  });
+
+  it("queues a ready repository without AWS for local verification", async () => {
+    const store = new MemoryWebhookStore(
+      repositorySnapshot({ awsConnected: false }) as WebhookRepositorySnapshot,
+    );
+    const result = await processWebhookDelivery(store, contextSource, {
+      deliveryId,
+      eventName: "workflow_run",
+      payload: workflowRunPayload(),
+    });
+    expect(result).toEqual({ outcome: "queued", agentRunId: "run_1" });
+    expect(store.created[0]).toMatchObject({ status: "queued" });
   });
 
   it("ignores a successful Terraform workflow without creating a run", async () => {

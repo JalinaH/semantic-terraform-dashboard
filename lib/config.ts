@@ -211,8 +211,7 @@ export function getGitHubWebhookSecret() {
   return secret;
 }
 
-export const PINNED_AGENT_VERSION = "1.1.4";
-export const PINNED_AGENT_COMMIT = "9caaef384897387afe0d8b7a2186b96bd968021e";
+export const PINNED_AGENT_VERSION = "1.2.0";
 const supportedAgentVersionPattern = /^1\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
 
 export interface WorkerConfiguration {
@@ -261,8 +260,6 @@ export function getDashboardRuntimeConfigurationStatus(): RuntimeConfigurationSt
     "GITHUB_APP_PRIVATE_KEY",
     "GITHUB_APP_SLUG",
     "GITHUB_WEBHOOK_SECRET",
-    "AWS_CONTROL_PLANE_REGION",
-    "AWS_ASSUME_ROLE_PRINCIPAL_ARN",
     "NEXT_PUBLIC_APP_URL",
   ] as const;
   const missing = required.filter((name) => !present(process.env[name]));
@@ -271,7 +268,6 @@ export function getDashboardRuntimeConfigurationStatus(): RuntimeConfigurationSt
     ...(present(process.env.NEXT_PUBLIC_APP_URL) && !getApplicationOrigin() ? ["NEXT_PUBLIC_APP_URL"] : []),
     ...(present(process.env.AWS_ONBOARDING_TEMPLATE_URL) && !isPublicHttpsUrl(process.env.AWS_ONBOARDING_TEMPLATE_URL) ? ["AWS_ONBOARDING_TEMPLATE_URL"] : []),
     ...(present(process.env.GITHUB_APP_SLUG) && !normalizeGitHubAppSlug(process.env.GITHUB_APP_SLUG) ? ["GITHUB_APP_SLUG"] : []),
-    ...getAwsControlPlaneConfigurationStatus().missing.filter((name) => !missing.includes(name as typeof required[number])),
   ];
   return { configured: missing.length === 0 && invalid.length === 0, missing, invalid };
 }
@@ -291,8 +287,6 @@ export function getWorkerRuntimeConfigurationStatus(): RuntimeConfigurationStatu
     "DATABASE_URL",
     "GITHUB_APP_CLIENT_ID",
     "GITHUB_APP_PRIVATE_KEY",
-    "AWS_CONTROL_PLANE_REGION",
-    "AWS_ASSUME_ROLE_PRINCIPAL_ARN",
     "OPENROUTER_API_KEY",
   ] as const;
   const missing = required.filter((name) => !present(process.env[name]));
@@ -318,7 +312,6 @@ export function assertWorkerRuntimeConfiguration() {
 export function getHostedExecutionConfigurationStatus() {
   const missing = [
     ...(!present(process.env.GITHUB_WEBHOOK_SECRET) ? ["GITHUB_WEBHOOK_SECRET"] : []),
-    ...getAwsControlPlaneConfigurationStatus().missing,
   ];
   return { configured: missing.length === 0, missing };
 }

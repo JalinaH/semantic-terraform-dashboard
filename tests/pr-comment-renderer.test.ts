@@ -46,6 +46,23 @@ describe("PR comment renderer", () => {
     expect(result.body).toContain("Root cause");
   });
 
+  it("publishes local validation as success with plan not requested", () => {
+    const result = renderAgentComment(input({
+      verificationStatus: "locally_validated_first_attempt",
+      verificationOutcome: "locally_validated",
+      verificationMode: "local",
+      planRequested: false,
+      mutationEligibilityLevel: "conditional",
+      attempts: [{ attempt: 1, status: "locally_validated", failedStage: null, commands: { patch_check: { status: "passed" }, patch_apply: { status: "passed" }, fmt: { status: "passed" }, init: { status: "passed" }, validate: { status: "passed" }, plan: { status: "skipped" } } }],
+    }));
+    expect(result.body).toContain("LOCALLY VALIDATED");
+    expect(result.body).toContain("`patch check`: passed");
+    expect(result.body).toContain("`patch apply`: passed");
+    expect(result.body).toContain("⏭️ `terraform plan`: not requested");
+    expect(result.body).toContain("cloud verification is not configured");
+    expect(result.body).not.toContain("The candidate recommendation was not fully verified");
+  });
+
   it.each([
     ["semantic_failure", "terraform_semantic", "SEMANTIC FAILURE"],
     ["unknown_failure", "unknown", "PLAN FAILURE UNCLASSIFIED"],

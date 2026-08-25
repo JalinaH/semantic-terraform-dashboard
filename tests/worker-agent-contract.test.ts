@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { buildAgentArguments, classifyAgentFailure, createAgentEnvironment, validateTerraformRuntimeVersion } from "@/worker/agent";
+import { buildAgentArguments, classifyAgentFailure, createAgentEnvironment, validateTerraformRuntimeVersion, verificationModeForRun } from "@/worker/agent";
 import { claimedRun } from "@/tests/phase5-fixtures";
 
 const originalEnvironment = { ...process.env };
@@ -26,11 +26,29 @@ describe("Python agent process boundary", () => {
       "--max-model-tier", "free",
       "--context-mode", "auto",
       "--verify-patch",
+      "--verification-mode", "full",
       "--max-repair-attempts", "1",
       "--output", "/tmp/result.json",
       "--source-revision", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "--model", "gemini-3.6-flash",
     ]);
+  });
+
+  it("selects local mode and omits every AWS credential when AWS is absent", () => {
+    const run = claimedRun({ aws: null });
+    const args = buildAgentArguments({
+      run,
+      workspace: { checkoutPath: "/tmp/repo", failureLogPath: "/tmp/failure.log", diffPath: "/tmp/change.diff", failedStage: "plan", cleanup: async () => undefined },
+    }, "/tmp/result.json");
+    const environment = createAgentEnvironment(null);
+    expect(verificationModeForRun(run)).toBe("local");
+    expect(args).toContain("--verification-mode");
+    expect(args[args.indexOf("--verification-mode") + 1]).toBe("local");
+    expect(args.join(" ")).not.toContain("terraform plan");
+    expect(environment).not.toHaveProperty("SEMANTIC_TERRAFORM_AGENT_PASSTHROUGH_ENV");
+    expect(environment).not.toHaveProperty("AWS_ACCESS_KEY_ID");
+    expect(environment).not.toHaveProperty("AWS_SECRET_ACCESS_KEY");
+    expect(environment).not.toHaveProperty("AWS_SESSION_TOKEN");
   });
 
   it("uses an allowlisted child environment and never forwards control-plane or GitHub secrets", () => {

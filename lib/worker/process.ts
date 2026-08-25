@@ -18,7 +18,7 @@ export async function processClaimedAgentRun(
     options.onProgress?.(stage);
   };
   try {
-    if (!run.repositoryAccessible || !run.installationActive || !run.aws?.connected) {
+    if (!run.repositoryAccessible || !run.installationActive || (run.aws !== null && !run.aws.connected)) {
       throw new WorkerExecutionError("repository_access_removed");
     }
     await progress("collecting_github_context");
@@ -36,8 +36,11 @@ export async function processClaimedAgentRun(
       return { outcome: "skipped" as const };
     }
 
-    await progress("assuming_aws_role");
-    const credentials = await deadline.run(() => dependencies.aws.assume(run, deadline.signal));
+    let credentials = null;
+    if (run.aws?.connected) {
+      await progress("assuming_aws_role");
+      credentials = await deadline.run(() => dependencies.aws.assume(run, deadline.signal));
+    }
     await progress("running_agent");
     const rawResult = await deadline.run(() => dependencies.agent.invoke({
       run,

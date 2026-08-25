@@ -123,7 +123,7 @@ export async function processWebhookDelivery(
 }
 
 function repositoryReadinessSkipReason(repository: WebhookRepositorySnapshot, workflowEvent: string): WebhookSkipReason | null {
-  if (!repository.accessible || !repository.installationActive || !repository.config || !repository.config.enabled || !repository.awsConnected || !repository.modelPolicyValid) {
+  if (!repository.accessible || !repository.installationActive || !repository.config || !repository.config.enabled || !repository.modelPolicyValid) {
     return "repository_not_ready";
   }
   if (workflowEvent === "pull_request") return repository.config.triggerOnPullRequest ? null : "trigger_disabled";

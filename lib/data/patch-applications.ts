@@ -28,6 +28,9 @@ export interface ClaimedPatchApplication {
   requestedByDisplay: string | null;
   eligibilityLevel: "verified" | "conditional";
   verificationOutcomeAtRequest: import("@/lib/verification-assessment").VerificationOutcome | null;
+  verificationModeAtRequest: "local" | "full";
+  planRequestedAtRequest: boolean;
+  conditionalApprovalKind: "local_conditional" | "environment_conditional" | null;
   conditionalApproval: boolean;
   planFailureClassAtRequest: import("@/lib/verification-assessment").PlanFailureClass | null;
   planFailureReasonCodeAtRequest: string | null;
@@ -82,6 +85,9 @@ export async function claimNextPatchApplication(workerId: string): Promise<Claim
     requestedByDisplay: row.requestedByDisplay,
     eligibilityLevel: row.eligibilityLevel,
     verificationOutcomeAtRequest: row.verificationOutcomeAtRequest as import("@/lib/verification-assessment").VerificationOutcome | null,
+    verificationModeAtRequest: row.verificationModeAtRequest === "local" ? "local" : "full",
+    planRequestedAtRequest: row.planRequestedAtRequest ?? row.verificationModeAtRequest !== "local",
+    conditionalApprovalKind: row.conditionalApprovalKind === "local_conditional" || row.conditionalApprovalKind === "environment_conditional" ? row.conditionalApprovalKind : null,
     conditionalApproval: row.conditionalApproval,
     planFailureClassAtRequest: row.planFailureClassAtRequest as import("@/lib/verification-assessment").PlanFailureClass | null,
     planFailureReasonCodeAtRequest: row.planFailureReasonCodeAtRequest,
@@ -95,11 +101,11 @@ export async function updatePatchApplicationProgress(id: string, stage: PatchApp
 }
 
 export async function recordIntendedCommit(id: string, commitSha: string, verification: FreshVerificationSummary) {
-  await db.patchApplication.updateMany({ where: { id, status: PatchApplicationStatus.APPLYING }, data: { intendedCommitSha: commitSha, freshVerification: verification as unknown as Prisma.InputJsonValue, heartbeatAt: new Date() } });
+  await db.patchApplication.updateMany({ where: { id, status: PatchApplicationStatus.APPLYING }, data: { intendedCommitSha: commitSha, freshVerification: verification as unknown as Prisma.InputJsonValue, freshVerificationMode: verification.verificationMode, heartbeatAt: new Date() } });
 }
 
 export async function recordFreshVerification(id: string, verification: FreshVerificationSummary) {
-  await db.patchApplication.updateMany({ where: { id, status: PatchApplicationStatus.APPLYING }, data: { freshVerification: verification as unknown as Prisma.InputJsonValue, heartbeatAt: new Date() } });
+  await db.patchApplication.updateMany({ where: { id, status: PatchApplicationStatus.APPLYING }, data: { freshVerification: verification as unknown as Prisma.InputJsonValue, freshVerificationMode: verification.verificationMode, heartbeatAt: new Date() } });
 }
 
 export async function markPatchApplicationApplied(id: string, input: { commitSha: string; commitUrl: string; pullRequestUrl: string; verification?: FreshVerificationSummary }) {

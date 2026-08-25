@@ -94,6 +94,8 @@ export async function publishClaimedAgentRun(
       attempts: parsedAttempts.success ? parsedAttempts.data as PublicationAttempt[] : [],
       llmCallTypes: parsedCalls.success ? parsedCalls.data.map((call) => call.type) : [],
       verificationOutcome: run.verificationOutcome as Parameters<typeof renderAgentComment>[0]["verificationOutcome"],
+      verificationMode: run.verificationMode === "local" || run.verificationMode === "full" ? run.verificationMode : null,
+      planRequested: run.assessmentPlanRequested,
       mutationEligibilityLevel: run.mutationEligibilityLevel as Parameters<typeof renderAgentComment>[0]["mutationEligibilityLevel"],
       planFailure: run.planFailureClass && run.planFailureReasonCode && run.planFailureSummary && run.planFailureDetail && (run.planDiagnosticFormat === "terraform_json" || run.planDiagnosticFormat === "bounded_text") ? {
         classification: run.planFailureClass as NonNullable<Parameters<typeof renderAgentComment>[0]["planFailure"]>["classification"],

@@ -24,6 +24,7 @@ describe("usage aggregation", () => {
     expect(summary.runCount).toBe(4);
     expect(summary.completedRunCount).toBe(3);
     expect(summary.verifiedFixes).toBe(2);
+    expect(summary.locallyValidated).toBe(0);
     expect(summary.verificationRate).toBeCloseTo(2 / 3);
     expect(summary.totalTokens).toBe(6000);
     expect(summary.cachedInputTokens).toBe(750);

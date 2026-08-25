@@ -108,7 +108,7 @@ export function RepositoryConfigurationForm({
               <StatusRow label="AWS" value={awsConnected ? "Connected" : "Not connected"} />
               <StatusRow label="Integration status" value={initialStatus === "ready" ? "Ready" : initialStatus === "attention" ? "Model policy needs attention" : "Configuration incomplete"} />
             </dl>
-            {!awsConnected ? <p className="text-[11px] leading-5 text-warning-foreground">AWS connection is required before provider-authenticated verification can run.</p> : null}
+            {!awsConnected ? <p className="text-[11px] leading-5 text-muted-foreground">AWS is optional. TerraFix will use isolated local validation; connect AWS to add provider-aware Terraform plan verification.</p> : null}
           </ConfigCard>
 
           <ConfigCard title="Terraform configuration" description="Define the module root and Terraform runtime expected by this repository.">

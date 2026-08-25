@@ -41,11 +41,12 @@ The publisher lists PR issue comments and updates a marked comment only when its
 ## Comment contents
 
 The renderer includes root cause, affected resources, violated constraint, a
-concise suggested-change statement, all verification stages, the v1.1.4 final
-outcome, bounded plan classification/reason/source metadata, authoritative
+concise suggested-change statement, all verification stages, the v1.2.0 mode
+and final outcome, bounded plan classification/reason/source metadata, authoritative
 repair/context/model transitions, confidence/evidence scores, a bounded patch,
 and the canonical dashboard run link. The original diagnosis is never replaced
-by the plan diagnostic. Environment-blocked comments state that full plan did
+by the plan diagnostic. Locally validated comments state that plan was not
+requested and that provider-aware CI is still required. Environment-blocked comments state that full plan did
 not pass and may mention a dashboard-only human-approved conditional action;
 semantic and unknown outcomes are explicitly ineligible. Every comment states
 that human review is required and never claims production safety.

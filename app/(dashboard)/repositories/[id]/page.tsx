@@ -98,13 +98,13 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
 
       <section aria-labelledby="setup-heading">
         <Card>
-          <CardHeader className="border-b"><CardTitle id="setup-heading">Setup</CardTitle><CardDescription>Complete each prerequisite before TerraFix can observe and diagnose matching Terraform CI failures.</CardDescription></CardHeader>
-          <CardContent className="grid gap-2 pt-5 sm:grid-cols-2 xl:grid-cols-5">
+          <CardHeader className="border-b"><CardTitle id="setup-heading">Setup</CardTitle><CardDescription>Complete the required prerequisites. Cloud verification is an optional enhancement.</CardDescription></CardHeader>
+          <CardContent className="grid gap-2 pt-5 sm:grid-cols-2 xl:grid-cols-4">
             <SetupItem label="GitHub connected" complete={githubReady} href={manageUrl} external />
             <SetupItem label="Terraform configured" complete={Boolean(repository.config)} href="#configuration-heading" />
-            <SetupItem label="AWS connected" complete={awsConnected} href={`/repositories/${repository.id}/aws`} />
             <SetupItem label="AI model policy valid" complete={modelPolicyReady} href="#configuration-heading" />
             <SetupItem label="TerraFix enabled" complete={Boolean(repository.config?.enabled)} href="#configuration-heading" />
+            <div className="sm:col-span-2 xl:col-span-4"><SetupItem label={`Cloud verification · ${awsConnected ? "AWS connected" : "Optional · Connect AWS"}`} complete={awsConnected} href={`/repositories/${repository.id}/aws`} /></div>
           </CardContent>
         </Card>
       </section>
@@ -115,14 +115,14 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
         <Card>
           <CardHeader className="border-b">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div><CardTitle id="configuration-summary-heading">Integration summary</CardTitle><CardDescription>Ready means GitHub access, saved configuration, enabled agent preference, and a verified AWS role.</CardDescription></div>
+              <div><CardTitle id="configuration-summary-heading">Integration summary</CardTitle><CardDescription>Ready means GitHub access, saved Terraform configuration, a valid model policy, and an enabled agent. AWS enhances verification but is optional.</CardDescription></div>
               <RepositoryConfigStatusBadge status={status} />
             </div>
           </CardHeader>
           <CardContent className="grid gap-px bg-border p-0 sm:grid-cols-2 xl:grid-cols-5">
             <SummaryItem label="GitHub" value={githubReady ? "Connected" : "Access unavailable"} />
             <SummaryItem label="Configuration" value={repository.config ? "Saved" : "Not saved"} />
-            <SummaryItem label="AWS" value={awsConnected ? "Connected" : "Not connected"} />
+            <SummaryItem label="Cloud verification" value={awsConnected ? "AWS connected · Full" : "Optional · Local"} />
             <SummaryItem label="Agent" value={config.enabled ? "Enabled" : "Disabled"} />
             <SummaryItem label="Status" value={formatLabel(status)} />
             <SummaryItem label="Terraform root" value={config.terraformDir} mono />
@@ -137,7 +137,7 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
 
       <section aria-labelledby="repository-usage-heading">
         <div className="mb-3 flex items-end justify-between gap-4"><div><h2 id="repository-usage-heading" className="text-base font-semibold">AI Usage</h2><p className="mt-1 text-xs text-muted-foreground">Last 30 days · provider-reported usage for this repository.</p></div><Link href={`/usage?period=30d&repository=${repository.id}`} className="text-xs font-medium text-primary hover:underline">View detailed usage</Link></div>
-        {usage && usage.current.runCount ? <div className="space-y-4"><Card><CardContent className="grid gap-px bg-border p-0 sm:grid-cols-2 lg:grid-cols-4"><UsageItem label="Runs" value={usage.current.runCount.toLocaleString()} /><UsageItem label="Tokens" value={usage.current.tokenCompleteRuns ? formatCompactTokens(usage.current.totalTokens) : "Not reported"} /><UsageItem label="AI spend" value={usage.current.costCompleteRuns ? formatUsd(usage.current.aiSpendUsd) : "Not reported"} detail={`${usage.current.costCompleteRuns}/${usage.current.completedRunCount} complete`} /><UsageItem label="Verified fixes" value={usage.current.verifiedFixes.toLocaleString()} /><UsageItem label="Verification rate" value={formatPercent(usage.current.verificationRate)} /><UsageItem label="Schema avoided" value={formatPercent(usage.current.schemaAvoidanceRate)} /><UsageItem label="Model escalation" value={formatPercent(usage.current.modelEscalationRate)} /><UsageItem label="Memory reuse" value={formatPercent(usage.current.memoryReuseRate)} /></CardContent></Card><TokenTrendChart data={usage.daily} compact /></div> : <EmptyState icon={BrainCircuit} title="No usage data yet" description="TerraFix will show repository token, cost, and optimization metrics after the first diagnosis." />}
+        {usage && usage.current.runCount ? <div className="space-y-4"><Card><CardContent className="grid gap-px bg-border p-0 sm:grid-cols-2 lg:grid-cols-4"><UsageItem label="Runs" value={usage.current.runCount.toLocaleString()} /><UsageItem label="Tokens" value={usage.current.tokenCompleteRuns ? formatCompactTokens(usage.current.totalTokens) : "Not reported"} /><UsageItem label="AI spend" value={usage.current.costCompleteRuns ? formatUsd(usage.current.aiSpendUsd) : "Not reported"} detail={`${usage.current.costCompleteRuns}/${usage.current.completedRunCount} complete`} /><UsageItem label="Fully verified" value={usage.current.verifiedFixes.toLocaleString()} /><UsageItem label="Locally validated" value={usage.current.locallyValidated.toLocaleString()} /><UsageItem label="Full verification rate" value={formatPercent(usage.current.verificationRate)} /><UsageItem label="Schema avoided" value={formatPercent(usage.current.schemaAvoidanceRate)} /><UsageItem label="Memory reuse" value={formatPercent(usage.current.memoryReuseRate)} /></CardContent></Card><TokenTrendChart data={usage.daily} compact /></div> : <EmptyState icon={BrainCircuit} title="No usage data yet" description="TerraFix will show repository token, cost, and optimization metrics after the first diagnosis." />}
       </section>
 
       <section aria-labelledby="repository-identity-heading">
@@ -160,11 +160,11 @@ export default async function RepositoryDetailPage({ params }: { params: Promise
 
       <section aria-labelledby="aws-heading">
         <Card>
-          <CardHeader className="border-b"><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle id="aws-heading">AWS connection</CardTitle><CardDescription>Repository-scoped role access through temporary STS credentials.</CardDescription></div><AwsStatusBadge status={repository.awsConnection ? repository.awsConnection.status.toLowerCase() as "pending" | "connected" | "verification_failed" | "access_removed" : "not_connected"} /></div></CardHeader>
+          <CardHeader className="border-b"><div className="flex flex-wrap items-start justify-between gap-3"><div><CardTitle id="aws-heading">Cloud Verification</CardTitle><CardDescription>Optional AWS connection for provider-aware Terraform plan verification.</CardDescription></div><AwsStatusBadge status={repository.awsConnection ? repository.awsConnection.status.toLowerCase() as "pending" | "connected" | "verification_failed" | "access_removed" : "not_connected"} /></div></CardHeader>
           <CardContent className="flex flex-col justify-between gap-5 pt-5 lg:flex-row lg:items-center">
             <div className="flex items-center gap-3">
               <span className="flex size-9 items-center justify-center rounded-md border bg-neutral-status-muted text-neutral-status"><Cloud aria-hidden="true" className="size-4" /></span>
-              <div><p className="text-sm font-medium">{awsConnected ? "Provider-authenticated verification prerequisites are ready" : "AWS connection required before readiness"}</p><p className="mt-0.5 text-xs text-muted-foreground">Permanent AWS access keys are never requested or stored.</p></div>
+              <div><p className="text-sm font-medium">{awsConnected ? "AWS connected · Full verification enabled" : "Optional · AWS not connected"}</p><p className="mt-0.5 text-xs text-muted-foreground">TerraFix works without AWS using isolated local Terraform validation. Connect AWS to enable provider-aware <code>terraform plan</code>. Permanent access keys are never requested or stored.</p></div>
             </div>
             {repository.awsConnection ? <div className="grid gap-2 text-xs sm:grid-cols-3"><MiniDetail label="Account" value={maskAccount(repository.awsConnection.awsAccountId)} /><MiniDetail label="Region" value={repository.awsConnection.region} /><MiniDetail label="Role" value={repository.awsConnection.roleArn?.split("/").at(-1) ?? "Waiting for role"} /></div> : null}
             <Link href={`/repositories/${repository.id}/aws`} className={cn(buttonVariants({ variant: awsConnected ? "outline" : "default" }), "w-fit")}>{awsConnected ? "Manage AWS connection" : "Connect AWS"}</Link>

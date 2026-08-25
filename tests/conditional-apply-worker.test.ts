@@ -27,9 +27,25 @@ describe("conditional fresh-verification policy", () => {
     expect(() => enforceFreshVerificationPolicy(verifiedJob(), summary("semantic_failure", "terraform_semantic", "invalid_variable_value"))).toThrow(expect.objectContaining({ code: "full_verification_regressed" }));
     expect(() => enforceFreshVerificationPolicy(verifiedJob(), summary("fully_verified"))).not.toThrow();
   });
+
+  it("accepts only fresh local success for a locally validated approval", () => {
+    expect(() => enforceFreshVerificationPolicy(localJob(), localSummary())).not.toThrow();
+    expect(() => enforceFreshVerificationPolicy(localJob(), summary("environment_blocked", "permissions", "aws_access_denied"))).toThrow(expect.objectContaining({ code: "conditional_verification_changed" }));
+  });
 });
 
 describe("conditional patch worker", () => {
+  it("freshly verifies a local approval without AWS or terraform plan", async () => {
+    const store = storeMock();
+    const command = commandMock("plan_environment");
+    const deps = dependencies(store, command, planFailure("permissions", "aws_access_denied"));
+    const result = await processClaimedPatchApplication(localJob(), deps);
+    expect(result).toMatchObject({ outcome: "applied", commitSha: COMMIT });
+    expect(deps.aws.assume).not.toHaveBeenCalled();
+    expect(command.mock.calls.some((call) => call[0] === "terraform" && call[1][0] === "plan")).toBe(false);
+    expect(store.markApplied).toHaveBeenCalledWith("application-1", expect.objectContaining({ verification: expect.objectContaining({ verificationMode: "local", planRequested: false, outcome: "locally_validated", stages: expect.objectContaining({ plan: expect.objectContaining({ status: "not_run" }) }) }) }));
+  });
+
   it("commits and non-force pushes only after the approved environmental plan block is freshly reclassified", async () => {
     const store = storeMock();
     const command = commandMock("plan_environment");
@@ -78,16 +94,21 @@ function commandMock(mode: "plan_environment") {
 }
 
 function conditionalJob() {
-  return job({ eligibilityLevel: "conditional", verificationOutcomeAtRequest: "environment_blocked", conditionalApproval: true, planFailureClassAtRequest: "permissions", planFailureReasonCodeAtRequest: "aws_access_denied" });
+  return job({ eligibilityLevel: "conditional", verificationModeAtRequest: "full", planRequestedAtRequest: true, verificationOutcomeAtRequest: "environment_blocked", conditionalApproval: true, conditionalApprovalKind: "environment_conditional", planFailureClassAtRequest: "permissions", planFailureReasonCodeAtRequest: "aws_access_denied" });
 }
-function verifiedJob() { return job({ eligibilityLevel: "verified", verificationOutcomeAtRequest: "fully_verified", conditionalApproval: false, planFailureClassAtRequest: null, planFailureReasonCodeAtRequest: null }); }
+function verifiedJob() { return job({ eligibilityLevel: "verified", verificationModeAtRequest: "full", planRequestedAtRequest: true, verificationOutcomeAtRequest: "fully_verified", conditionalApproval: false, conditionalApprovalKind: null, planFailureClassAtRequest: null, planFailureReasonCodeAtRequest: null }); }
+function localJob() { return job({ eligibilityLevel: "conditional", verificationModeAtRequest: "local", planRequestedAtRequest: false, verificationOutcomeAtRequest: "locally_validated", conditionalApproval: true, conditionalApprovalKind: "local_conditional", planFailureClassAtRequest: null, planFailureReasonCodeAtRequest: null, aws: null }); }
 function job(overrides: Record<string, unknown>) {
   return { id: "application-1", agentRunId: "run-1", repositoryId: "repo-1", repositoryOwner: "acme", repositoryName: "infra", repositoryFullName: "acme/infra", repositoryAccessible: true, installationId: "9001", installationActive: true, pullRequestNumber: 12, expectedHeadSha: HEAD, verifiedAgainstCommitSha: HEAD, headBranch: "fix", headRepositoryFullName: "acme/infra", patchSha256: hashVerifiedPatch(PATCH), patch: PATCH, affectedFiles: ["main.tf"], terraformDir: ".", terraformVersion: "1.15.7", requestedByDisplay: "octocat", intendedCommitSha: null, aws: { roleArn: "arn:aws:iam::123456789012:role/TerraFix", externalId: "external", region: "us-east-1", connected: true }, ...overrides } as never;
 }
 
 function summary(outcome: FreshVerificationSummary["outcome"], classification: string | null = null, reasonCode: string | null = null): FreshVerificationSummary {
   const passed = { status: "passed" as const, durationMs: 1 };
-  return { stages: { patch_check: passed, patch_apply: passed, fmt: passed, init: passed, validate: passed, plan: { status: outcome === "fully_verified" ? "passed" : outcome === "patch_invalid" ? "not_run" : "failed", durationMs: 1 } }, outcome, applySafety: outcome === "fully_verified" ? "verified" : outcome === "environment_blocked" ? "conditionally_eligible" : "ineligible", planFailure: classification && reasonCode ? planFailure(classification, reasonCode) : null };
+  return { verificationMode: "full", planRequested: true, stages: { patch_check: passed, patch_apply: passed, fmt: passed, init: passed, validate: passed, plan: { status: outcome === "fully_verified" ? "passed" : outcome === "patch_invalid" ? "not_run" : "failed", durationMs: 1 } }, outcome, applySafety: outcome === "fully_verified" ? "verified" : outcome === "environment_blocked" ? "conditionally_eligible" : "ineligible", planFailure: classification && reasonCode ? planFailure(classification, reasonCode) : null };
+}
+function localSummary(): FreshVerificationSummary {
+  const passed = { status: "passed" as const, durationMs: 1 };
+  return { verificationMode: "local", planRequested: false, stages: { patch_check: passed, patch_apply: passed, fmt: passed, init: passed, validate: passed, plan: { status: "not_run", durationMs: null } }, outcome: "locally_validated", applySafety: "conditionally_eligible", planFailure: null };
 }
 
 function planFailure(classification: string, reasonCode: string) {

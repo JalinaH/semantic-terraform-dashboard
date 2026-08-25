@@ -23,6 +23,8 @@ export const PAGE_TITLES: Record<string, string> = {
 export const STATUS_LABELS: Record<VerificationStatus, string> = {
   verified_first_attempt: "Verified first attempt",
   verified_after_retry: "Verified after retry",
+  locally_validated_first_attempt: "Locally validated",
+  locally_validated_after_retry: "Locally validated after retry",
   verification_failed: "Verification failed",
   patch_rejected: "Patch rejected",
   verification_unavailable: "Verification unavailable",

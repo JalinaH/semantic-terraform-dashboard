@@ -1,6 +1,6 @@
 # Hosted agent execution
 
-TerraFix turns a failed, configured GitHub Actions Terraform workflow into a durable hosted `AgentRun`. It does not require a repository-level TerraFix workflow or repository model/AWS secrets.
+TerraFix turns a failed, configured GitHub Actions Terraform workflow into a durable hosted `AgentRun`. It does not require a repository-level TerraFix workflow or repository model/cloud secrets. AWS is optional.
 
 ```mermaid
 sequenceDiagram
@@ -18,9 +18,11 @@ sequenceDiagram
   CP-->>GH: 202/200 without executing Terraform
   W->>DB: atomic claim (FOR UPDATE SKIP LOCKED)
   W->>GH: temporary installation token, jobs/logs, exact Git checkout
-  W->>AWS: AssumeRole(repository role, ExternalId)
-  AWS-->>W: short-lived STS credentials
-  W->>A: explicit checkout, log, diff, stage, model, context, verify flags
+  opt AWS connected: full mode
+    W->>AWS: AssumeRole(repository role, ExternalId)
+    AWS-->>W: short-lived STS credentials
+  end
+  W->>A: explicit checkout, evidence, policy, and verification mode
   A-->>W: result.json
   W->>DB: validated, bounded, redacted safe result
   CP->>DB: real run list/detail + polling
@@ -36,7 +38,9 @@ The repository must have:
 - saved configuration with the agent enabled
 - a valid server-enforced model policy and eligible catalog model
 - the relevant pull-request or push trigger enabled
-- a connected AWS role
+
+A connected AWS role is optional. Without one, the worker executes local mode.
+With one, it performs STS identity checks and executes full mode.
 
 The control plane records explicit skip reasons including `workflow_not_configured`, `not_terraform_change`, `repository_not_ready`, `trigger_disabled`, and `fork_pr_untrusted`. `pull_request`, `push`, and `check_run` deliveries are stored as bounded audit outcomes but never directly invoke the model.
 
@@ -60,7 +64,8 @@ The queue is PostgreSQL-backed: `AgentRun.status=QUEUED`. A worker claims the ol
 
 - Node 22
 - Terraform 1.15.7
-- `semantic-terraform-agent` v1.1.4 at commit `9caaef384897387afe0d8b7a2186b96bd968021e`
+- `semantic-terraform-agent` v1.2.0 from the immutable commit passed as the
+  required `SEMANTIC_TERRAFORM_AGENT_SOURCE` image build argument
 
 The Python agent remains the source of truth. The Node worker is orchestration glue only.
 
@@ -71,7 +76,7 @@ Each job gets a new temporary directory. The worker uses a token-free GitHub rem
 - PR comparison: API-resolved base SHA to head/failing SHA
 - push comparison: parent/before context to failing SHA, with a recorded local-parent fallback when necessary
 
-The verified repository role is assumed with its unique External ID for a 15-minute STS session. Caller account and assumed role are verified before credentials are passed to the child. The service-owned `OPENROUTER_API_KEY` (plus optional legacy `GEMINI_API_KEY`) and temporary AWS values are allowlisted into the child environment. Database and GitHub App secrets are not forwarded.
+When connected, the verified repository role is assumed with its unique External ID for a 15-minute STS session. Caller account and assumed role are verified before credentials are passed to a full-mode child. A local-mode child receives no AWS variables and performs no STS call. The service-owned `OPENROUTER_API_KEY` (plus optional legacy `GEMINI_API_KEY`) is allowlisted into both modes. Database and GitHub App secrets are not forwarded.
 
 The worker never persists installation tokens, STS credentials, or the Gemini key, and never puts a token in a clone URL or logs.
 
@@ -93,16 +98,18 @@ semantic-terraform-agent diagnose
   --model <saved allowed model, fixed only>
   --context-mode <saved mode>
   --verify-patch
+  --verification-mode <local|full>
   --max-repair-attempts <0|1>
   --output <temporary result.json>
 ```
 
-The worker verifies that the installed Terraform CLI exactly matches the saved repository version before invocation. The default complete-job deadline is ten minutes and covers GitHub evidence collection, checkout, AWS role assumption, agent execution, and safe result ingestion. GitHub requests and child processes also have operation-level timeouts. Deadline expiry aborts child work and records `execution_timeout`; an orphaned claim discovered after the deadline plus grace period records `worker_stale`. Other bounded error codes include `github_log_unavailable`, `github_checkout_failed`, `repository_access_removed`, `aws_assume_role_failed`, `terraform_not_found`, `terraform_version_unavailable`, `agent_execution_failed`, `agent_result_invalid`, `model_unavailable`, and `worker_internal_error`.
+The worker verifies that the installed Terraform CLI exactly matches the saved repository version before invocation. Local mode runs patch check/apply, `terraform fmt -check`, `terraform init -backend=false`, and `terraform validate`; it never invokes plan. Full mode preserves the provider-aware plan sequence. The default complete-job deadline is ten minutes and covers GitHub evidence collection, checkout, optional AWS role assumption, agent execution, and safe result ingestion. GitHub requests and child processes also have operation-level timeouts. Deadline expiry aborts child work and records `execution_timeout`; an orphaned claim discovered after the deadline plus grace period records `worker_stale`. Other bounded error codes include `github_log_unavailable`, `github_checkout_failed`, `repository_access_removed`, `aws_assume_role_failed`, `terraform_not_found`, `terraform_version_unavailable`, `agent_execution_failed`, `agent_result_invalid`, `model_unavailable`, and `worker_internal_error`.
 
-An agent result is schema-validated. Semantic Terraform Agent v1.1.4 usage,
+An agent result is schema-validated. Semantic Terraform Agent v1.2.0 usage,
 verified-patch provenance, mutation eligibility level, and deterministic
 `verification_assessment` are normalized into nullable `AgentRun` fields. The
-assessment distinguishes `fully_verified`, `environment_blocked`,
+assessment persists explicit verification mode, plan requested/attempted/passed,
+plan skip reason, and distinguishes `locally_validated`, `fully_verified`, `environment_blocked`,
 `semantic_failure`, `patch_invalid`, and `unknown_failure`; only bounded,
 redacted plan classification/reason/source metadata is retained. The canonical
 patch is preserved byte-for-byte in a private worker field while UI/PR rendering
@@ -124,7 +131,7 @@ dashboard never turns absent telemetry into a free run.
 3. Expose `http://localhost:3000/api/github/webhooks` through a trusted HTTPS tunnel. Put the public `/api/github/webhooks` URL and the same random `GITHUB_WEBHOOK_SECRET` in the App settings and `.env`.
 4. Sign in, install the App on only the test repository, and approve any permission update.
 5. Save repository configuration. Match the exact workflow name, enable the PR trigger, include `**/*.tf`/`**/*.tf.json`, and choose the expected failed stage.
-6. Complete AWS onboarding with a least-privilege test role and confirm the repository is **Ready**.
+6. Confirm the repository is **Ready** without AWS. Optionally connect a least-privilege test role to exercise full mode.
 7. Put the hosted service OpenRouter key in the worker environment. Do not add it to GitHub.
 8. Apply migrations and run the dashboard plus worker:
 
@@ -143,7 +150,7 @@ For a container worker, run the documented image with server/worker secrets inje
 
 ## Safety and current limitations
 
-- fork PRs are always skipped before AWS role assumption; `pull_request_target` is not a bypass
+- fork PRs are always skipped before any model or AWS work; `pull_request_target` is not a bypass
 - diagnosis never commits or pushes; a separate approved PatchApplication may create one non-force source commit, but never merges or mutates infrastructure
 - no automatic worker retry and no more than one agent repair attempt
 - job logs must still be available through GitHub Actions retention

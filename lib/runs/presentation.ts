@@ -47,11 +47,12 @@ export function authoritativeReductionRatio(available: number | null, selected: 
 
 export function suggestedPatchDescription(status: RunVerificationStatus, outcome: VerificationOutcome | null = null) {
   if (outcome === "fully_verified") return "Candidate diff produced and successfully verified in an isolated workspace, including Terraform plan.";
+  if (outcome === "locally_validated") return "Candidate diff passed patch safety and isolated local Terraform fmt, init, and validate. Provider-aware plan was not requested.";
   if (outcome === "environment_blocked") return "Candidate diff passed patch safety, fmt, init, and validate, but full Terraform plan was blocked by the execution environment.";
   if (outcome === "semantic_failure") return "Candidate diff produced, but Terraform plan found a remaining configuration problem.";
   if (outcome === "unknown_failure") return "Candidate diff produced, but Terraform plan failed for a reason TerraFix could not classify safely.";
   if (outcome === "patch_invalid") return "Candidate diff produced by TerraFix. This candidate did not pass patch safety verification.";
-  if (status === "verified_first_attempt" || status === "verified_after_retry") return "Candidate diff produced and successfully verified in an isolated workspace.";
+  if (status === "verified_first_attempt" || status === "verified_after_retry" || status === "locally_validated_first_attempt" || status === "locally_validated_after_retry") return "Candidate diff produced and successfully verified in an isolated workspace.";
   if (status === "patch_rejected") return "Candidate diff produced by TerraFix. This candidate did not pass patch safety verification.";
   if (status === "verification_unavailable") return "Candidate diff produced, but full verification could not be completed.";
   if (status === "verification_skipped") return "Candidate diff produced, but Terraform verification was not run.";
@@ -60,7 +61,7 @@ export function suggestedPatchDescription(status: RunVerificationStatus, outcome
 }
 
 export function verificationTimelineState(status: RunVerificationStatus): TimelineEventState {
-  if (status === "verified_first_attempt" || status === "verified_after_retry") return "success";
+  if (status === "verified_first_attempt" || status === "verified_after_retry" || status === "locally_validated_first_attempt" || status === "locally_validated_after_retry") return "success";
   if (status === "patch_rejected") return "rejected";
   if (status === "verification_failed") return "failure";
   if (status === "verification_unavailable") return "warning";
@@ -72,6 +73,8 @@ export function verificationTimelineDetail(status: RunVerificationStatus, failed
   const stage = failedStage ? stageLabel(failedStage) : null;
   if (status === "verified_first_attempt") return "Verified on the first attempt";
   if (status === "verified_after_retry") return "Verified after retry";
+  if (status === "locally_validated_first_attempt") return "Local Terraform verification succeeded on the first attempt";
+  if (status === "locally_validated_after_retry") return "Local Terraform verification succeeded after retry";
   if (status === "patch_rejected") return stage ? `Patch rejected at ${stage}` : "Patch rejected";
   if (status === "verification_failed") return stage ? `Failed at ${stage}` : "Verification failed";
   if (status === "verification_unavailable") return stage ? `Verification unavailable during ${stage}` : "Verification unavailable";
@@ -122,9 +125,9 @@ export function buildRunTimeline(run: TimelineRun): TimelineEvent[] {
   if (run.contextEscalated) events.push({ label: "Context escalated", detail: run.schemaRetrieved ? "Sliced provider schema added" : displayLabel(run.contextEscalationReason), state: "neutral" });
   if (run.modelEscalated) events.push({ label: "Model escalated", detail: run.initialModelTier && run.finalModelTier ? `${run.initialModelTier.toUpperCase()} → ${run.finalModelTier.toUpperCase()}` : `${run.initialModel ?? "Initial model"} → ${run.finalModel ?? "final model"}`, state: "neutral" });
   if (run.verificationOutcome === "environment_blocked" && run.llmCallCount !== null) events.push({ label: "Stopped", detail: "No additional model call required for the environmental plan block", state: "warning" });
-  const assessedState: TimelineEventState = run.verificationOutcome === "fully_verified" ? "success" : run.verificationOutcome === "environment_blocked" ? "warning" : run.verificationOutcome === "semantic_failure" || run.verificationOutcome === "patch_invalid" ? "failure" : run.verificationOutcome === "unknown_failure" ? "warning" : verificationTimelineState(run.verificationStatus);
-  const assessedDetail = run.verificationOutcome === "fully_verified" ? "Full Terraform plan passed" : run.verificationOutcome === "environment_blocked" ? "Terraform plan blocked by environment" : run.verificationOutcome === "semantic_failure" ? "Terraform plan found a configuration problem" : run.verificationOutcome === "unknown_failure" ? "Plan failure could not be classified safely" : verificationTimelineDetail(run.verificationStatus, run.verificationFailedStage);
-  events.push({ label: "Terraform verification", detail: assessedDetail, state: assessedState });
+  const assessedState: TimelineEventState = run.verificationOutcome === "fully_verified" || run.verificationOutcome === "locally_validated" ? "success" : run.verificationOutcome === "environment_blocked" ? "warning" : run.verificationOutcome === "semantic_failure" || run.verificationOutcome === "patch_invalid" ? "failure" : run.verificationOutcome === "unknown_failure" ? "warning" : verificationTimelineState(run.verificationStatus);
+  const assessedDetail = run.verificationOutcome === "fully_verified" ? "Full Terraform plan passed" : run.verificationOutcome === "locally_validated" ? "Local Terraform verification passed · Plan not requested (cloud verification not configured)" : run.verificationOutcome === "environment_blocked" ? "Terraform plan blocked by environment" : run.verificationOutcome === "semantic_failure" ? "Terraform plan found a configuration problem" : run.verificationOutcome === "unknown_failure" ? "Plan failure could not be classified safely" : verificationTimelineDetail(run.verificationStatus, run.verificationFailedStage);
+  events.push({ label: run.verificationOutcome === "locally_validated" ? "Terraform local verification" : "Terraform verification", detail: assessedDetail, state: assessedState });
   events.push(publicationEvent(run));
   return events;
 }

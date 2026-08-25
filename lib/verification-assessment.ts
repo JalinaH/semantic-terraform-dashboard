@@ -1,5 +1,6 @@
 export const verificationOutcomes = [
   "fully_verified",
+  "locally_validated",
   "environment_blocked",
   "semantic_failure",
   "patch_invalid",
@@ -27,17 +28,20 @@ export type ApplyEligibilityKind = "verified" | "conditional";
 
 export interface VerificationAssessmentFields {
   verificationOutcome: VerificationOutcome | null;
+  verificationMode?: "local" | "full" | null;
   assessmentPatchCheckPassed: boolean | null;
   assessmentPatchApplyPassed: boolean | null;
   assessmentFmtPassed: boolean | null;
   assessmentInitPassed: boolean | null;
   assessmentValidatePassed: boolean | null;
   assessmentPlanAttempted: boolean | null;
+  assessmentPlanRequested?: boolean | null;
   assessmentPlanPassed: boolean | null;
   assessmentFullVerificationPassed: boolean | null;
   applySafety: ApplySafety | null;
   planFailureClass: PlanFailureClass | null;
   planFailureReasonCode: string | null;
+  planSkipReason?: string | null;
 }
 
 export interface MutationEligibilityFields extends VerificationAssessmentFields {
@@ -66,6 +70,21 @@ export function evaluateApplyEligibility(input: MutationEligibilityFields): Appl
     && input.assessmentFmtPassed === true
     && input.assessmentInitPassed === true
     && input.assessmentValidatePassed === true;
+  if (
+    input.mutationEligibilityLevel === "conditional"
+    && input.mutationEligibilityReason === "locally_validated_terraform_patch"
+    && input.verificationOutcome === "locally_validated"
+    && input.verificationMode === "local"
+    && input.applySafety === "conditionally_eligible"
+    && prePlanPassed
+    && input.assessmentPlanRequested === false
+    && input.assessmentPlanAttempted === false
+    && input.assessmentPlanPassed === null
+    && input.assessmentFullVerificationPassed === false
+    && input.planSkipReason === "cloud_verification_not_configured"
+    && input.planFailureClass === null
+    && input.planFailureReasonCode === null
+  ) return "conditional";
   if (
     input.mutationEligibilityLevel === "verified"
     && input.mutationEligibilityReason === "verified_terraform_patch"
@@ -109,6 +128,7 @@ export function verificationOutcomeLabel(value: VerificationOutcome | null) {
   if (value === null) return "LEGACY VERIFICATION";
   return ({
     fully_verified: "FULLY VERIFIED",
+    locally_validated: "LOCALLY VALIDATED",
     environment_blocked: "ENVIRONMENT BLOCKED",
     semantic_failure: "SEMANTIC FAILURE",
     patch_invalid: "PATCH REJECTED",

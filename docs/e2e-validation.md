@@ -16,10 +16,10 @@ not invoke the Python CLI manually as a substitute.
 
 - [ ] Deployed Vercel control plane and public HTTPS webhook URL
 - [ ] Production migrations applied
-- [ ] Active external worker reporting Agent v1.1.4
+- [ ] Active external worker reporting Agent v1.2.0
 - [ ] Dedicated consumer repository from [demo-repository.md](demo-repository.md)
 - [ ] GitHub App installed with required permissions and `workflow_run` event
-- [ ] Repository AWS role created and STS verification passed
+- [ ] Repository ready without AWS (plus an optional connected-role full-mode fixture)
 - [ ] OpenRouter catalog synchronized with at least one eligible FREE model
 - [ ] Repository policy Auto Optimize / maximum FREE / enabled
 - [ ] Same-repository PR containing the DynamoDB hash-key mismatch
@@ -30,14 +30,14 @@ not invoke the Python CLI manually as a substitute.
 2. Install the App, return through `/github/callback`, and confirm automatic
    repository synchronization.
 3. Save Terraform workflow/path/version configuration.
-4. create/verify the AWS role, choose Auto Optimize with maximum FREE, and
-   enable TerraFix.
+4. Leave Cloud Verification disconnected, choose Auto Optimize with maximum
+   FREE, and enable TerraFix.
 5. Open/update the same-repository failure PR and let its normal Terraform CI
    fail.
 6. Confirm GitHub's `workflow_run` delivery is accepted and an AgentRun appears
    automatically. Do not run `pnpm worker:once` as a manual substitute for the
    deployed worker path.
-7. Confirm the worker claims the row, package version is 1.1.4, verification
+7. Confirm the worker claims the row, package version is 1.2.0, local verification
    finishes, one PR comment is published, and dashboard/usage telemetry appears.
 8. Compare repository commit/branch history before and after; it must be
    unchanged by TerraFix.
@@ -53,6 +53,8 @@ Record only safe metadata:
 | GitHub delivery ID | Not run |
 | AgentRun ID | Not run |
 | Agent version | Not run |
+| Verification mode | Not run |
+| Plan requested | Not run |
 | Requested model | Not run |
 | Reported/actual model | Not run |
 | Initial/final tier | Not run |

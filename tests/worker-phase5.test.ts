@@ -50,6 +50,26 @@ describe("hosted worker orchestration", () => {
     expect(aws).not.toHaveBeenCalled();
   });
 
+  it("executes local verification without AWS instead of skipping", async () => {
+    const store = memoryRunStore();
+    const aws = vi.fn(async () => temporaryCredentials());
+    const invoke = vi.fn(async (input) => {
+      expect(input.awsCredentials).toBeNull();
+      return validAgentResult();
+    });
+    const outcome = await processClaimedAgentRun(claimedRun({ aws: null }), {
+      store,
+      github: { prepare: async () => ({ checkoutPath: "/tmp/repo", failureLogPath: "/tmp/log", diffPath: "/tmp/diff", failedStage: "plan", cleanup: async () => undefined }) },
+      aws: { assume: aws },
+      agent: { invoke },
+    });
+    expect(outcome.outcome).toBe("completed");
+    expect(store.markSkipped).not.toHaveBeenCalled();
+    expect(store.markCompleted).toHaveBeenCalledOnce();
+    expect(aws).not.toHaveBeenCalled();
+    expect(invoke).toHaveBeenCalledOnce();
+  });
+
   it.each([
     ["malformed result", async () => ({ status: "ok", unexpected: true }), "agent_result_invalid"],
     ["execution timeout", async () => { throw new WorkerExecutionError("execution_timeout"); }, "execution_timeout"],

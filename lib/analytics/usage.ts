@@ -46,6 +46,7 @@ export interface UsageSummary {
   runCount: number;
   completedRunCount: number;
   verifiedFixes: number;
+  locallyValidated: number;
   verificationRate: number | null;
   totalTokens: number;
   cachedInputTokens: number;
@@ -82,6 +83,7 @@ export interface RepositoryUsageBreakdown {
   costUsd: string;
   costCompleteRuns: number;
   verifiedFixes: number;
+  locallyValidated: number;
   verificationRate: number | null;
   costPerVerifiedFixUsd: string | null;
   schemaAvoidanceRate: number | null;
@@ -103,9 +105,12 @@ export interface ModelUsageBreakdown {
 }
 
 const verifiedStatuses = new Set<VerificationStatus>([VerificationStatus.VERIFIED_FIRST_ATTEMPT, VerificationStatus.VERIFIED_AFTER_RETRY]);
+const locallyValidatedStatuses = new Set<VerificationStatus>([VerificationStatus.LOCALLY_VALIDATED_FIRST_ATTEMPT, VerificationStatus.LOCALLY_VALIDATED_AFTER_RETRY]);
 const diagnosableStatuses = new Set<VerificationStatus>([
   VerificationStatus.VERIFIED_FIRST_ATTEMPT,
   VerificationStatus.VERIFIED_AFTER_RETRY,
+  VerificationStatus.LOCALLY_VALIDATED_FIRST_ATTEMPT,
+  VerificationStatus.LOCALLY_VALIDATED_AFTER_RETRY,
   VerificationStatus.VERIFICATION_FAILED,
   VerificationStatus.PATCH_REJECTED,
   VerificationStatus.VERIFICATION_UNAVAILABLE,
@@ -117,6 +122,10 @@ export function isVerifiedUsageStatus(value: string) {
 
 export function isDiagnosableUsageStatus(value: string) {
   return diagnosableStatuses.has(value as VerificationStatus);
+}
+
+export function isLocallyValidatedUsageStatus(value: string) {
+  return locallyValidatedStatuses.has(value as VerificationStatus);
 }
 
 export function parseUsagePeriod(value: string | undefined): UsagePeriod {
@@ -184,6 +193,7 @@ export async function getAuthorizedRepositoryUsage(userId: string, repositoryId:
 export function calculateUsageSummary(rows: UsageRow[], period: UsagePeriod): UsageSummary {
   const completed = rows.filter((row) => row.status === AgentRunStatus.COMPLETED && isDiagnosableUsageStatus(row.verificationStatus));
   const verified = completed.filter((row) => isVerifiedUsageStatus(row.verificationStatus));
+  const locallyValidated = completed.filter((row) => isLocallyValidatedUsageStatus(row.verificationStatus));
   const tokenComplete = completed.filter((row) => row.tokenCountsComplete === true && row.totalTokens !== null);
   const costComplete = completed.filter((row) => row.costComplete === true && row.llmCostUsd !== null);
   const callReported = completed.filter((row) => row.llmCallCount !== null);
@@ -206,6 +216,7 @@ export function calculateUsageSummary(rows: UsageRow[], period: UsagePeriod): Us
     runCount: rows.length,
     completedRunCount: completed.length,
     verifiedFixes: verified.length,
+    locallyValidated: locallyValidated.length,
     verificationRate: rate(verified.length, completed.length),
     totalTokens,
     cachedInputTokens,
@@ -242,6 +253,7 @@ function repositoryBreakdown(key: string, rows: UsageRow[]): RepositoryUsageBrea
 function calculateUsageSummaryWithoutBreakdowns(rows: UsageRow[]) {
   const completed = rows.filter((row) => row.status === AgentRunStatus.COMPLETED && isDiagnosableUsageStatus(row.verificationStatus));
   const verified = completed.filter((row) => isVerifiedUsageStatus(row.verificationStatus));
+  const locallyValidated = completed.filter((row) => isLocallyValidatedUsageStatus(row.verificationStatus));
   const tokenComplete = completed.filter((row) => row.tokenCountsComplete === true && row.totalTokens !== null);
   const costComplete = completed.filter((row) => row.costComplete === true && row.llmCostUsd !== null);
   const cost = sumDecimal(costComplete.map((row) => row.llmCostUsd));
@@ -254,6 +266,7 @@ function calculateUsageSummaryWithoutBreakdowns(rows: UsageRow[]) {
     costUsd: cost.toFixed(),
     costCompleteRuns: costComplete.length,
     verifiedFixes: verified.length,
+    locallyValidated: locallyValidated.length,
     verificationRate: rate(verified.length, completed.length),
     costPerVerifiedFixUsd: completed.length > 0 && costComplete.length === completed.length && verified.length ? cost.div(verified.length).toFixed() : null,
     schemaAvoidanceRate: booleanRate(completed, "schemaAvoided"),

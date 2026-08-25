@@ -1,6 +1,8 @@
 export type VerificationStatus =
   | "verified_first_attempt"
   | "verified_after_retry"
+  | "locally_validated_first_attempt"
+  | "locally_validated_after_retry"
   | "verification_failed"
   | "patch_rejected"
   | "verification_unavailable"

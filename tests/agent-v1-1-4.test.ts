@@ -52,13 +52,52 @@ describe("agent v1.1.4 verification assessment", () => {
   });
 });
 
+describe("agent v1.2.0 local verification assessment", () => {
+  it("normalizes local success without inventing plan or environment failure", () => {
+    const base = v114Result() as Record<string, unknown>;
+    const diagnosis = base.diagnosis as Record<string, unknown>;
+    const attempts = diagnosis.attempts as Array<Record<string, unknown>>;
+    const result = sanitize(v114Result({
+      agent_version: "1.2.0",
+      verification_mode: "local",
+      plan_requested: false,
+      plan_attempted: false,
+      plan_skip_reason: "cloud_verification_not_configured",
+      diagnosis: {
+        ...diagnosis,
+        attempts: attempts.map((attempt) => ({ ...attempt, status: "locally_validated", verification_mode: "local", plan_requested: false, plan_skip_reason: "cloud_verification_not_configured", commands: { ...(attempt.commands as object), plan: { command: ["terraform", "plan"], status: "skipped", duration_seconds: 0 } } })),
+        verification_status: "locally_validated_first_attempt",
+        verification: { passed: true, status: "locally_validated_first_attempt", failed_stage: null, reason: null },
+      },
+      verified_patch: { ...(base.verified_patch as object), verification_status: "locally_validated_first_attempt", verification_passed: true },
+      verification_provenance: { ...(base.verification_provenance as object), final_status: "locally_validated_first_attempt", verification_mode: "local", plan_required: false, plan_requested: false, plan_attempted: false, plan_passed: null, plan_skip_reason: "cloud_verification_not_configured" },
+      verification_assessment: { outcome: "locally_validated", verification_mode: "local", plan_requested: false, patch_check_passed: true, patch_apply_passed: true, fmt_passed: true, init_passed: true, validate_passed: true, plan_attempted: false, plan_passed: null, plan_skip_reason: "cloud_verification_not_configured", full_verification_passed: false, apply_safety: "conditionally_eligible", plan_failure: null },
+      mutation_eligibility: { eligible: true, eligibility_level: "conditional", reason_code: "locally_validated_terraform_patch", reasons: [], requires_fresh_head_check: true },
+    }));
+    expect(result.telemetry).toMatchObject({
+      agentVersion: "1.2.0",
+      verificationOutcome: "locally_validated",
+      verificationMode: "local",
+      assessmentPlanRequested: false,
+      assessmentPlanAttempted: false,
+      assessmentPlanPassed: null,
+      planSkipReason: "cloud_verification_not_configured",
+      planFailureClass: null,
+      mutationEligibilityLevel: "conditional",
+      mutationEligibilityReason: "locally_validated_terraform_patch",
+    });
+  });
+});
+
 describe("fail-closed Apply combinations", () => {
   const full = fields({ verificationOutcome: "fully_verified", applySafety: "verified", mutationEligibilityLevel: "verified", mutationEligibilityReason: "verified_terraform_patch", assessmentPlanPassed: true, assessmentFullVerificationPassed: true });
   const conditional = fields({ verificationOutcome: "environment_blocked", applySafety: "conditionally_eligible", mutationEligibilityLevel: "conditional", mutationEligibilityReason: "terraform_plan_environment_blocked", assessmentPlanPassed: false, assessmentFullVerificationPassed: false, planFailureClass: "permissions", planFailureReasonCode: "aws_access_denied" });
+  const local = fields({ verificationOutcome: "locally_validated", verificationMode: "local", applySafety: "conditionally_eligible", mutationEligibilityLevel: "conditional", mutationEligibilityReason: "locally_validated_terraform_patch", assessmentPlanRequested: false, assessmentPlanAttempted: false, assessmentPlanPassed: null, planSkipReason: "cloud_verification_not_configured", assessmentFullVerificationPassed: false });
 
   it("accepts only the exact fully verified and conditional conjunctions", () => {
     expect(evaluateApplyEligibility(full)).toBe("verified");
     expect(evaluateApplyEligibility(conditional)).toBe("conditional");
+    expect(evaluateApplyEligibility(local)).toBe("conditional");
     expect(evaluateApplyEligibility({ ...conditional, mutationEligible: false })).toBeNull();
     expect(evaluateApplyEligibility({ ...conditional, applySafety: "verified" })).toBeNull();
     expect(evaluateApplyEligibility({ ...conditional, planFailureClass: "terraform_semantic" })).toBeNull();

@@ -39,8 +39,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   );
   const metrics = [
     { title: "Agent runs", value: String(usage.runCount), description: "Real persisted webhook-triggered records", icon: ListChecks },
-    { title: "Verified fixes", value: String(usage.verifiedFixes), description: "Fresh isolated Terraform verification passed", icon: BadgeCheck },
-    { title: "Verification rate", value: formatPercent(usage.verificationRate), description: "Verified / completed diagnosable runs", icon: CircleGauge },
+    { title: "Fully verified", value: String(usage.verifiedFixes), description: "Provider-aware Terraform plan passed", icon: BadgeCheck },
+    { title: "Locally validated", value: String(usage.locallyValidated), description: "Local checks passed; plan not run", icon: CircleGauge },
     { title: "AI spend", value: usage.costCompleteRuns ? formatUsd(usage.aiSpendUsd) : "Not reported", description: `${usage.costCompleteRuns} of ${usage.completedRunCount} completed diagnoses reported complete cost`, icon: CircleDollarSign },
   ];
   const secondaryMetrics = [

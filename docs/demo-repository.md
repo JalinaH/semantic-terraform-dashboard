@@ -2,8 +2,8 @@
 
 Use a dedicated repository that is separate from both
 `semantic-terraform-dashboard` and `semantic-terraform-agent`. Grant only that
-repository to the TerraFix GitHub App and use a non-production AWS account with
-read/plan permissions.
+repository to the TerraFix GitHub App. The primary demo needs no AWS account; an
+optional enhanced demo may use a non-production account with read/plan permissions.
 
 ## Safe baseline
 
@@ -66,15 +66,16 @@ Optional independent cases:
 Do not combine cases in one PR; a single clear failure makes run attribution and
 telemetry easier to explain.
 
-## AWS and TerraFix configuration
+## TerraFix configuration
 
 1. Install the GitHub App on only this repository.
 2. Set Terraform root `terraform`, version `1.15.7`, workflow name
    `Terraform CI`, PR trigger enabled, and path `terraform/**/*.tf`.
-3. Create the generated repository IAM role in the non-production AWS account.
-4. Verify STS AssumeRole/GetCallerIdentity in TerraFix.
-5. Select Auto Optimize, maximum tier FREE, and enable TerraFix.
-6. Confirm the repository shows all five setup checks complete.
+3. Leave Cloud Verification disconnected for the primary scenario.
+4. Select Auto Optimize, maximum tier FREE, and enable TerraFix.
+5. Confirm the four required repository checks are complete and AWS is shown as optional.
+6. Optionally connect and verify a generated role in a non-production account
+   for a second, full provider-aware scenario.
 
 No `OPENROUTER_API_KEY`, `GEMINI_API_KEY`, or AWS role secret belongs in this
 consumer repository. The hosted worker owns its gateway credential and uses the

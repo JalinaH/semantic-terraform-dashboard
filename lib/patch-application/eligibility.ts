@@ -22,13 +22,16 @@ export interface StoredPatchArtifact {
   mutationEligibilityLevel: string | null;
   mutationEligibilityReason: string | null;
   verificationOutcome: string | null;
+  verificationMode?: string | null;
   assessmentPatchCheckPassed: boolean | null;
   assessmentPatchApplyPassed: boolean | null;
   assessmentFmtPassed: boolean | null;
   assessmentInitPassed: boolean | null;
   assessmentValidatePassed: boolean | null;
   assessmentPlanAttempted: boolean | null;
+  assessmentPlanRequested?: boolean | null;
   assessmentPlanPassed: boolean | null;
+  planSkipReason?: string | null;
   assessmentFullVerificationPassed: boolean | null;
   applySafety: string | null;
   planFailureClass: string | null;
@@ -45,7 +48,7 @@ export function parseAffectedFiles(value: unknown) {
   return files.length === value.length ? files : null;
 }
 
-export function validateStoredPatchArtifact(run: StoredPatchArtifact): { ok: true; patch: string; patchSha256: string; verifiedSha: string; affectedFiles: string[]; eligibilityLevel: "verified" | "conditional"; verificationOutcome: VerificationOutcome | null; planFailureClass: PlanFailureClass | null; planFailureReasonCode: string | null } | { ok: false; code: PatchApplicationErrorCode } {
+export function validateStoredPatchArtifact(run: StoredPatchArtifact): { ok: true; patch: string; patchSha256: string; verifiedSha: string; affectedFiles: string[]; eligibilityLevel: "verified" | "conditional"; verificationOutcome: VerificationOutcome | null; verificationMode: "local" | "full"; planRequested: boolean; planFailureClass: PlanFailureClass | null; planFailureReasonCode: string | null } | { ok: false; code: PatchApplicationErrorCode } {
   if (run.mutationEligible === null || run.mutationEligibilityReason === null) return { ok: false, code: "legacy_run" };
   const legacyVerified = run.verificationOutcome === null && run.mutationEligibilityLevel === null && run.applySafety === null
     && run.mutationEligible === true && run.mutationEligibilityReason === "verified_terraform_patch"
@@ -55,13 +58,16 @@ export function validateStoredPatchArtifact(run: StoredPatchArtifact): { ok: tru
     mutationEligibilityLevel: run.mutationEligibilityLevel as MutationEligibilityLevel,
     mutationEligibilityReason: run.mutationEligibilityReason,
     verificationOutcome: run.verificationOutcome as VerificationOutcome,
+    verificationMode: run.verificationMode as "local" | "full" | null,
     assessmentPatchCheckPassed: run.assessmentPatchCheckPassed,
     assessmentPatchApplyPassed: run.assessmentPatchApplyPassed,
     assessmentFmtPassed: run.assessmentFmtPassed,
     assessmentInitPassed: run.assessmentInitPassed,
     assessmentValidatePassed: run.assessmentValidatePassed,
     assessmentPlanAttempted: run.assessmentPlanAttempted,
+    assessmentPlanRequested: run.assessmentPlanRequested,
     assessmentPlanPassed: run.assessmentPlanPassed,
+    planSkipReason: run.planSkipReason,
     assessmentFullVerificationPassed: run.assessmentFullVerificationPassed,
     applySafety: run.applySafety as ApplySafety,
     planFailureClass: run.planFailureClass as PlanFailureClass | null,
@@ -70,12 +76,14 @@ export function validateStoredPatchArtifact(run: StoredPatchArtifact): { ok: tru
   const eligibilityLevel = assessedEligibility ?? (legacyVerified ? "verified" : null);
   if (run.status !== "COMPLETED" || eligibilityLevel === null) return { ok: false, code: "not_mutation_eligible" };
   if (eligibilityLevel === "verified" && run.verificationStatus !== "VERIFIED_FIRST_ATTEMPT" && run.verificationStatus !== "VERIFIED_AFTER_RETRY") return { ok: false, code: "not_mutation_eligible" };
+  if (run.verificationOutcome === "locally_validated" && run.verificationStatus !== "LOCALLY_VALIDATED_FIRST_ATTEMPT" && run.verificationStatus !== "LOCALLY_VALIDATED_AFTER_RETRY") return { ok: false, code: "not_mutation_eligible" };
   if (run.pullRequestNumber === null || !run.verifiedPatch || !run.patchSha256 || !run.verifiedAgainstCommitSha) return { ok: false, code: "legacy_run" };
   if (!PATCH_HASH_PATTERN.test(run.patchSha256) || hashVerifiedPatch(run.verifiedPatch) !== run.patchSha256) return { ok: false, code: "patch_hash_mismatch" };
   if (!SHA_PATTERN.test(run.verifiedAgainstCommitSha)) return { ok: false, code: "source_revision_mismatch" };
   const affectedFiles = parseAffectedFiles(run.patchAffectedFiles);
   if (!affectedFiles || run.patchTerraformFilesOnly !== true || run.patchExistingFilesOnly !== true || run.patchRepositoryRelative !== true) return { ok: false, code: "not_mutation_eligible" };
-  return { ok: true, patch: run.verifiedPatch, patchSha256: run.patchSha256, verifiedSha: run.verifiedAgainstCommitSha, affectedFiles, eligibilityLevel, verificationOutcome: run.verificationOutcome as VerificationOutcome | null, planFailureClass: run.planFailureClass as PlanFailureClass | null, planFailureReasonCode: run.planFailureReasonCode };
+  const verificationMode = run.verificationOutcome === "locally_validated" ? "local" : "full";
+  return { ok: true, patch: run.verifiedPatch, patchSha256: run.patchSha256, verifiedSha: run.verifiedAgainstCommitSha, affectedFiles, eligibilityLevel, verificationOutcome: run.verificationOutcome as VerificationOutcome | null, verificationMode, planRequested: verificationMode === "full", planFailureClass: run.planFailureClass as PlanFailureClass | null, planFailureReasonCode: run.planFailureReasonCode };
 }
 
 export function validateTerraformAffectedFiles(files: string[], terraformDir: string) {

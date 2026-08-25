@@ -89,7 +89,7 @@ export interface WorkerDependencies {
     invoke(input: {
       run: ClaimedAgentRun;
       workspace: PreparedAgentWorkspace;
-      awsCredentials: TemporaryAwsCredentials;
+      awsCredentials: TemporaryAwsCredentials | null;
       signal?: AbortSignal;
     }): Promise<unknown>;
   };

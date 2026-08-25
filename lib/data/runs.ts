@@ -14,7 +14,7 @@ const planFailureViewSchema = z.object({
 
 const attemptSchema = z.object({
   attempt: z.number().int(),
-  status: z.enum(["verified", "failed", "rejected", "unavailable", "skipped"]),
+  status: z.enum(["verified", "locally_validated", "failed", "rejected", "unavailable", "skipped"]),
   failedStage: z.string().nullable().optional(),
   commands: z.record(z.string(), z.object({
     status: z.enum(["passed", "failed", "skipped", "error"]),
@@ -184,13 +184,16 @@ export async function getAgentRunForUser(userId: string, id: string): Promise<Ru
     mutationEligibilityLevel: enumValue(row.mutationEligibilityLevel, mutationEligibilityLevels),
     mutationEligibilityReason: row.mutationEligibilityReason,
     verificationOutcome: enumValue(row.verificationOutcome, verificationOutcomes),
+    verificationMode: row.verificationMode === "local" || row.verificationMode === "full" ? row.verificationMode : null,
     assessmentPatchCheckPassed: row.assessmentPatchCheckPassed,
     assessmentPatchApplyPassed: row.assessmentPatchApplyPassed,
     assessmentFmtPassed: row.assessmentFmtPassed,
     assessmentInitPassed: row.assessmentInitPassed,
     assessmentValidatePassed: row.assessmentValidatePassed,
     assessmentPlanAttempted: row.assessmentPlanAttempted,
+    assessmentPlanRequested: row.assessmentPlanRequested,
     assessmentPlanPassed: row.assessmentPlanPassed,
+    planSkipReason: row.planSkipReason,
     assessmentFullVerificationPassed: row.assessmentFullVerificationPassed,
     applySafety: enumValue(row.applySafety, applySafetyValues),
     planFailure: normalizedPlanFailure(row),
@@ -208,6 +211,9 @@ export async function getAgentRunForUser(userId: string, id: string): Promise<Ru
       affectedFiles: stringArray(application.affectedFiles),
       eligibilityLevel: enumValue(application.eligibilityLevel, mutationEligibilityLevels),
       verificationOutcomeAtRequest: enumValue(application.verificationOutcomeAtRequest, verificationOutcomes),
+      verificationModeAtRequest: application.verificationModeAtRequest === "local" || application.verificationModeAtRequest === "full" ? application.verificationModeAtRequest : null,
+      planRequestedAtRequest: application.planRequestedAtRequest,
+      conditionalApprovalKind: application.conditionalApprovalKind === "local_conditional" || application.conditionalApprovalKind === "environment_conditional" ? application.conditionalApprovalKind : null,
       conditionalApproval: application.conditionalApproval,
       planFailureClassAtRequest: enumValue(application.planFailureClassAtRequest, planFailureClasses),
       planFailureReasonCodeAtRequest: application.planFailureReasonCodeAtRequest,
@@ -320,10 +326,10 @@ function validDateStart(value: string | undefined) {
 
 function freshVerification(value: unknown) {
   const stageSchema = z.record(z.string(), z.object({ status: z.string(), durationMs: z.number().int().nonnegative().nullable() }));
-  const current = z.object({ stages: stageSchema, outcome: z.enum(verificationOutcomes).nullable(), applySafety: z.enum(applySafetyValues).nullable(), planFailure: planFailureViewSchema.nullable() }).safeParse(value);
+  const current = z.object({ verificationMode: z.enum(["local", "full"]).nullable().optional().default(null), planRequested: z.boolean().nullable().optional().default(null), stages: stageSchema, outcome: z.enum(verificationOutcomes).nullable(), applySafety: z.enum(applySafetyValues).nullable(), planFailure: planFailureViewSchema.nullable() }).safeParse(value);
   if (current.success) return current.data;
   const legacy = stageSchema.safeParse(value);
-  return { stages: legacy.success ? legacy.data : {}, outcome: null, applySafety: null, planFailure: null };
+  return { verificationMode: null, planRequested: null, stages: legacy.success ? legacy.data : {}, outcome: null, applySafety: null, planFailure: null };
 }
 
 function enumValue<const T extends readonly string[]>(value: string | null, values: T): T[number] | null {

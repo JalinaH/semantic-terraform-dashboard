@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 const statusStyles: Record<VerificationStatus, string> = {
   verified_first_attempt: "border-success/20 bg-success-muted text-success-foreground",
   verified_after_retry: "border-warning/20 bg-warning-muted text-warning-foreground",
+  locally_validated_first_attempt: "border-primary/20 bg-primary/5 text-primary",
+  locally_validated_after_retry: "border-primary/20 bg-primary/5 text-primary",
   verification_failed: "border-danger/20 bg-danger-muted text-danger-foreground",
   patch_rejected: "border-danger/20 bg-danger-muted text-danger-foreground",
   verification_unavailable: "border-border bg-neutral-status-muted text-neutral-status",
@@ -17,6 +19,8 @@ const statusStyles: Record<VerificationStatus, string> = {
 const statusIcons = {
   verified_first_attempt: Check,
   verified_after_retry: RotateCcw,
+  locally_validated_first_attempt: Check,
+  locally_validated_after_retry: RotateCcw,
   verification_failed: X,
   patch_rejected: ShieldX,
   verification_unavailable: AlertTriangle,

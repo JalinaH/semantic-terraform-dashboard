@@ -3,6 +3,8 @@ export type RunStatus = "queued" | "running" | "completed" | "failed" | "skipped
 export type RunVerificationStatus =
   | "verified_first_attempt"
   | "verified_after_retry"
+  | "locally_validated_first_attempt"
+  | "locally_validated_after_retry"
   | "verification_failed"
   | "patch_rejected"
   | "verification_unavailable"
@@ -37,7 +39,7 @@ export interface RunCommandView {
 
 export interface RunAttemptView {
   attempt: number;
-  status: "verified" | "failed" | "rejected" | "unavailable" | "skipped";
+  status: "verified" | "locally_validated" | "failed" | "rejected" | "unavailable" | "skipped";
   failedStage: string | null;
   commands: Partial<Record<"patch_check" | "patch_apply" | "fmt" | "init" | "validate" | "plan", RunCommandView>>;
   warnings: string[];
@@ -147,13 +149,16 @@ export interface RunDetail extends RunListItem {
   mutationEligibilityLevel: import("@/lib/verification-assessment").MutationEligibilityLevel | null;
   mutationEligibilityReason: string | null;
   verificationOutcome: import("@/lib/verification-assessment").VerificationOutcome | null;
+  verificationMode: "local" | "full" | null;
   assessmentPatchCheckPassed: boolean | null;
   assessmentPatchApplyPassed: boolean | null;
   assessmentFmtPassed: boolean | null;
   assessmentInitPassed: boolean | null;
   assessmentValidatePassed: boolean | null;
   assessmentPlanAttempted: boolean | null;
+  assessmentPlanRequested: boolean | null;
   assessmentPlanPassed: boolean | null;
+  planSkipReason: string | null;
   assessmentFullVerificationPassed: boolean | null;
   applySafety: import("@/lib/verification-assessment").ApplySafety | null;
   planFailure: PlanFailureView | null;
@@ -174,6 +179,9 @@ export interface PatchApplicationView {
   affectedFiles: string[];
   eligibilityLevel: import("@/lib/verification-assessment").MutationEligibilityLevel | null;
   verificationOutcomeAtRequest: import("@/lib/verification-assessment").VerificationOutcome | null;
+  verificationModeAtRequest: "local" | "full" | null;
+  planRequestedAtRequest: boolean | null;
+  conditionalApprovalKind: "local_conditional" | "environment_conditional" | null;
   conditionalApproval: boolean;
   planFailureClassAtRequest: import("@/lib/verification-assessment").PlanFailureClass | null;
   planFailureReasonCodeAtRequest: string | null;
@@ -183,6 +191,8 @@ export interface PatchApplicationView {
   errorCode: string | null;
   errorMessage: string | null;
   freshVerification: {
+    verificationMode: "local" | "full" | null;
+    planRequested: boolean | null;
     stages: Record<string, { status: string; durationMs: number | null }>;
     outcome: import("@/lib/verification-assessment").VerificationOutcome | null;
     applySafety: import("@/lib/verification-assessment").ApplySafety | null;

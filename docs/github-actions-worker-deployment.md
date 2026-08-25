@@ -146,8 +146,8 @@ GitHub App installation token can replace it later if desired.
 After this one-time setup, the operator release sequence is only:
 
 ```bash
-git tag v1.1.4
-git push origin v1.1.4
+git tag v1.2.0
+git push origin v1.2.0
 ```
 
 Do not manually create another release for that tag; the tag workflow creates
@@ -155,7 +155,7 @@ it with generated notes and attaches the wheel/source artifacts. The dashboard
 resolves the release tag independently and requires all three
 values to agree:
 
-- stable release tag such as `v1.1.4`;
+- stable release tag such as `v1.2.0`;
 - package version in the released `pyproject.toml`;
 - immutable 40-character release commit SHA.
 

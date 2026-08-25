@@ -3,6 +3,8 @@ export type PublicationStatus = "pending" | "publishing" | "published" | "failed
 export type VerificationStatus =
   | "verified_first_attempt"
   | "verified_after_retry"
+  | "locally_validated_first_attempt"
+  | "locally_validated_after_retry"
   | "verification_failed"
   | "patch_rejected"
   | "verification_unavailable"
@@ -15,7 +17,7 @@ export interface PublicationCommand {
 
 export interface PublicationAttempt {
   attempt: number;
-  status: "verified" | "failed" | "rejected" | "unavailable" | "skipped";
+  status: "verified" | "locally_validated" | "failed" | "rejected" | "unavailable" | "skipped";
   failedStage?: string | null;
   commands: Record<string, PublicationCommand>;
   failureCategory?: string | null;
@@ -38,6 +40,8 @@ export interface AgentCommentInput {
   attempts: PublicationAttempt[];
   llmCallTypes?: string[];
   verificationOutcome?: import("@/lib/verification-assessment").VerificationOutcome | null;
+  verificationMode?: "local" | "full" | null;
+  planRequested?: boolean | null;
   mutationEligibilityLevel?: import("@/lib/verification-assessment").MutationEligibilityLevel | null;
   planFailure?: import("@/lib/runs/types").PlanFailureView | null;
   dashboardUrl: string | null;

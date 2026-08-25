@@ -71,6 +71,8 @@ enum AwsOnboardingSessionStatus {
 enum VerificationStatus {
   VERIFIED_FIRST_ATTEMPT
   VERIFIED_AFTER_RETRY
+  LOCALLY_VALIDATED_FIRST_ATTEMPT
+  LOCALLY_VALIDATED_AFTER_RETRY
   VERIFICATION_FAILED
   PATCH_REJECTED
   VERIFICATION_UNAVAILABLE
@@ -346,13 +348,16 @@ model AgentRun {
   mutationEligibilityReason        String?
   mutationEligibilityDetails       Json?
   verificationOutcome              String?
+  verificationMode                 String?
   assessmentPatchCheckPassed       Boolean?
   assessmentPatchApplyPassed       Boolean?
   assessmentFmtPassed              Boolean?
   assessmentInitPassed             Boolean?
   assessmentValidatePassed         Boolean?
   assessmentPlanAttempted          Boolean?
+  assessmentPlanRequested          Boolean?
   assessmentPlanPassed             Boolean?
+  planSkipReason                   String?
   assessmentFullVerificationPassed Boolean?
   applySafety                      String?
   planFailureClass                 String?
@@ -463,7 +468,10 @@ model PatchApplication {
   requestedByDisplay             String?
   eligibilityLevel               String?
   verificationOutcomeAtRequest   String?
+  verificationModeAtRequest      String?
+  planRequestedAtRequest         Boolean?
   conditionalApproval            Boolean                @default(false)
+  conditionalApprovalKind        String?
   planFailureClassAtRequest      String?
   planFailureReasonCodeAtRequest String?
   status                         PatchApplicationStatus @default(PENDING)
@@ -482,6 +490,7 @@ model PatchApplication {
   commitUrl                      String?
   pullRequestUrl                 String?
   freshVerification              Json?
+  freshVerificationMode          String?
   errorCode                      String?
   errorMessage                   String?
   workerId                       String?

@@ -7,7 +7,7 @@ export function getRepositoryConfigStatus(
   if (!config) return "not_configured" as const;
   if (!config.enabled) return "disabled" as const;
   if (!modelPolicyValid) return "attention" as const;
-  if (accessible && (awsConnection?.status === "CONNECTED" || awsConnection?.status === "connected")) return "ready" as const;
+  if (accessible) return "ready" as const;
   return "configured" as const;
 }
 
@@ -23,5 +23,5 @@ export function getRepositorySetupLabel(
   if (status === "disabled") return "Disabled" as const;
   if (status === "attention") return "Model policy needs attention" as const;
   if (status === "ready") return "Ready" as const;
-  return "AWS setup required" as const;
+  return "GitHub access removed" as const;
 }

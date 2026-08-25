@@ -12,48 +12,53 @@ The implementation remains intentionally split:
 
 ```text
 semantic-terraform-dashboard   TerraFix hosted control plane + observability
-semantic-terraform-agent       inference + Terraform verification engine v1.1.4
+semantic-terraform-agent       inference + Terraform verification engine v1.2.0
 ```
 
 The dashboard does not implement Terraform reasoning. The worker installs the
-engine from the immutable commit behind `v1.1.4` and invokes its CLI contract.
+engine from an explicitly supplied immutable commit behind `v1.2.0` and invokes
+its CLI contract.
 
 ## What the hosted integration does
 
 ```text
 Developer PR → existing Terraform CI failure → signed GitHub App webhook
-→ durable AgentRun → external worker → agent v1.1.4 → isolated verification
+→ durable AgentRun → external worker → agent v1.2.0 → progressive verification
 → persisted verified artifact → human review → optional Apply to PR job
 → fresh verification → one non-force bot commit → normal CI
 ```
 
 The consumer repository needs its own normal Terraform CI capable of running
 `init`, `validate`, or `plan`. It does not need a TerraFix workflow,
-`OPENROUTER_API_KEY`, `GEMINI_API_KEY`, or an AWS role secret in GitHub.
+`OPENROUTER_API_KEY`, `GEMINI_API_KEY`, or cloud credentials in GitHub. AWS is
+optional: repositories without a connected role run deterministic local
+verification; connected repositories run full provider-aware verification.
 
 TerraFix never applies infrastructure, auto-commits, force-pushes, or merges a
-PR. Agent v1.1.4 distinguishes fully verified, environment-blocked, and
-semantic/unknown outcomes. An authorized user may explicitly approve one
-source commit for a fully verified patch, or separately accept the stronger
-warning for a conditionally eligible environment-blocked patch. Verification
-is evidence; human review is required.
+PR. Agent v1.2.0 distinguishes locally validated, fully verified,
+environment-blocked, and semantic/unknown outcomes. Local mode runs patch
+checks plus `fmt`, offline `init`, and `validate`, and never requests `plan`.
+An authorized user may explicitly approve one source commit for a fully
+verified patch, or separately accept the stronger warning for an exactly
+eligible local/environment-blocked patch. Verification is evidence; human
+review is required.
 
 ## Capabilities
 
 - Auth.js GitHub sign-in and multiple GitHub App installations
 - automatic installation return and repository synchronization
 - per-repository Terraform workflow/path/stage configuration
-- repository-scoped AWS AssumeRole onboarding with random External ID
+- optional repository-scoped AWS AssumeRole onboarding with random External ID
 - guided AWS Quick Create onboarding with automatic callback and STS verification
 - server-enforced Auto Optimize or fixed OpenRouter model policy
 - FREE/ECONOMY/BALANCED/PREMIUM policy tiers with immutable run snapshots
 - bounded raw-body webhook verification and delivery-ID idempotency
-- fork-PR rejection and readiness gates before privileged execution
+- fork-PR rejection and readiness gates independent of optional AWS setup
 - PostgreSQL queue with atomic claims, heartbeats, deadline, stale recovery, and
   graceful worker shutdown
-- exact revision checkout, bounded Actions evidence, temporary STS credentials,
-  and disposable workspaces
-- pinned Semantic Terraform Agent v1.1.4 with startup version verification
+- exact revision checkout, bounded Actions evidence, optional temporary STS
+  credentials, and disposable workspaces
+- pinned Semantic Terraform Agent v1.2.0 with startup version verification
 - exact verified-patch provenance, explicit Apply to PR approval, durable audit,
   stale-head rejection, and deterministic zero-LLM application
 - safe structured result ingestion and idempotent PR comment publication
@@ -85,8 +90,9 @@ the worker and is never exposed to repositories or browsers.
   reporting population.
 - Cost/run and cost/verified-fix are withheld unless selected completed
   diagnosable runs have complete cost.
-- Verification rate is verified-first-attempt plus verified-after-retry divided
-  by completed diagnosable outcomes; worker/infrastructure failures are excluded.
+- Full verification rate is verified-first-attempt plus verified-after-retry
+  divided by completed diagnosable outcomes; locally validated runs are shown
+  separately and never inflated into the fully verified numerator.
 - Context/schema reductions are calculated from characters and never relabeled
   as token savings.
 - Schema avoidance, context/model escalation, and memory reuse use only runs
@@ -102,13 +108,15 @@ the worker and is never exposed to repositories or browsers.
 - Prisma 6 / PostgreSQL (Neon supported), Auth.js 5, Octokit, AWS SDK STS
 - Recharts for restrained responsive analytics
 - Vitest, ESLint, esbuild, pnpm
-- Node 22 worker image, Python 3, Git, Terraform 1.15.7, agent v1.1.4
+- Node 22 worker image, Python 3, Git, Terraform 1.15.7, agent v1.2.0
 
 ## Human-approved Apply to PR
 
-Agent v1.1.4 results may include a SHA-256-bound patch, exact verified
+Agent v1.2.0 results may include a SHA-256-bound patch, exact verified
 commit, affected files, source/verification provenance, and conservative
-mutation eligibility. Fully verified means plan passed. Environment blocked
+mutation eligibility. Locally validated means patch check/apply, fmt, offline
+init, and validate passed while plan was not requested. Fully verified means
+plan passed. Environment blocked
 means patch check/apply, fmt, init, and validate passed, plan was attempted,
 and its failure was confidently classified as external; it has not passed a
 complete plan. Semantic, unknown, inconsistent, and unsafe outcomes are
@@ -119,14 +127,16 @@ closed/merged PRs, stale heads, superseded runs, legacy artifacts, and hash
 mismatches, then creates a durable `PatchApplication` row.
 
 The persistent worker checks out the exact verified SHA into a disposable
-workspace, applies the exact UTF-8 patch, requires the changed-file set to match
-the declared existing `.tf`/`.tf.json` files, assumes fresh STS credentials,
-and reruns `fmt -check`, `init -backend=false`, `validate`, and a no-refresh,
-no-lock plan. The worker uses the pinned agent's deterministic classifier for a
-fresh plan failure. Fully verified requests continue only on fresh full
-verification. A conditionally approved request may continue on fresh full
-success or the same confidently environmental class/reason; semantic, unknown,
-invalid, or changed failures stop before commit. Only then does TerraFix create
+workspace, applies the exact UTF-8 patch, and requires the changed-file set to
+match the declared existing `.tf`/`.tf.json` files. It then repeats the same
+request-time mode. Local requests receive no AWS environment and rerun only
+`fmt -check`, `init -backend=false`, and `validate`; full requests assume fresh
+STS credentials and additionally run a no-refresh, no-lock plan. Fully verified
+requests continue only on fresh full verification. A conditionally approved
+local request requires fresh `locally_validated` evidence with plan still not
+requested. An environment-blocked request may continue on fresh full success or
+the same confidently environmental class/reason. Semantic, unknown, invalid,
+or changed failures stop before commit. Only then does TerraFix create
 one bot commit and push non-force to the exact PR head branch. Apply jobs never
 call a model. `terraform apply`, merge, force push, forks, file creation/
 deletion/rename, and branch-protection bypass have no implementation path.
@@ -147,8 +157,8 @@ Open `http://localhost:3000`. Use a trusted HTTPS tunnel for the GitHub webhook;
 GitHub cannot reach localhost. Development setup details are in
 [github-app-setup.md](docs/github-app-setup.md).
 
-The primary AWS flow is **Connect AWS → Open AWS Setup → Create stack →
-TerraFix connects automatically**. Guided onboarding also needs a public HTTPS
+AWS is an optional Cloud Verification enhancement. Its flow is **Connect AWS →
+Open AWS Setup → Create stack → TerraFix connects automatically**. Guided onboarding also needs a public HTTPS
 `NEXT_PUBLIC_APP_URL` that the customer callback Lambda can reach. The previous
 download/paste/verify flow remains under **Advanced / Manual setup**.
 
@@ -162,8 +172,10 @@ pnpm worker
 Or build the production container:
 
 ```bash
-docker build -f worker/Dockerfile -t terrafix-worker:1.1.4 .
-docker run --rm --env-file .env terrafix-worker:1.1.4
+docker build -f worker/Dockerfile \
+  --build-arg SEMANTIC_TERRAFORM_AGENT_SOURCE='git+https://github.com/JalinaH/semantic-terraform-agent.git@<immutable-v1.2.0-commit>' \
+  -t terrafix-worker:1.2.0 .
+docker run --rm --env-file .env terrafix-worker:1.2.0
 ```
 
 ## Environment boundaries
@@ -172,10 +184,12 @@ docker run --rm --env-file .env terrafix-worker:1.1.4
 authoritative variable reference.
 
 - Dashboard: `DATABASE_URL`, canonical app/auth values, GitHub App credentials,
-  webhook secret, and AWS control-plane identity.
+  and webhook secret. AWS control-plane values are optional and only enable
+  Cloud Verification/onboarding.
 - Catalog operator: `DATABASE_URL` and `OPENROUTER_API_KEY`.
-- Worker: `DATABASE_URL`, GitHub App signing values, AWS control-plane identity,
-  `OPENROUTER_API_KEY`, pinned agent version, and bounded poll/timeout settings.
+- Worker: `DATABASE_URL`, GitHub App signing values, `OPENROUTER_API_KEY`, pinned
+  agent version/source, and bounded poll/timeout settings. AWS workload identity
+  is required only for repositories using full verification.
 
 No secret uses a `NEXT_PUBLIC_` prefix. Production startup reports exact
 missing/invalid variable names without values. `/api/health` and
@@ -235,7 +249,9 @@ pnpm prisma:validate
 pnpm build
 pnpm worker:build
 pnpm worker:health
-docker build -f worker/Dockerfile -t terrafix-worker:1.1.4 .
+docker build -f worker/Dockerfile \
+  --build-arg SEMANTIC_TERRAFORM_AGENT_SOURCE='git+https://github.com/JalinaH/semantic-terraform-agent.git@<immutable-v1.2.0-commit>' \
+  -t terrafix-worker:1.2.0 .
 git diff --check
 ```
 
@@ -244,7 +260,7 @@ not claim a live authenticated E2E.
 
 ## MVP limitations
 
-- GitHub and Terraform only; hosted provider authentication is AWS-focused.
+- GitHub and Terraform only; optional hosted provider authentication is AWS-focused.
 - A normal GitHub Actions Terraform CI workflow is required.
 - Same-repository PR security policy; untrusted forks never execute.
 - Worker image supports Terraform 1.15.7 only.

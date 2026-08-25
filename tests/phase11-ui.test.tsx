@@ -31,6 +31,13 @@ describe("Apply verified patch UI", () => {
     expect(html).toContain("AWS / provider permissions");
   });
 
+  it("offers Review & Apply with the explicit local-verification warning", () => {
+    const html = renderToStaticMarkup(<ApplyVerifiedPatch run={run(localConditional())} />);
+    expect(html).toContain("Locally validated patch");
+    expect(html).toContain("Review &amp; Apply");
+    expect(html).toContain("Provider-aware Terraform plan was not requested");
+  });
+
   it.each(["semantic_failure", "unknown_failure"] as const)("fails closed for %s", (verificationOutcome) => {
     const html = renderToStaticMarkup(<ApplyVerifiedPatch run={run({ ...conditional(), verificationOutcome, applySafety: "ineligible", mutationEligible: false, mutationEligibilityLevel: "ineligible" })} />);
     expect(html).toContain("Apply unavailable");
@@ -62,4 +69,8 @@ function run(overrides: Record<string, unknown> = {}) {
 
 function conditional() {
   return { verificationStatus: "verification_unavailable", mutationEligible: true, mutationEligibilityLevel: "conditional", mutationEligibilityReason: "terraform_plan_environment_blocked", verificationOutcome: "environment_blocked", assessmentPatchCheckPassed: true, assessmentPatchApplyPassed: true, assessmentFmtPassed: true, assessmentInitPassed: true, assessmentValidatePassed: true, assessmentPlanAttempted: true, assessmentPlanPassed: false, assessmentFullVerificationPassed: false, applySafety: "conditionally_eligible", planFailure: { classification: "permissions", reasonCode: "aws_access_denied", summary: "The assumed TerraFix role is not authorized.", detail: "Access denied" } };
+}
+
+function localConditional() {
+  return { verificationStatus: "locally_validated_first_attempt", mutationEligible: true, mutationEligibilityLevel: "conditional", mutationEligibilityReason: "locally_validated_terraform_patch", verificationOutcome: "locally_validated", verificationMode: "local", assessmentPatchCheckPassed: true, assessmentPatchApplyPassed: true, assessmentFmtPassed: true, assessmentInitPassed: true, assessmentValidatePassed: true, assessmentPlanRequested: false, assessmentPlanAttempted: false, assessmentPlanPassed: null, planSkipReason: "cloud_verification_not_configured", assessmentFullVerificationPassed: false, applySafety: "conditionally_eligible", planFailure: null };
 }

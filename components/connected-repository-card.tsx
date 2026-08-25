@@ -4,7 +4,7 @@ import { RepositoryConfigStatusBadge } from "@/components/repository-config-stat
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { getRepositoryConfigStatus, getRepositorySetupLabel } from "@/lib/repository-config/status";
+import { getRepositoryConfigStatus } from "@/lib/repository-config/status";
 import { cn } from "@/lib/utils";
 
 interface ConnectedRepositoryCardProps {
@@ -48,7 +48,6 @@ interface ConnectedRepositoryCardProps {
 export function ConnectedRepositoryCard({ repository, accountLogin, modelPolicyValid, installationActive }: ConnectedRepositoryCardProps) {
   const githubReady = repository.accessible && installationActive;
   const configStatus = getRepositoryConfigStatus(repository.config, repository.awsConnection, githubReady, modelPolicyValid);
-  const setupLabel = getRepositorySetupLabel(githubReady, repository.config, repository.awsConnection, modelPolicyValid);
   const action = getCardAction(repository.id, githubReady, configStatus);
 
   return (
@@ -89,8 +88,8 @@ export function ConnectedRepositoryCard({ repository, accountLogin, modelPolicyV
           </div>
         </div>
         <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2.5 text-xs">
-          <span className="inline-flex items-center gap-2 text-muted-foreground"><Cloud aria-hidden="true" className="size-3.5" />AWS readiness</span>
-          <span className={cn("font-medium", setupLabel === "Ready" && "text-success-foreground", setupLabel === "AWS setup required" && "text-warning-foreground", setupLabel === "GitHub access removed" && "text-destructive")}>{setupLabel}</span>
+          <span className="inline-flex items-center gap-2 text-muted-foreground"><Cloud aria-hidden="true" className="size-3.5" />Cloud verification</span>
+          <span className="font-medium">{repository.awsConnection?.status === "CONNECTED" ? "AWS connected" : "Optional · Not connected"}</span>
         </div>
         {repository.config ? <p className="text-[11px] text-muted-foreground">Context: {formatContext(repository.config.contextMode)}</p> : null}
         {!githubReady ? <p className="flex items-center gap-1.5 text-xs text-warning-foreground"><TriangleAlert aria-hidden="true" className="size-3.5" />The grant or installation is unavailable; configuration is preserved read-only.</p> : null}
@@ -105,7 +104,7 @@ function getCardAction(repositoryId: string, accessible: boolean, status: Return
   const repositoryHref = `/repositories/${repositoryId}`;
   if (!accessible) return { href: repositoryHref, label: "View saved configuration", primary: false };
   if (status === "not_configured") return { href: repositoryHref, label: "Configure repository", primary: true };
-  if (status === "configured") return { href: `${repositoryHref}/aws`, label: "Connect AWS", primary: true };
+  if (status === "configured") return { href: repositoryHref, label: "Manage configuration", primary: false };
   if (status === "attention") return { href: repositoryHref, label: "Review model policy", primary: true };
   return { href: repositoryHref, label: status === "ready" ? "Manage repository" : "Manage configuration", primary: false };
 }

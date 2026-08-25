@@ -4,12 +4,13 @@
 
 1. Open the Vercel health endpoint and confirm `status: ok`.
 2. Confirm the worker container is healthy and its latest startup log reports
-   Agent v1.1.4.
+   Agent v1.2.0.
 3. Run `pnpm prisma migrate status` against production and confirm no pending
    migrations.
 4. Sign in, verify the GitHub App installation is active, and synchronize the
    dedicated demo repository.
-5. Re-verify its AWS connection.
+5. Keep AWS disconnected for the primary local-verification demo. Optionally
+   prepare a second repository with a verified role for the enhanced full-mode path.
 6. Confirm the latest OpenRouter catalog sync succeeded and an eligible FREE
    model is available.
 7. Confirm repository policy is Auto Optimize, maximum FREE, all setup checks
@@ -30,10 +31,9 @@
 5. Show the final root cause, candidate diff, and Terraform verification stages.
 6. Review the suggested diff and state that verification does not establish
    developer intent.
-7. For a fully verified run, click **Apply to PR**. For an environment-blocked
-   fixture/run, show the amber **Apply validated patch** warning and explicitly
-   state that full plan did not pass. Never demo Apply for semantic or unknown
-   failures.
+7. For the no-AWS primary path, show **Locally validated**, **Plan: Not
+   requested**, and the conditional Apply warning. For a fully verified enhanced
+   path, click **Apply to PR**. Never demo Apply for semantic or unknown failures.
 8. Show fresh verification, the TerraFix bot commit, and normal CI rerunning.
 9. Open the updated idempotent TerraFix PR comment.
 10. Open AI Usage for tokens, provider-reported cost, actual model, context/schema
@@ -61,8 +61,8 @@ Do not infer missing stage timings or convert them to zero.
 
 - **GitHub delayed:** use the previously completed real run and explain the live
   delivery dependency.
-- **AWS STS unavailable:** show the saved connection and genuine prior run; do
-  not bypass role verification.
+- **AWS STS unavailable:** use the no-AWS local path. A repository explicitly
+  configured for full mode still fails closed; do not silently downgrade it.
 - **OpenRouter unavailable:** show a genuine zero-LLM memory run if one exists,
   otherwise use the prior cold run.
 - **Worker offline:** restart the container. Queued rows remain durable; an
