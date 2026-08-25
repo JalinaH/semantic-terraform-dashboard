@@ -49,7 +49,7 @@ export function AppSidebar({ className, onNavigate }: { className?: string; onNa
             <Command aria-hidden="true" className="size-3.5" />
             Engine boundary
           </div>
-          <p className="mt-2 text-[11px] leading-4 text-muted-foreground">Semantic Terraform Agent v1.1.0 runs only in the isolated worker.</p>
+          <p className="mt-2 text-[11px] leading-4 text-muted-foreground">Semantic Terraform Agent v1.2.0 runs only in the isolated worker.</p>
           <div className="mt-3 flex items-center gap-3 text-[11px] text-muted-foreground">
             <span className="inline-flex items-center gap-1"><Github aria-hidden="true" className="size-3" />CLI</span>
             <span className="inline-flex items-center gap-1"><ExternalLink aria-hidden="true" className="size-3" />Actions</span>

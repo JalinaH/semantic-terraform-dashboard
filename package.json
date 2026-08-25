@@ -1,7 +1,13 @@
 {
   "name": "semantic-terraform-dashboard",
   "version": "0.6.0",
+  "description": "Production-shaped control plane for verified Terraform failure diagnosis.",
   "private": true,
+  "packageManager": "pnpm@10.24.0",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "pnpm prisma:generate && next build --webpack",
@@ -10,6 +16,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm prisma:validate && pnpm worker:build",
     "worker": "tsx --tsconfig worker/tsconfig.json worker/index.ts",
     "worker:once": "tsx --tsconfig worker/tsconfig.json worker/index.ts --once",
     "worker:health": "node dist/worker/index.mjs --healthcheck",

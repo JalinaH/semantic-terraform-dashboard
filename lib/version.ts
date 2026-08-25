@@ -1,6 +1,6 @@
 import { PINNED_AGENT_VERSION } from "@/lib/config";
 
-export const TERRAFIX_VERSION = "Hosted MVP";
+export const TERRAFIX_VERSION = "0.6.0";
 export const AGENT_VERSION = PINNED_AGENT_VERSION;
 
 export function getSafeBuildVersion() {

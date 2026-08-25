@@ -1,275 +1,318 @@
-<img src="./app/icon.png" alt="TerraFix logo" width="96" />
+<div align="center">
+  <img src="./app/icon.png" alt="TerraFix logo" width="88" />
+  <h1>TerraFix</h1>
+  <p><strong>Verified Terraform failure intelligence for GitHub Actions.</strong></p>
+  <p>
+    Diagnose failed CI runs, verify candidate fixes in isolation, and publish evidence for human review.
+  </p>
+</div>
 
-# TerraFix
+## Overview
 
-TerraFix is a hosted control plane for verified Terraform failure diagnosis in
-GitHub Actions CI. It observes a configured failed workflow, queues an isolated
-worker diagnosis, publishes advisory evidence to the pull request, and exposes
-token, provider-cost, routing, context, schema, and Verified Failure Memory
-telemetry.
+TerraFix is a production-shaped control plane for Terraform failure diagnosis. It listens for failed GitHub Actions workflows, collects bounded repository evidence, queues an isolated diagnosis, verifies candidate patches with Terraform, and presents the result through a secure dashboard and pull request workflow.
 
-The implementation remains intentionally split:
+This repository contains the hosted web application and worker. Terraform reasoning is implemented by the separately versioned **Semantic Terraform Agent v1.2.0**, which the worker installs from an immutable source commit.
+
+### Why this project exists
+
+Terraform errors often contain enough information to identify a failure but not enough context to confidently change infrastructure code. TerraFix combines repository-aware diagnosis with deterministic verification so a model suggestion becomes reviewable evidence—not an automatic infrastructure change.
+
+## Key features
+
+- GitHub OAuth sign-in and repository-scoped GitHub App installations
+- HMAC-verified `workflow_run` webhooks with delivery idempotency
+- Per-repository Terraform path, workflow, stage, and model policy
+- PostgreSQL-backed job queue with atomic claims, heartbeats, and stale-job recovery
+- Exact revision checkout and disposable worker workspaces
+- Progressive local or provider-aware Terraform verification
+- Optional AWS AssumeRole onboarding with repository-specific External IDs
+- Human-approved, freshly reverified, non-force patch commits to eligible PRs
+- Idempotent pull request comments with redacted diagnosis evidence
+- Token, cost, model, context, verification, and memory analytics
+- Light and dark responsive dashboard themes
+- Strict TypeScript, schema validation, and a comprehensive Vitest suite
+
+## Architecture
 
 ```text
-semantic-terraform-dashboard   TerraFix hosted control plane + observability
-semantic-terraform-agent       inference + Terraform verification engine v1.2.0
+GitHub Actions failure
+        │ signed workflow_run webhook
+        ▼
+┌──────────────────────────────┐
+│ Next.js control plane        │
+│ Auth · policy · UI · API     │
+└──────────────┬───────────────┘
+               │ durable queue and audit records
+               ▼
+┌──────────────────────────────┐
+│ PostgreSQL / Prisma          │
+└──────────────┬───────────────┘
+               │ atomic claim
+               ▼
+┌──────────────────────────────┐
+│ Persistent isolated worker   │
+│ Git · Python agent · Terraform │
+└──────────────┬───────────────┘
+               │ verified result
+               ▼
+Dashboard · PR comment · optional human-approved patch commit
 ```
 
-The dashboard does not implement Terraform reasoning. The worker installs the
-engine from an explicitly supplied immutable commit behind `v1.2.0` and invokes
-its CLI contract.
+The web process is stateless between requests and never runs Git, Python, or Terraform. Long-running jobs execute in a separate worker, and PostgreSQL is the only coordination boundary. This keeps the Vercel-compatible control plane responsive while allowing the worker to run safely on ECS, Kubernetes, or another persistent container platform.
 
-## What the hosted integration does
+### Diagnosis flow
 
-```text
-Developer PR → existing Terraform CI failure → signed GitHub App webhook
-→ durable AgentRun → external worker → agent v1.2.0 → progressive verification
-→ persisted verified artifact → human review → optional Apply to PR job
-→ fresh verification → one non-force bot commit → normal CI
-```
+1. GitHub sends a signed failed `workflow_run` event.
+2. TerraFix verifies the signature, deduplicates the delivery, and evaluates readiness and fork-safety gates.
+3. A worker atomically claims the queued run and checks out the exact source revision.
+4. The agent collects bounded logs, diff, Terraform context, and relevant schema.
+5. A candidate patch is generated and checked against strict file and provenance rules.
+6. Terraform verification classifies the result as fully verified, locally validated, environment blocked, or unsafe.
+7. Evidence is persisted and published for review.
+8. An authorized user may approve an eligible patch; the worker then performs fresh verification before one non-force commit.
 
-The consumer repository needs its own normal Terraform CI capable of running
-`init`, `validate`, or `plan`. It does not need a TerraFix workflow,
-`OPENROUTER_API_KEY`, `GEMINI_API_KEY`, or cloud credentials in GitHub. AWS is
-optional: repositories without a connected role run deterministic local
-verification; connected repositories run full provider-aware verification.
+## Technology stack
 
-TerraFix never applies infrastructure, auto-commits, force-pushes, or merges a
-PR. Agent v1.2.0 distinguishes locally validated, fully verified,
-environment-blocked, and semantic/unknown outcomes. Local mode runs patch
-checks plus `fmt`, offline `init`, and `validate`, and never requests `plan`.
-An authorized user may explicitly approve one source commit for a fully
-verified patch, or separately accept the stronger warning for an exactly
-eligible local/environment-blocked patch. Verification is evidence; human
-review is required.
+| Area | Technology |
+| --- | --- |
+| Web application | Next.js 16 App Router, React 19, TypeScript 5 |
+| Styling | Tailwind CSS 4, custom design tokens, Lucide icons |
+| Authentication | Auth.js 5, GitHub OAuth, GitHub App installations |
+| Data | PostgreSQL, Prisma 6 |
+| Integrations | GitHub REST API, AWS STS, OpenRouter |
+| Analytics | Recharts |
+| Worker | Node.js 22, Python 3, Terraform 1.15.7, Docker |
+| Quality | Vitest, ESLint, TypeScript, GitHub Actions |
 
-## Capabilities
+## Prerequisites
 
-- Auth.js GitHub sign-in and multiple GitHub App installations
-- automatic installation return and repository synchronization
-- per-repository Terraform workflow/path/stage configuration
-- optional repository-scoped AWS AssumeRole onboarding with random External ID
-- guided AWS Quick Create onboarding with automatic callback and STS verification
-- server-enforced Auto Optimize or fixed OpenRouter model policy
-- FREE/ECONOMY/BALANCED/PREMIUM policy tiers with immutable run snapshots
-- bounded raw-body webhook verification and delivery-ID idempotency
-- fork-PR rejection and readiness gates independent of optional AWS setup
-- PostgreSQL queue with atomic claims, heartbeats, deadline, stale recovery, and
-  graceful worker shutdown
-- exact revision checkout, bounded Actions evidence, optional temporary STS
-  credentials, and disposable workspaces
-- pinned Semantic Terraform Agent v1.2.0 with startup version verification
-- exact verified-patch provenance, explicit Apply to PR approval, durable audit,
-  stale-head rejection, and deterministic zero-LLM application
-- safe structured result ingestion and idempotent PR comment publication
-- per-run usage, call details, model/context/schema routing, and memory state
-- completeness-aware UTC analytics for tokens, Decimal provider cost,
-  verification, optimization, repository, and actual/reported model trends
+- Node.js 22+
+- pnpm 10+
+- PostgreSQL 15+
+- A GitHub App for authentication and repository integration
+- Docker for the production worker image
+- OpenRouter API access for hosted diagnosis
+- Optional: AWS account for provider-aware verification
 
-## Architecture and security
+The landing page can be viewed without a complete GitHub integration. The authenticated dashboard and worker require the relevant environment variables below.
 
-The Next.js control plane is Vercel-compatible and stateless between requests.
-The persistent worker is a separate Docker process; PostgreSQL is their only
-coordination mechanism. See [architecture](docs/architecture.md),
-[security boundaries](docs/security.md), [GitHub App setup](docs/github-app-setup.md),
-[AWS onboarding](docs/aws-onboarding.md), and
-[hosted execution](docs/hosted-agent-execution.md).
+## Local setup
 
-The GitHub App requests only Metadata read, Actions read, Contents write, and
-Pull requests write, and subscribes only to `workflow_run`. Contents write is
-used only after explicit approval on a verified same-repository PR patch.
-Customer AWS credentials are temporary STS sessions;
-permanent keys are not requested or stored. The hosted OpenRouter key belongs to
-the worker and is never exposed to repositories or browsers.
-
-## AI usage and analytics semantics
-
-- Explicit provider cost `0.0` is free/zero. Missing cost is `null` and shown as
-  Not reported.
-- Missing tokens are not charted as zero. Every aggregate discloses its
-  reporting population.
-- Cost/run and cost/verified-fix are withheld unless selected completed
-  diagnosable runs have complete cost.
-- Full verification rate is verified-first-attempt plus verified-after-retry
-  divided by completed diagnosable outcomes; locally validated runs are shown
-  separately and never inflated into the fully verified numerator.
-- Context/schema reductions are calculated from characters and never relabeled
-  as token savings.
-- Schema avoidance, context/model escalation, and memory reuse use only runs
-  where that signal is known.
-- Historical token/cost avoidance appears only when the agent supplies
-  authoritative historical telemetry; it is not a future-savings guarantee.
-- UTC is the daily bucketing policy. 7-day and 30-day periods compare with the
-  immediately preceding equal period; All time has no previous comparison.
-
-## Technology
-
-- Next.js 16.3.1 App Router, React 19, strict TypeScript, Tailwind CSS 4
-- Prisma 6 / PostgreSQL (Neon supported), Auth.js 5, Octokit, AWS SDK STS
-- Recharts for restrained responsive analytics
-- Vitest, ESLint, esbuild, pnpm
-- Node 22 worker image, Python 3, Git, Terraform 1.15.7, agent v1.2.0
-
-## Human-approved Apply to PR
-
-Agent v1.2.0 results may include a SHA-256-bound patch, exact verified
-commit, affected files, source/verification provenance, and conservative
-mutation eligibility. Locally validated means patch check/apply, fmt, offline
-init, and validate passed while plan was not requested. Fully verified means
-plan passed. Environment blocked
-means patch check/apply, fmt, init, and validate passed, plan was attempted,
-and its failure was confidently classified as external; it has not passed a
-complete plan. Semantic, unknown, inconsistent, and unsafe outcomes are
-ineligible. TerraFix independently rechecks every boundary. The
-server action authenticates the requester, scopes the run through an accessible
-installation, refreshes installation permission and PR metadata, rejects forks,
-closed/merged PRs, stale heads, superseded runs, legacy artifacts, and hash
-mismatches, then creates a durable `PatchApplication` row.
-
-The persistent worker checks out the exact verified SHA into a disposable
-workspace, applies the exact UTF-8 patch, and requires the changed-file set to
-match the declared existing `.tf`/`.tf.json` files. It then repeats the same
-request-time mode. Local requests receive no AWS environment and rerun only
-`fmt -check`, `init -backend=false`, and `validate`; full requests assume fresh
-STS credentials and additionally run a no-refresh, no-lock plan. Fully verified
-requests continue only on fresh full verification. A conditionally approved
-local request requires fresh `locally_validated` evidence with plan still not
-requested. An environment-blocked request may continue on fresh full success or
-the same confidently environmental class/reason. Semantic, unknown, invalid,
-or changed failures stop before commit. Only then does TerraFix create
-one bot commit and push non-force to the exact PR head branch. Apply jobs never
-call a model. `terraform apply`, merge, force push, forks, file creation/
-deletion/rename, and branch-protection bypass have no implementation path.
-
-## Local development
-
-Requirements: Node.js 20.9+, pnpm, and PostgreSQL.
+### 1. Install dependencies
 
 ```bash
-pnpm install
+git clone <repository-url>
+cd semantic-terraform-dashboard
+pnpm install --frozen-lockfile
+```
+
+### 2. Configure the environment
+
+```bash
 cp .env.example .env
+openssl rand -base64 32
+```
+
+Paste the generated value into `AUTH_SECRET` and configure at least the database and GitHub authentication variables in `.env`. Never commit `.env`; it is ignored by Git.
+
+### 3. Prepare the database
+
+Create a PostgreSQL database, set `DATABASE_URL`, then run:
+
+```bash
 pnpm prisma:generate
 pnpm prisma migrate dev
+```
+
+Use `pnpm prisma:migrate:deploy` instead of `migrate dev` in production.
+
+### 4. Start the dashboard
+
+```bash
 pnpm dev
 ```
 
-Open `http://localhost:3000`. Use a trusted HTTPS tunnel for the GitHub webhook;
-GitHub cannot reach localhost. Development setup details are in
-[github-app-setup.md](docs/github-app-setup.md).
+Open [http://localhost:3000](http://localhost:3000).
 
-AWS is an optional Cloud Verification enhancement. Its flow is **Connect AWS →
-Open AWS Setup → Create stack → TerraFix connects automatically**. Guided onboarding also needs a public HTTPS
-`NEXT_PUBLIC_APP_URL` that the customer callback Lambda can reach. The previous
-download/paste/verify flow remains under **Advanced / Manual setup**.
+### 5. Start the worker
 
-To run the independently configured worker after installing Terraform and the
-pinned Python engine locally:
+The local worker requires Terraform and the Semantic Terraform Agent v1.2.0 on `PATH` unless `SEMANTIC_TERRAFORM_AGENT_COMMAND` points to a compatible executable.
 
 ```bash
 pnpm worker
 ```
 
-Or build the production container:
+Process a single queued item and exit:
 
 ```bash
-docker build -f worker/Dockerfile \
-  --build-arg SEMANTIC_TERRAFORM_AGENT_SOURCE='git+https://github.com/JalinaH/semantic-terraform-agent.git@<immutable-v1.2.0-commit>' \
-  -t terrafix-worker:1.2.0 .
-docker run --rm --env-file .env terrafix-worker:1.2.0
+pnpm worker:once
 ```
 
-## Environment boundaries
+## Environment variables
 
-`.env.example` is the safe template; [deployment.md](docs/deployment.md) is the
-authoritative variable reference.
+Start from [`.env.example`](./.env.example), which is the authoritative safe template.
 
-- Dashboard: `DATABASE_URL`, canonical app/auth values, GitHub App credentials,
-  and webhook secret. AWS control-plane values are optional and only enable
-  Cloud Verification/onboarding.
-- Catalog operator: `DATABASE_URL` and `OPENROUTER_API_KEY`.
-- Worker: `DATABASE_URL`, GitHub App signing values, `OPENROUTER_API_KEY`, pinned
-  agent version/source, and bounded poll/timeout settings. AWS workload identity
-  is required only for repositories using full verification.
+### Dashboard and GitHub App
 
-No secret uses a `NEXT_PUBLIC_` prefix. Production startup reports exact
-missing/invalid variable names without values. `/api/health` and
-`pnpm worker:health` are process-only probes that do not call external services.
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` | Yes | PostgreSQL connection shared by the web app and worker |
+| `NEXT_PUBLIC_APP_URL` | Yes | Canonical origin, such as `http://localhost:3000` |
+| `AUTH_SECRET` | Yes | Auth.js sessions and signed integration state |
+| `AUTH_TRUST_HOST` | Production | Trust the configured deployment host |
+| `GITHUB_APP_ID` | Yes | GitHub App identity |
+| `GITHUB_APP_CLIENT_ID` | Yes | OAuth client and App JWT issuer |
+| `GITHUB_APP_CLIENT_SECRET` | Yes | GitHub OAuth token exchange |
+| `GITHUB_APP_SLUG` | Yes | Public GitHub App slug |
+| `GITHUB_APP_PRIVATE_KEY` | Yes | App JWT signing key; literal `\n` is supported |
+| `GITHUB_WEBHOOK_SECRET` | Yes | Webhook HMAC verification secret |
 
-## Model catalog
+### Worker and model gateway
 
-Bootstrap and refresh from a trusted operator environment:
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `OPENROUTER_API_KEY` | Worker | Hosted model access; never exposed to browsers or consumer repos |
+| `GEMINI_API_KEY` | Optional | Legacy Gemini-configured runs only |
+| `SEMANTIC_TERRAFORM_AGENT_VERSION` | Optional | Defaults to the pinned `1.2.0` contract |
+| `SEMANTIC_TERRAFORM_AGENT_COMMAND` | Optional | Local agent executable override |
+| `WORKER_POLL_INTERVAL_MS` | Optional | Queue polling interval; default `5000` |
+| `WORKER_JOB_TIMEOUT_SECONDS` | Optional | Per-job deadline; default `600` |
+
+### Optional AWS verification
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AWS_CONTROL_PLANE_REGION` | Optional | STS and onboarding region |
+| `AWS_ASSUME_ROLE_PRINCIPAL_ARN` | Optional | Workload principal trusted by customer roles |
+| `AWS_ONBOARDING_TEMPLATE_URL` | Optional | Immutable public CloudFormation template URL |
+
+Do not configure long-lived `AWS_ACCESS_KEY_ID` or `AWS_SECRET_ACCESS_KEY` values. TerraFix uses the standard workload identity chain and temporary STS sessions.
+
+## GitHub App configuration
+
+For a deployment at `https://your-domain.example`, configure:
+
+| GitHub App setting | URL |
+| --- | --- |
+| Homepage URL | `https://your-domain.example/` |
+| User authorization callback | `https://your-domain.example/api/auth/callback/github` |
+| Setup URL | `https://your-domain.example/github/callback` |
+| Webhook URL | `https://your-domain.example/api/github/webhooks` |
+
+Repository permissions:
+
+- Metadata: Read
+- Actions: Read
+- Contents: Write
+- Pull requests: Write
+
+Subscribe only to the **Workflow run** event. Contents write is used only after explicit approval of an eligible, already verified same-repository patch. For local webhook development, expose only the webhook route through a trusted HTTPS tunnel; GitHub cannot deliver events to localhost.
+
+## Available scripts
+
+| Command | Description |
+| --- | --- |
+| `pnpm dev` | Start the local Next.js development server |
+| `pnpm build` | Generate Prisma Client and create a production build |
+| `pnpm start` | Run the production web build |
+| `pnpm lint` | Run ESLint |
+| `pnpm typecheck` | Run strict TypeScript validation |
+| `pnpm test` | Run the Vitest suite once |
+| `pnpm test:watch` | Run Vitest in watch mode |
+| `pnpm check` | Run lint, types, tests, Prisma validation, and worker build |
+| `pnpm worker` | Start the persistent worker locally |
+| `pnpm worker:once` | Process at most one queued item |
+| `pnpm worker:build` | Bundle the production worker |
+| `pnpm worker:health` | Run the worker process health check |
+| `pnpm models:sync` | Refresh the validated OpenRouter model catalog |
+
+## Testing and verification
+
+Run the complete local quality gate:
 
 ```bash
-pnpm models:sync
+pnpm check
+pnpm build
+git diff --check
 ```
 
-The response is bounded/validated and then filtered by
-`config/model-policy.json`. Unknown models stay disabled, free classification
-requires authoritative zero input/output price, and failed sync preserves the
-last known-good catalog. Scheduling remains an explicit prototype operations
-task rather than a new public/internal mutation endpoint.
+The test suite mocks GitHub, AWS, model, and webhook boundaries. It covers authorization, signed callbacks, idempotency, analytics semantics, repository configuration, worker lifecycle, patch provenance, publication, and conditional apply behavior. It does not claim a live third-party end-to-end run.
 
 ## Production deployment
 
-Use Vercel for the Next.js control plane, Neon/PostgreSQL for durable data, and
-an AWS ECS Fargate service for the worker. Never place the persistent worker in
-Vercel. Store the hosted OpenRouter key in AWS Secrets Manager and inject it
-into the ECS task as `OPENROUTER_API_KEY`.
+Recommended topology:
 
-Production migrations use:
+- **Vercel**: Next.js control plane
+- **Neon or managed PostgreSQL**: durable application data and job queue
+- **AWS ECS Fargate**: persistent worker
+- **AWS Secrets Manager**: database, GitHub private key, and model secrets
+
+### Deploy the web application
+
+1. Provision PostgreSQL and save a restore point.
+2. Configure all production dashboard variables.
+3. Deploy with `pnpm build` on Node.js 22.
+4. Apply migrations from the exact release artifact:
 
 ```bash
+pnpm install --frozen-lockfile
 pnpm prisma:generate
 pnpm prisma:migrate:deploy
 ```
 
-The full order—database, Vercel variables/deploy, GitHub URLs, migrations,
-catalog bootstrap, worker, health checks, and smoke test—is in
-[deployment.md](docs/deployment.md).
+5. Verify `GET /api/health` returns an uncached `status: ok` response.
+6. Run `pnpm models:sync` from a trusted operator environment.
 
-## Demo and E2E
+### Build the worker image
 
-- [Demo consumer repository](docs/demo-repository.md)
-- [Presentation runbook](docs/demo-runbook.md)
-- [Production-like E2E record](docs/e2e-validation.md)
-
-The primary case is a DynamoDB hash-key mismatch in a same-repository PR. The
-E2E must flow from ordinary CI through the GitHub webhook and deployed worker;
-manual agent CLI invocation is not a substitute. Record only real model, token,
-cost, latency, verification, memory, and publication values.
-
-## Validation
+Use an immutable agent commit matching version `1.2.0`:
 
 ```bash
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm prisma:format
-pnpm prisma:validate
-pnpm build
-pnpm worker:build
-pnpm worker:health
 docker build -f worker/Dockerfile \
   --build-arg SEMANTIC_TERRAFORM_AGENT_SOURCE='git+https://github.com/JalinaH/semantic-terraform-agent.git@<immutable-v1.2.0-commit>' \
   -t terrafix-worker:1.2.0 .
-git diff --check
 ```
 
-Tests use fake signed webhooks and mocked GitHub/AWS/model boundaries. They do
-not claim a live authenticated E2E.
+Run the image as one persistent service with access to PostgreSQL, GitHub, Terraform registries, OpenRouter, and optional AWS STS. The included worker deployment workflow uses GitHub OIDC, immutable ECR tags, and ECS task-definition revisions—no static AWS keys.
 
-## MVP limitations
+## Security model
 
-- GitHub and Terraform only; optional hosted provider authentication is AWS-focused.
-- A normal GitHub Actions Terraform CI workflow is required.
-- Same-repository PR security policy; untrusted forks never execute.
-- Worker image supports Terraform 1.15.7 only.
-- Free-model availability and actual routed model may change with OpenRouter.
-- Catalog refresh is manually operated for the prototype.
-- Verified Failure Memory persistence depends on durable worker/agent cache
-  configuration; an ephemeral replacement may lose warm memory.
-- No automatic source mutation, auto-merge, billing, budgets, BYOK, RBAC,
-  notifications, MCP, or multi-cloud.
+- Webhook signatures are verified against bounded raw request bodies before parsing.
+- Delivery IDs are unique, so GitHub redelivery cannot create a duplicate run.
+- Fork pull requests are rejected before hosted execution.
+- Installation tokens and AWS credentials are short-lived.
+- Repository access is rechecked at every sensitive action.
+- Candidate patches are bound to the source commit and contents by SHA-256.
+- Changed files are restricted to existing `.tf` and `.tf.json` files.
+- Apply requests reject stale heads, superseded runs, forks, unsafe outcomes, and hash mismatches.
+- Fresh verification is required immediately before any approved source commit.
+- `terraform apply`, force push, auto-merge, and branch-protection bypass are not implemented.
 
-Future work is intentionally deferred: paid model access/billing, budgets,
-semantic-cache/LLMLingua experiments, multi-cloud, and MCP.
+Verification is evidence, not a guarantee of developer intent. Human review remains mandatory.
+
+## Project structure
+
+```text
+app/                    Next.js routes, pages, server actions, and API handlers
+components/             Dashboard, analytics, onboarding, and UI components
+config/                 Versioned model policy
+lib/                    Auth, GitHub, AWS, queue, analytics, and domain services
+prisma/                 Database schema and append-only migrations
+scripts/                Trusted operator utilities
+tests/                  Unit, component, integration, and contract tests
+worker/                 Persistent diagnosis and patch-application worker
+.github/workflows/      CI and OIDC-based ECS deployment
+```
+
+## Current scope
+
+- GitHub Actions and Terraform are the supported CI/IaC path.
+- Provider-aware hosted verification currently targets AWS.
+- The worker image contains Terraform 1.15.7; other versions require a matching image.
+- Only same-repository pull requests are eligible for patch publication.
+- Model catalog refresh is an operator task.
+- Billing, organization RBAC, notifications, auto-merge, multi-cloud onboarding, and Terraform apply are outside the current product scope.
+
+## Portfolio highlights
+
+This project demonstrates full-stack product engineering across secure OAuth and GitHub App integrations, event-driven job processing, AI routing and observability, infrastructure isolation, cloud identity, transactional data modeling, defensive source mutation, responsive UI design, automated testing, and container deployment.
