@@ -22,6 +22,8 @@ Terraform errors often contain enough information to identify a failure but not 
 - [TerraFix dashboard and worker](https://github.com/JalinaH/semantic-terraform-dashboard) — this repository
 - [Semantic Terraform Agent](https://github.com/JalinaH/semantic-terraform-agent) — the Python diagnosis and verification engine
 
+Deployed application: [https://semantic-terraform-dashboard-kappa.vercel.app/](https://semantic-terraform-dashboard-kappa.vercel.app/)
+
 ## Key features
 
 - GitHub OAuth sign-in and repository-scoped GitHub App installations
@@ -262,11 +264,13 @@ The test suite mocks GitHub, AWS, model, and webhook boundaries. It covers autho
 
 ## How to test the project end to end
 
-This test uses a small Terraform repository and a pull request that deliberately makes Terraform Plan fail. Before starting, the deployed dashboard, PostgreSQL database, and worker must be running; the worker must have `OPENROUTER_API_KEY`; and the GitHub App callback, setup, webhook URL, permissions, and **Workflow run** subscription must match [GitHub App configuration](#github-app-configuration).
+The complete project is already deployed at [TerraFix](https://semantic-terraform-dashboard-kappa.vercel.app/), so reviewers can perform this test without running the dashboard, database, or worker locally. A self-hosted installation may also be used; in that case, the dashboard, PostgreSQL database, and worker must be running, the worker must have `OPENROUTER_API_KEY`, and the GitHub App callback, setup, webhook URL, permissions, and **Workflow run** subscription must match [GitHub App configuration](#github-app-configuration).
+
+This test uses a small Terraform repository and a pull request that deliberately makes Terraform Plan fail.
 
 ### 1. Create the sample GitHub repository
 
-Download the sample Terraform ZIP from the Google Drive link supplied with the submission and extract it. Create a new empty GitHub repository, then push the extracted files to its `main` branch. The repository must include `.github/workflows/terraform.yml` and the workflow name inside that file must be `Terraform CI`.
+Download the [sample Terraform project ZIP](https://drive.google.com/file/d/REPLACE_WITH_SAMPLE_TERRAFORM_ZIP_FILE_ID/view?usp=sharing) from Google Drive and extract it. This is a placeholder URL; replace `REPLACE_WITH_SAMPLE_TERRAFORM_ZIP_FILE_ID` after uploading the final ZIP. Create a new empty GitHub repository, then push the extracted files to its `main` branch. The repository must include `.github/workflows/terraform.yml` and the workflow name inside that file must be `Terraform CI`.
 
 ```bash
 cd /path/to/extracted-sample
@@ -280,7 +284,7 @@ git push -u origin main
 
 ### 2. Connect GitHub to TerraFix
 
-1. Open the TerraFix dashboard and select **Continue with GitHub**.
+1. Open the [deployed TerraFix dashboard](https://semantic-terraform-dashboard-kappa.vercel.app/) and select **Continue with GitHub**.
 2. Authorize the GitHub account that owns the sample repository.
 3. Install the TerraFix GitHub App and grant it access to the sample repository. If the App was already installed for selected repositories, use **Configure** on GitHub to add this repository.
 4. Return to TerraFix and open **Repositories**. Confirm the sample repository appears and shows GitHub as connected.
