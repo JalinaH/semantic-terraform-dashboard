@@ -264,7 +264,7 @@ The test suite mocks GitHub, AWS, model, and webhook boundaries. It covers autho
 
 ## How to test the project end to end
 
-The complete project is already deployed at [TerraFix](https://semantic-terraform-dashboard-kappa.vercel.app/), so reviewers can perform this test without running the dashboard, database, or worker locally. A self-hosted installation may also be used; in that case, the dashboard, PostgreSQL database, and worker must be running, the worker must have `OPENROUTER_API_KEY`, and the GitHub App callback, setup, webhook URL, permissions, and **Workflow run** subscription must match [GitHub App configuration](#github-app-configuration).
+Use the deployed [TerraFix application](https://semantic-terraform-dashboard-kappa.vercel.app/) for this product test. Reviewers do not need to run the dashboard, database, worker, or Semantic Terraform Agent locally. The local [setup instructions](#setup-instructions) and [run instructions](#run-instructions) remain available for development and code-level evaluation.
 
 This test uses a small Terraform repository and a pull request that deliberately makes Terraform Plan fail.
 
@@ -336,43 +336,6 @@ After GitHub marks the workflow as failed, its signed `workflow_run` webhook sho
 4. TerraFix publishes an evidence-backed comment on the pull request when PR publication is available.
 
 OpenRouter's free routing can occasionally return no usable or malformed model response because free-model availability is best effort. If that happens, open the failed `Terraform CI` run in the GitHub **Actions** tab and choose **Re-run jobs** (or **Re-run all jobs**). The new failed workflow completion sends another webhook and gives TerraFix a fresh diagnosis attempt.
-
-## Production deployment
-
-Recommended topology:
-
-- **Vercel**: Next.js control plane
-- **Neon or managed PostgreSQL**: durable application data and job queue
-- **AWS ECS Fargate**: persistent worker
-- **AWS Secrets Manager**: database, GitHub private key, and model secrets
-
-### Deploy the web application
-
-1. Provision PostgreSQL and save a restore point.
-2. Configure all production dashboard variables.
-3. Deploy with `pnpm build` on Node.js 22.
-4. Apply migrations from the exact release artifact:
-
-```bash
-pnpm install --frozen-lockfile
-pnpm prisma:generate
-pnpm prisma:migrate:deploy
-```
-
-5. Verify `GET /api/health` returns an uncached `status: ok` response.
-6. Run `pnpm models:sync` from a trusted operator environment.
-
-### Build the worker image
-
-Use an immutable agent commit matching version `1.2.0`:
-
-```bash
-docker build -f worker/Dockerfile \
-  --build-arg SEMANTIC_TERRAFORM_AGENT_SOURCE='git+https://github.com/JalinaH/semantic-terraform-agent.git@<immutable-v1.2.0-commit>' \
-  -t terrafix-worker:1.2.0 .
-```
-
-Run the image as one persistent service with access to PostgreSQL, GitHub, Terraform registries, OpenRouter, and optional AWS STS. The included worker deployment workflow uses GitHub OIDC, immutable ECR tags, and ECS task-definition revisions—no static AWS keys.
 
 ## Security model
 
