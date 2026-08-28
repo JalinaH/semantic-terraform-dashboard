@@ -89,8 +89,10 @@ describe("stored artifact gates", () => {
     const check = (overrides: Record<string, unknown> = {}) => validatePullRequestPreflight({ repositoryFullName: "acme/infra", expectedHeadSha: HEAD, contentsPermission: "write", head, ...overrides });
     expect(check({ contentsPermission: "read" })).toBe("github_contents_write_required");
     expect(check({ head: { ...head, state: "closed" } })).toBe("pull_request_closed");
+    expect(check({ head: { ...head, merged: true } })).toBe("pull_request_closed");
     expect(check({ head: { ...head, headRepositoryFullName: "contributor/fork" } })).toBe("fork_pull_request");
     expect(check({ expectedHeadSha: "f".repeat(40) })).toBe("stale_pull_request");
+    expect(check({ head: { ...head, draft: true } })).toBeNull();
     expect(check()).toBeNull();
   });
 });
@@ -144,6 +146,67 @@ describe("deterministic patch application worker", () => {
     expect(result).toEqual({ outcome: "applied", reconciled: true });
     expect(store.markApplied).toHaveBeenCalledWith("application-1", expect.objectContaining({ commitSha: COMMIT }));
     expect(command).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when GitHub rejects the non-force push", async () => {
+    const store = storeMock();
+    const command = vi.fn(async (executable: string, args: string[]) => {
+      if (executable === "terraform" && args[0] === "version") return ok(JSON.stringify({ terraform_version: "1.15.7" }));
+      if (executable === "git" && args.includes("--name-status")) return ok("M\0main.tf\0");
+      if (executable === "git" && args.includes("--numstat")) return ok("1\t1\tmain.tf\n");
+      if (executable === "git" && args.includes("ls-files")) return ok(`100644 ${"c".repeat(40)} 0\tmain.tf\n`);
+      if (executable === "git" && args.includes("rev-parse")) return ok(args[0] === "rev-parse" ? COMMIT : HEAD);
+      if (executable === "git" && args[0] === "ls-remote") return ok(`${HEAD}\trefs/heads/fix\n`);
+      if (executable === "git" && args.includes("push")) return { exitCode: 1, stdout: "", stderr: "protected branch", timedOut: false };
+      return ok();
+    });
+    const inspect = vi.fn()
+      .mockResolvedValueOnce(githubHead(HEAD))
+      .mockResolvedValueOnce(githubHead(HEAD));
+    const result = await processClaimedPatchApplication(job(), {
+      store,
+      github: { inspect },
+      aws: { assume: vi.fn(async () => ({ accessKeyId: "temporary", secretAccessKey: "temporary-secret", sessionToken: "temporary-session", region: "us-east-1" })) },
+      commands: command,
+    });
+    expect(result).toMatchObject({ outcome: "failed", errorCode: "push_rejected" });
+    expect(store.markApplied).not.toHaveBeenCalled();
+    expect(store.markError).toHaveBeenCalledWith("application-1", "push_rejected", expect.any(String), "STALE");
+  });
+
+  it("returns uncertain after a successful push and reconciles the intended commit on retry", async () => {
+    const store = storeMock();
+    store.markApplied.mockRejectedValueOnce(new Error("database unavailable"));
+    const command = vi.fn(async (executable: string, args: string[]) => {
+      if (executable === "terraform" && args[0] === "version") return ok(JSON.stringify({ terraform_version: "1.15.7" }));
+      if (executable === "git" && args.includes("--name-status")) return ok("M\0main.tf\0");
+      if (executable === "git" && args.includes("--numstat")) return ok("1\t1\tmain.tf\n");
+      if (executable === "git" && args.includes("ls-files")) return ok(`100644 ${"c".repeat(40)} 0\tmain.tf\n`);
+      if (executable === "git" && args.includes("rev-parse")) return ok(args[0] === "rev-parse" ? COMMIT : HEAD);
+      if (executable === "git" && args[0] === "ls-remote") return ok(`${HEAD}\trefs/heads/fix\n`);
+      return ok();
+    });
+    const first = await processClaimedPatchApplication(job(), {
+      store,
+      github: { inspect: vi.fn(async () => githubHead(HEAD)) },
+      aws: { assume: vi.fn(async () => ({ accessKeyId: "temporary", secretAccessKey: "temporary-secret", sessionToken: "temporary-session", region: "us-east-1" })) },
+      commands: command,
+    });
+    expect(first).toEqual({ outcome: "uncertain", errorCode: "fresh_verification_failed" });
+    expect(store.recordIntendedCommit).toHaveBeenCalledWith("application-1", COMMIT, expect.any(Object));
+    expect(store.markError).not.toHaveBeenCalled();
+
+    const retryStore = storeMock();
+    const retryCommand = vi.fn();
+    const second = await processClaimedPatchApplication(job({ intendedCommitSha: COMMIT }), {
+      store: retryStore,
+      github: { inspect: vi.fn(async () => githubHead(COMMIT)) },
+      aws: { assume: vi.fn() },
+      commands: retryCommand,
+    });
+    expect(second).toEqual({ outcome: "applied", reconciled: true });
+    expect(retryStore.markApplied).toHaveBeenCalledOnce();
+    expect(retryCommand).not.toHaveBeenCalled();
   });
 });
 

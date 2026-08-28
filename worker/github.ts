@@ -28,7 +28,10 @@ export async function prepareGitHubWorkspace(
       createInstallationAccessToken(run.installationId),
       createActionsLogSource(run.installationId, run.repositoryOwner, run.repositoryName),
     ]);
-    const collected = await collectTerraformFailureLog(logSource, Number(run.githubRunId));
+    const collected = await collectTerraformFailureLog(logSource, Number(run.githubRunId))
+      .catch((error: unknown) => {
+        throw new WorkerExecutionError("github_log_unavailable", { cause: error });
+      });
     if (!collected) throw new WorkerExecutionError("github_log_unavailable");
     throwIfAborted(options.signal);
     await options.onProgress?.("checking_out_repository");

@@ -17,6 +17,11 @@ This repository contains the hosted web application and worker. Terraform reason
 
 Terraform errors often contain enough information to identify a failure but not enough context to confidently change infrastructure code. TerraFix combines repository-aware diagnosis with deterministic verification so a model suggestion becomes reviewable evidence—not an automatic infrastructure change.
 
+## Project repositories
+
+- [TerraFix dashboard and worker](https://github.com/JalinaH/semantic-terraform-dashboard) — this repository
+- [Semantic Terraform Agent](https://github.com/JalinaH/semantic-terraform-agent) — the Python diagnosis and verification engine
+
 ## Key features
 
 - GitHub OAuth sign-in and repository-scoped GitHub App installations
@@ -96,12 +101,12 @@ The web process is stateless between requests and never runs Git, Python, or Ter
 
 The landing page can be viewed without a complete GitHub integration. The authenticated dashboard and worker require the relevant environment variables below.
 
-## Local setup
+## Setup instructions
 
 ### 1. Install dependencies
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/JalinaH/semantic-terraform-dashboard.git
 cd semantic-terraform-dashboard
 pnpm install --frozen-lockfile
 ```
@@ -126,7 +131,24 @@ pnpm prisma migrate dev
 
 Use `pnpm prisma:migrate:deploy` instead of `migrate dev` in production.
 
-### 4. Start the dashboard
+### 4. Install the local agent used by the worker
+
+Clone the [Semantic Terraform Agent](https://github.com/JalinaH/semantic-terraform-agent) beside this repository, then install it in a Python virtual environment:
+
+```bash
+git clone https://github.com/JalinaH/semantic-terraform-agent.git ../semantic-terraform-agent
+python3 -m venv ../semantic-terraform-agent/.venv
+source ../semantic-terraform-agent/.venv/bin/activate
+python -m pip install -e '../semantic-terraform-agent'
+```
+
+Keep this virtual environment active when starting the local worker, or set `SEMANTIC_TERRAFORM_AGENT_COMMAND` to the installed executable.
+
+## Run instructions
+
+The dashboard and worker are separate long-running processes. Start each in its own terminal after completing the setup above.
+
+### 1. Start the dashboard
 
 ```bash
 pnpm dev
@@ -134,7 +156,7 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-### 5. Start the worker
+### 2. Start the worker
 
 The local worker requires Terraform and the Semantic Terraform Agent v1.2.0 on `PATH` unless `SEMANTIC_TERRAFORM_AGENT_COMMAND` points to a compatible executable.
 
@@ -237,6 +259,79 @@ git diff --check
 ```
 
 The test suite mocks GitHub, AWS, model, and webhook boundaries. It covers authorization, signed callbacks, idempotency, analytics semantics, repository configuration, worker lifecycle, patch provenance, publication, and conditional apply behavior. It does not claim a live third-party end-to-end run.
+
+## How to test the project end to end
+
+This test uses a small Terraform repository and a pull request that deliberately makes Terraform Plan fail. Before starting, the deployed dashboard, PostgreSQL database, and worker must be running; the worker must have `OPENROUTER_API_KEY`; and the GitHub App callback, setup, webhook URL, permissions, and **Workflow run** subscription must match [GitHub App configuration](#github-app-configuration).
+
+### 1. Create the sample GitHub repository
+
+Download the sample Terraform ZIP from the Google Drive link supplied with the submission and extract it. Create a new empty GitHub repository, then push the extracted files to its `main` branch. The repository must include `.github/workflows/terraform.yml` and the workflow name inside that file must be `Terraform CI`.
+
+```bash
+cd /path/to/extracted-sample
+git init
+git add .
+git commit -m "Add sample Terraform project"
+git branch -M main
+git remote add origin https://github.com/<your-user>/<your-repository>.git
+git push -u origin main
+```
+
+### 2. Connect GitHub to TerraFix
+
+1. Open the TerraFix dashboard and select **Continue with GitHub**.
+2. Authorize the GitHub account that owns the sample repository.
+3. Install the TerraFix GitHub App and grant it access to the sample repository. If the App was already installed for selected repositories, use **Configure** on GitHub to add this repository.
+4. Return to TerraFix and open **Repositories**. Confirm the sample repository appears and shows GitHub as connected.
+
+The installation needs **Metadata: Read**, **Actions: Read**, **Contents: Write**, and **Pull requests: Write**. TerraFix uses write access only for PR comments and an explicitly approved eligible patch; it never applies Terraform or merges the PR.
+
+### 3. Configure the repository
+
+Open the sample repository in TerraFix, enter the following values under **Repository configuration**, and select **Save configuration**:
+
+| Setting | Test value |
+| --- | --- |
+| TerraFix agent | Enabled |
+| Terraform directory | `.` |
+| Terraform version | `1.15.7` |
+| Model policy | Auto Optimize with maximum tier `Free`, or a currently available fixed free model |
+| Context mode | `Auto` |
+| Max repair attempts | `1` |
+| Pull-request workflow failures | Enabled |
+| Terraform workflow names | `Terraform CI` |
+| Terraform path patterns | `**/*.tf`, `**/*.tf.json` |
+| Failed Terraform stages | `plan` |
+
+AWS is optional for this demonstration; without it, the candidate receives isolated local validation. Do not continue until the repository page says **TerraFix is ready**.
+
+### 4. Create the failing pull request
+
+Create a branch from `main`, make a small change in a Terraform file, commit it, and push the branch:
+
+```bash
+git switch -c terrafix-demo
+# Edit variables.tf and introduce the supplied deliberate test regression.
+git add variables.tf
+git commit -m "Test TerraFix diagnosis"
+git push -u origin terrafix-demo
+```
+
+For the supplied sample, the deliberate regression is changing `database_deletion_protection` from `true` to `false` while `environment` remains `production`. If the downloaded sample already contains that regression, make a harmless comment change in `variables.tf` so the pull request still changes a path matched by `**/*.tf`.
+
+Open a pull request from `terrafix-demo` into `main`. The `Terraform CI` workflow should run and fail at **Terraform Plan** with `Production databases must enable deletion protection.` Do not merge the pull request.
+
+### 5. Verify the TerraFix result
+
+After GitHub marks the workflow as failed, its signed `workflow_run` webhook should automatically queue the agent—no manual agent workflow is required. Confirm that:
+
+1. A run appears under **Runs** in TerraFix and progresses from queued to running to completed.
+2. The run identifies the production deletion-protection constraint and proposes changing the value back to `true`.
+3. Verification evidence and model usage appear on the run page.
+4. TerraFix publishes an evidence-backed comment on the pull request when PR publication is available.
+
+OpenRouter's free routing can occasionally return no usable or malformed model response because free-model availability is best effort. If that happens, open the failed `Terraform CI` run in the GitHub **Actions** tab and choose **Re-run jobs** (or **Re-run all jobs**). The new failed workflow completion sends another webhook and gives TerraFix a fresh diagnosis attempt.
 
 ## Production deployment
 

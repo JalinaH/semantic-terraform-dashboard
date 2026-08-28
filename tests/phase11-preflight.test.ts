@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -5,15 +6,17 @@ const mocks = vi.hoisted(() => ({
   findNewer: vi.fn(),
   updateInstallation: vi.fn(),
   fetchHead: vi.fn(),
+  createApplication: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({ db: {
   agentRun: { findFirst: mocks.findRun },
   gitHubInstallation: { update: mocks.updateInstallation },
+  patchApplication: { create: mocks.createApplication },
 } }));
 vi.mock("@/lib/github/pull-requests", () => ({ fetchPullRequestHead: mocks.fetchHead }));
 
-import { preflightPatchApplication } from "@/lib/patch-application/service";
+import { preflightPatchApplication, requestPatchApplication } from "@/lib/patch-application/service";
 import { hashVerifiedPatch } from "@/lib/patch-application/eligibility";
 
 const HEAD = "a".repeat(40);
@@ -24,6 +27,7 @@ describe("PatchApplication authorization and GitHub preflight", () => {
     vi.clearAllMocks();
     mocks.findNewer.mockResolvedValue(null);
     mocks.updateInstallation.mockResolvedValue({});
+    mocks.createApplication.mockResolvedValue({ id: "application-1" });
   });
 
   it("returns access denied and never contacts GitHub for an inaccessible run", async () => {
@@ -46,6 +50,25 @@ describe("PatchApplication authorization and GitHub preflight", () => {
     mocks.findRun.mockResolvedValueOnce(null);
     mocks.fetchHead.mockResolvedValueOnce({ contentsPermission: "write", token: "ephemeral", snapshot: head() });
     await expect(preflightPatchApplication("user-a", "run-1")).resolves.toMatchObject({ ok: true, expectedHeadSha: HEAD, patchSha256: hashVerifiedPatch(PATCH), affectedFiles: ["main.tf"] });
+  });
+
+  it("deduplicates concurrent Apply requests through the database uniqueness gate", async () => {
+    mocks.findRun.mockResolvedValueOnce(run());
+    mocks.findRun.mockResolvedValueOnce(null);
+    mocks.fetchHead.mockResolvedValueOnce({ contentsPermission: "write", token: "ephemeral", snapshot: head() });
+    mocks.createApplication.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError("duplicate", {
+      code: "P2002",
+      clientVersion: "6.19.3",
+      meta: { target: ["agentRunId", "patchSha256", "expectedHeadSha"] },
+    }));
+    await expect(requestPatchApplication({
+      userId: "user-a",
+      userDisplay: "Alice",
+      agentRunId: "run-1",
+      submittedPatchSha256: hashVerifiedPatch(PATCH),
+      submittedExpectedHeadSha: HEAD,
+      conditionalApproval: false,
+    })).resolves.toMatchObject({ ok: false, code: "application_already_exists" });
   });
 });
 
