@@ -378,3 +378,7 @@ worker/                 Persistent diagnosis and patch-application worker
 ## Portfolio highlights
 
 This project demonstrates full-stack product engineering across secure OAuth and GitHub App integrations, event-driven job processing, AI routing and observability, infrastructure isolation, cloud identity, transactional data modeling, defensive source mutation, responsive UI design, automated testing, and container deployment.
+
+## License
+
+TerraFix is licensed under the [MIT License](LICENSE).

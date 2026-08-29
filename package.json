@@ -2,6 +2,7 @@
   "name": "semantic-terraform-dashboard",
   "version": "0.6.0",
   "description": "Production-shaped control plane for verified Terraform failure diagnosis.",
+  "license": "MIT",
   "private": true,
   "packageManager": "pnpm@10.24.0",
   "engines": {
