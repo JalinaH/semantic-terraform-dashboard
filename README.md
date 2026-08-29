@@ -270,7 +270,7 @@ This test uses a small Terraform repository and a pull request that deliberately
 
 ### 1. Create the sample GitHub repository
 
-Download the [sample Terraform project ZIP](https://drive.google.com/file/d/REPLACE_WITH_SAMPLE_TERRAFORM_ZIP_FILE_ID/view?usp=sharing) from Google Drive and extract it. This is a placeholder URL; replace `REPLACE_WITH_SAMPLE_TERRAFORM_ZIP_FILE_ID` after uploading the final ZIP. Create a new empty GitHub repository, then push the extracted files to its `main` branch. The repository must include `.github/workflows/terraform.yml` and the workflow name inside that file must be `Terraform CI`.
+Download the [sample Terraform project ZIP](https://drive.google.com/file/d/1J4Xn5zkJNa3b1N8gMuNZH81exiPQNxs-/view?usp=sharing) from Google Drive and extract it.
 
 ```bash
 cd /path/to/extracted-sample
